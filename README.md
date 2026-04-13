@@ -3,9 +3,10 @@
 > **Local-first, privacy-focused personal finance application.**  
 > Consolidates your assets, liabilities, and transactions in one secured dashboard.
 
-[![Backend CI](https://github.com/open-finance/open-finance/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/open-finance/open-finance/actions/workflows/backend-ci.yml)
-[![Frontend CI](https://github.com/open-finance/open-finance/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/open-finance/open-finance/actions/workflows/frontend-ci.yml)
-[![Release](https://img.shields.io/github/v/release/open-finance/open-finance)](https://github.com/open-finance/open-finance/releases/latest)
+[![Backend CI](https://github.com/albilu/open-finance/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/albilu/open-finance/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/albilu/open-finance/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/albilu/open-finance/actions/workflows/frontend-ci.yml)
+[![Publish Docker Image](https://github.com/albilu/open-finance/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/albilu/open-finance/actions/workflows/docker-publish.yml)
+[![Release](https://img.shields.io/github/v/release/albilu/open-finance)](https://github.com/albilu/open-finance/releases/latest)
 [![License: ELv2](https://img.shields.io/badge/License-Elastic_v2-blue.svg)](LICENSE)
 
 ---
