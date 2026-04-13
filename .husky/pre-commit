@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Backend: Run spotless check on Java files
+if git diff --cached --name-only | grep -q '\.java$'; then
+  echo "Running Spotless check..."
+  mvn spotless:check || {
+    echo "❌ Code formatting issues found. Run 'mvn spotless:apply' to fix."
+    exit 1
+  }
+fi
+
+# Frontend: Run lint-staged
+cd openfinance-ui && npx lint-staged

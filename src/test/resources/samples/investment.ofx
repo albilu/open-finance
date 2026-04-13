@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE" OLDFILEUID="NONE" NEWFILEUID="NONE"?>
+<OFX>
+  <INVSTMTMSGSRSV1>
+    <INVSTMTTRNRS>
+      <TRNUID>1</TRNUID>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <INVSTMTRS>
+        <DTASOF>20240115000000</DTASOF>
+        <CURDEF>USD</CURDEF>
+        <INVACCTFROM>
+          <BROKERID>12345</BROKERID>
+          <ACCTID>54321</ACCTID>
+        </INVACCTFROM>
+        <INVTRANLIST>
+          <DTSTART>20240101000000</DTSTART>
+          <DTEND>20240115000000</DTEND>
+          <BUYSTOCK>
+            <INVTRAN>
+              <FITID>INV001</FITID>
+              <DTTRADE>20240105120000</DTTRADE>
+            </INVTRAN>
+            <SECID>
+              <UNIQUEID>AAPL</UNIQUEID>
+              <UNIQUEIDTYPE>TICKER</UNIQUEIDTYPE>
+            </SECID>
+            <UNITS>10</UNITS>
+            <UNITPRICE>185.00</UNITPRICE>
+            <TOTAL>-1850.00</TOTAL>
+            <MEMO>Buy 10 shares of Apple</MEMO>
+          </BUYSTOCK>
+          <INCOME>
+            <INVTRAN>
+              <FITID>INV002</FITID>
+              <DTTRADE>20240110120000</DTTRADE>
+            </INVTRAN>
+            <SECID>
+              <UNIQUEID>MSFT</UNIQUEID>
+              <UNIQUEIDTYPE>TICKER</UNIQUEIDTYPE>
+            </SECID>
+            <INCOMETYPE>DIVIDEND</INCOMETYPE>
+            <TOTAL>25.50</TOTAL>
+            <MEMO>Dividend from Microsoft</MEMO>
+          </INCOME>
+        </INVTRANLIST>
+      </INVSTMTRS>
+    </INVSTMTTRNRS>
+  </INVSTMTMSGSRSV1>
+</OFX>

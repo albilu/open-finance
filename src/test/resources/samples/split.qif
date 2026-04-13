@@ -1,0 +1,20 @@
+!Type:Bank
+D01/15/2024
+T-100.00
+PWal-Mart
+MShopping trip
+LMultiple
+SFood:Groceries
+$60.00
+ESub-total for food
+SHousehold:Supplies
+$40.00
+ESub-total for supplies
+^
+D01/20/2024
+T-150.00
+PPublic Storage
+LStorage
+SStorage
+$150.00
+^

@@ -1,0 +1,54 @@
+# Conversion to YAML from Properties formar report
+# Warnings:
+# - The yaml file had comments which are lost in the refactoring!
+spring:
+  application:
+    name: open-finance-backend-test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ''
+  main:
+    allow-bean-definition-overriding: true
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        id:
+          new_generator_mappings: true
+          db_structure_naming_strategy: single
+  flyway:
+    enabled: false
+  test:
+    mockmvc:
+      print: default
+application:
+  version: 0.1.0
+  live-demo:
+    enabled: false
+  import:
+    allowed-extensions: .qif,.ofx,.qfx,.csv
+    max-file-size: 10MB
+    temp-directory: ./temp/imports
+    cleanup-after-hours: 24
+  seed:
+    enabled: false
+server:
+  port: 0
+logging:
+  level:
+    root: INFO
+    org:
+      openfinance: DEBUG
+      springframework:
+        web: WARN
+      hibernate:
+        SQL: DEBUG
+jwt:
+  secret: TEST_SECRET_KEY_FOR_TESTING_ONLY_DO_NOT_USE_IN_PRODUCTION
+  expiration: 3600000

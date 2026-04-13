@@ -1,0 +1,231 @@
+# Conversion to YAML from Properties formar report
+# Warnings:
+# - The yaml file had comments which are lost in the refactoring!
+spring:
+  application:
+    name: open-finance-backend
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  datasource:
+    url: jdbc:sqlite:openfinance.db?foreign_keys=on&journal_mode=WAL&busy_timeout=5000
+    driver-class-name: org.sqlite.JDBC
+    username: ''
+    password: ''
+    hikari:
+      # SQLite uses file-level locking; keep pool small to reduce contention.
+      # WAL mode (set in the JDBC URL above) allows concurrent reads + one writer.
+      # Requirement REQ-3.1: Performance – HikariCP tuning for SQLite
+      maximum-pool-size: 5
+      minimum-idle: 1
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+      pool-name: OpenFinancePool
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: none
+    # Disable SQL echo in production – avoids logging encrypted field values
+    # and reduces I/O overhead. Enable only in local dev profiles.
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        jdbc:
+          batch_size: 20
+          batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
+        session:
+          events:
+            log:
+              LOG_QUERIES_SLOWER_THAN_MS: 500
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+    sql-migration-prefix: V
+    sql-migration-separator: __
+    sql-migration-suffixes: .sql
+    mixed: true
+    validate-on-migrate: false
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+  task:
+    scheduling:
+      pool:
+        size: 5
+  cache:
+    type: caffeine
+    cache-names: dashboardSummary,accountSummaries,cashFlow,spendingByCategory,netWorthSummary,marketQuotes,exchangeRates
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=5m
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+    fallback-to-system-locale: true
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+application:
+  version: 0.1.0
+  
+  seed:
+    enabled: false
+  live-demo:
+    # Set to true only in development/demo environments.
+    # When enabled, seeds a complete realistic dataset for the 'demo' user on first startup.
+    # Must be false (or absent) in production.
+    enabled: false
+  security:
+    session-timeout: 900000
+    pbkdf2-iterations: 100000
+    # Requirement TASK-15.1.8: Account lockout after N failed attempts
+    max-failed-attempts: 5
+    lockout-duration-minutes: 15
+  encryption:
+    algorithm: AES/GCM/NoPadding
+    key-size: 256
+    iv-size: 12
+    tag-size: 128
+  market-data:
+    refresh-interval: 900000
+    cache-ttl: 900
+    yahoo-finance-url: http://localhost:5000
+    rate-limit-per-day: 2000
+  exchange-rates:
+    ecb-api-url: https://api.exchangerate.host
+    base-currency: EUR
+    cache-ttl: 86400
+  import:
+    allowed-extensions: .qif,.ofx,.qfx,.csv
+    temp-directory: ./temp/imports
+    cleanup-after-hours: 24
+  attachment:
+    storage-path: ./attachments
+    max-file-size: 10485760
+    allowed-types: application/pdf,image/jpeg,image/jpg,image/png,image/gif,image/webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv
+    encrypt-files: true
+    cleanup-orphaned-after-days: 30
+  scheduled:
+    # Scheduling mode options for each scheduler:
+    #   DEFAULT                   - use the built-in default cron for that scheduler
+    #   STARTUP_ONLY              - run once on startup, never again on a schedule
+    #   STARTUP_AND_EVERY_X_HOURS - run on startup then every interval-hours hours
+    #   EVERY_HOUR                - run once per hour (top of the hour)
+    #   DAILY                     - run once per day at midnight
+    market-data:
+      mode: DEFAULT
+      interval-hours: 6       # used only when mode is STARTUP_AND_EVERY_X_HOURS
+    exchange-rates:
+      mode: DEFAULT
+      interval-hours: 6
+    recurring-transactions:
+      mode: DEFAULT
+      interval-hours: 6
+    net-worth-snapshot:
+      mode: DEFAULT
+      interval-hours: 6
+    unusual-transaction-detection:
+      mode: DEFAULT
+      interval-hours: 6
+  ollama:
+    base-url: http://localhost:11434
+    #model: qwen2.5:0.5b
+    model: llama3.2:3b
+    timeout-seconds: 60
+    max-tokens: 2048
+    temperature: 0.7
+    max-history-messages: 10
+    max-context-tokens: 8192
+  ai:
+    # Active provider: 'ollama' (default) or 'openai'
+    provider: ollama
+    ollama:
+      base-url: ${application.ollama.base-url}
+      model: ${application.ollama.model}
+      temperature: ${application.ollama.temperature}
+      max-tokens: ${application.ollama.max-tokens}
+      timeout-seconds: ${application.ollama.timeout-seconds}
+    openai:
+      api-key: ''
+      model: gpt-4o-mini
+      temperature: 0.7
+      max-tokens: 2048
+      timeout-seconds: 60
+      base-url: ''
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:5173
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: '*'
+    allow-credentials: true
+    max-age: 3600
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+logging:
+  level:
+    root: INFO
+    org:
+      openfinance: INFO
+      springframework:
+        web: INFO
+      hibernate:
+        SQL: WARN
+        type:
+          descriptor:
+            sql:
+              BasicBinder: WARN
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss} - %msg%n'
+    file: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n'
+  file:
+    name: logs/application.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+jwt:
+  secret: REPLACE_WITH_SECURE_SECRET_IN_PRODUCTION
+  expiration: 86400000
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    defaults:
+      enabled: true
+app:
+  repair:
+    enabled: false
+    execute: false
+    demo-master-password: master123
+
+# Requirement TASK-15.3.2: Swagger / OpenAPI documentation configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: alpha
+    tagsSorter: alpha
+    display-request-duration: true
+    filter: true
+  show-actuator: false

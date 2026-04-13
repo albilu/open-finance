@@ -1,0 +1,234 @@
+{
+  "name": "Open-Finance Development",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  
+  // Features - additional tools and runtimes
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "installMaven": "true",
+      "mavenVersion": "3.9.6",
+      "installGradle": "false"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": true,
+      "installYarnUsingApt": false
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest",
+      "ppa": true
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    }
+  },
+  
+  // VSCode customizations
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Java extensions
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-spring-boot-dashboard",
+        "vmware.vscode-spring-boot",
+        "vscjava.vscode-maven",
+        "gabrielbb.vscode-lombok",
+        "redhat.vscode-xml",
+        
+        // Frontend extensions
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "styled-components.vscode-styled-components",
+        "dsznajder.es7-react-js-snippets",
+        
+        // TypeScript
+        "ms-vscode.vscode-typescript-next",
+        
+        // Database
+        "cweijan.vscode-database-client2",
+        
+        // Git
+        "eamodio.gitlens",
+        "github.vscode-pull-request-github",
+        
+        // Code quality
+        "sonarsource.sonarlint-vscode",
+        "ryanluker.vscode-coverage-gutters",
+        
+        // Testing
+        "vitest.explorer",
+        
+        // Utilities
+        "christian-kohler.path-intellisense",
+        "visualstudioexptteam.vscodeintellicode",
+        "streetsidesoftware.code-spell-checker",
+        "editorconfig.editorconfig",
+        "gruntfuggly.todo-tree",
+        
+        // Docker
+        "ms-azuretools.vscode-docker",
+        
+        // REST Client
+        "humao.rest-client"
+      ],
+      "settings": {
+        // Java settings (features install to standard locations)
+        "java.import.maven.enabled": true,
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.compile.nullAnalysis.mode": "automatic",
+        
+        // Editor settings
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "editor.rulers": [100, 120],
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        
+        // TypeScript/JavaScript settings
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[javascriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[json]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[css]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        
+        // Java formatting
+        "[java]": {
+          "editor.defaultFormatter": "redhat.java",
+          "editor.tabSize": 4
+        },
+        
+        // XML formatting
+        "[xml]": {
+          "editor.defaultFormatter": "redhat.vscode-xml",
+          "editor.tabSize": 4
+        },
+        
+        // ESLint
+        "eslint.validate": [
+          "javascript",
+          "javascriptreact",
+          "typescript",
+          "typescriptreact"
+        ],
+        
+        // Prettier
+        "prettier.requireConfig": false,
+        "prettier.useEditorConfig": true,
+        
+        // Files
+        "files.exclude": {
+          "**/.git": true,
+          "**/.DS_Store": true,
+          "**/node_modules": true,
+          "**/target": true,
+          "**/.settings": true,
+          "**/.classpath": true,
+          "**/.project": true
+        },
+        "files.watcherExclude": {
+          "**/.git/objects/**": true,
+          "**/node_modules/**": true,
+          "**/target/**": true
+        },
+        
+        // Terminal
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "icon": "terminal-bash"
+          }
+        },
+        
+        // Git
+        "git.autofetch": true,
+        "git.confirmSync": false,
+        "git.enableSmartCommit": true,
+        
+        // Coverage
+        "coverage-gutters.coverageFileNames": [
+          "target/site/jacoco/jacoco.xml",
+          "coverage/lcov.info"
+        ],
+        
+        // Testing
+        "java.test.config": {
+          "workingDirectory": "${workspaceFolder}"
+        }
+      }
+    }
+  },
+  
+  // Lifecycle scripts
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+  
+  // Container user
+  "remoteUser": "vscode",
+  
+  // Port forwarding
+  "forwardPorts": [
+    8080,  // Spring Boot backend
+    3000,  // React dev server
+    5173   // Vite dev server
+    // 5900 is available inside container but not forwarded by default
+    // Uncomment to forward VNC: 5900
+  ],
+  "portsAttributes": {
+    "8080": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Frontend (Production)",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Frontend (Dev)",
+      "onAutoForward": "notify"
+    }
+  },
+  
+  // Mount Docker socket for Docker-in-Docker
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  
+  // Run arguments
+  "runArgs": [
+    "--init",
+    "--shm-size=2gb"
+  ],
+  
+  // Environment variables
+  "containerEnv": {
+    "DISPLAY": ":99",
+    "NODE_ENV": "development"
+  }
+}

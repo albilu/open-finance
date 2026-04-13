@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount workspace
+      - ..:/workspace:cached
+      # Mount Docker socket for Docker-in-Docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persist bash history
+      - devcontainer-bashhistory:/commandhistory
+      # Persist Maven cache
+      - devcontainer-maven:/home/vscode/.m2
+      # Persist npm cache
+      - devcontainer-npm:/home/vscode/.npm
+      # Persist VSCode extensions
+      - devcontainer-vscode-extensions:/home/vscode/.vscode-server/extensions
+    
+    # Override default command to keep container running
+    command: sleep infinity
+    
+    # Network mode for Docker-in-Docker
+    network_mode: bridge
+    
+    # Privileged mode for Docker-in-Docker
+    privileged: true
+    
+    # Capabilities
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    
+    # Security options
+    security_opt:
+      - seccomp:unconfined
+    
+    # Environment variables
+    environment:
+      - DISPLAY=:99
+      - NODE_ENV=development
+    
+    # Port mapping
+    ports:
+      - "8080:8080"  # Spring Boot backend
+      - "3000:3000"  # Frontend production
+      - "5173:5173"  # Vite dev server
+      # VNC server (5900) - Uncomment if you need remote browser viewing
+      # - "5900:5900"
+
+volumes:
+  devcontainer-bashhistory:
+  devcontainer-maven:
+  devcontainer-npm:
+  devcontainer-vscode-extensions:

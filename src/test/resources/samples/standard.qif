@@ -1,0 +1,31 @@
+!Type:Bank
+D01/01/2024
+T-50.00
+PStarbucks
+MCoffee
+LFood:Dining
+^
+D01/05/2024
+T2500.00
+PEmployer Inc
+MSalary
+LIncome:Salary
+^
+!Type:CCard
+D01/10/2024
+T-120.00
+PVerizon
+MPhone Bill
+LBills:Phone
+^
+!Account
+NMy Checking Account
+TBank
+^
+!Type:Bank
+D01/12/2024
+T-30.00
+PAmazon
+MBooks
+LShopping
+^
