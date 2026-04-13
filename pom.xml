@@ -436,6 +436,12 @@
                 </configuration>
             </plugin>
 
+            <plugin>
+                <groupId>io.github.albilu</groupId>
+                <artifactId>test-watch-maven-plugin</artifactId>
+                <version>1.0.0</version>
+            </plugin>
+
         </plugins>
     </build>
 
