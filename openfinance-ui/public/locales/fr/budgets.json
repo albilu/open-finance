@@ -1,0 +1,162 @@
+{
+  "title": "Budgets",
+  "description": "Suivez et gérez vos budgets de dépenses",
+  "addBudget": "Ajouter un budget",
+  "autoCreate": "Créer automatiquement",
+  "loadError": "Impossible de charger les budgets. Veuillez réessayer ultérieurement.",
+  "saveError": "Impossible d'enregistrer le budget",
+  "alerts": {
+    "exceeded": "Budget dépassé : {{categoryName}}",
+    "warning": "Avertissement budget : {{categoryName}}",
+    "exceededMessage": "Vous avez dépensé {{pct}} % de votre budget {{categoryName}}.",
+    "warningMessage": "Vous avez utilisé {{pct}} % de votre budget {{categoryName}}."
+  },
+  "empty": {
+    "noBudgets": "Aucun budget pour l'instant",
+    "addFirst": "Créez votre premier budget pour commencer à suivre vos dépenses",
+    "noMatch": "Aucun budget correspondant",
+    "noMatchDescription": "Aucun budget ne correspond à vos filtres actuels. Essayez d'ajuster vos critères de recherche.",
+    "noBudgetsFound": "Aucun budget trouvé.",
+    "clearFilters": "Effacer les filtres"
+  },
+  "dialogs": {
+    "editTitle": "Modifier le budget",
+    "createTitle": "Créer un budget",
+    "delete": {
+      "title": "Supprimer le budget",
+      "description": "Êtes-vous sûr(e) de vouloir supprimer le budget pour « {{name}} » ? Cette action est irréversible.",
+      "confirmText": "Supprimer"
+    }
+  },
+  "form": {
+    "category": "Catégorie",
+    "categoryPlaceholder": "Rechercher et sélectionner une catégorie...",
+    "categorySearchPlaceholder": "Rechercher des catégories...",
+    "budgetPeriod": "Période du budget",
+    "budgetAmount": "Montant du budget",
+    "currency": "Devise",
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "rollover": "Reporter le budget non utilisé à la période suivante",
+    "notes": "Notes (Facultatif)",
+    "notesPlaceholder": "Ajoutez des notes sur ce budget...",
+    "searchPlaceholder": "Rechercher des budgets...",
+    "createBudget": "Créer le budget",
+    "updateBudget": "Mettre à jour le budget",
+    "cancel": "Annuler",
+    "periods": {
+      "WEEKLY": "Hebdomadaire",
+      "MONTHLY": "Mensuel",
+      "QUARTERLY": "Trimestriel",
+      "YEARLY": "Annuel",
+      "UNKNOWN": "Inconnu"
+    }
+  },
+  "card": {
+    "budget": "Budget",
+    "budgeted": "Budgété",
+    "spent": "Dépensé",
+    "remaining": "Restant",
+    "progress": "Progression",
+    "overBudgetBy": "Dépassé de",
+    "daysLeft_one": "{{count}} jour restant",
+    "daysLeft_other": "{{count}} jours restants",
+    "expired": "Expiré",
+    "viewHistory": "Voir l'historique du budget {{category}}",
+    "status": {
+      "onTrack": "Dans le budget",
+      "warning": "Attention",
+      "exceeded": "Dépassé"
+    }
+  },
+  "detail": {
+    "overallUsage": "Utilisation globale",
+    "spendingByPeriod": "Dépenses par période",
+    "periodBreakdown": "Détail par période ({{count}} périodes)",
+    "noHistory": "Aucune entrée d'historique trouvée pour ce budget.",
+    "loadError": "Impossible de charger l'historique du budget.",
+    "historyTitle": "Historique de {{category}}",
+    "periodLabel": "Budget {{period}} • {{startDate}} au {{endDate}}",
+    "columns": {
+      "period": "Période",
+      "dateRange": "Plage de dates",
+      "pctUsed": "% utilisé",
+      "status": "Statut"
+    }
+  },
+  "summary": {
+    "title": "Aperçu du budget",
+    "totalBudgeted": "Total budgétisé",
+    "totalSpent": "Total dépensé",
+    "remaining": "Restant",
+    "overBudget": "Dépassement",
+    "exceededBudget": "Budget dépassé",
+    "availableToSpend": "Disponible à dépenser",
+    "avgSpent": "Moy. dépensée",
+    "ofBudget": "du budget",
+    "activeCount": "{{active}} sur {{total}} actifs",
+    "filtered": "Filtré :",
+    "budgetsCount_one": "({{count}} budget)",
+    "budgetsCount_other": "({{count}} budgets)",
+    "over": "dépassé",
+    "remainingLabel": "restant"
+  },
+  "filters": {
+    "label": "Filtres",
+    "search": "Rechercher",
+    "period": "Période",
+    "allPeriods": "Toutes les périodes",
+    "clear": "Effacer"
+  },
+  "validation": {
+    "categoryRequired": "La catégorie est obligatoire",
+    "amountPositive": "Le montant doit être supérieur à 0",
+    "endDateAfterStart": "La date de fin doit être au moins 1 jour après la date de début",
+    "currencyRequired": "La devise doit être un code de 3 lettres",
+    "startDateRequired": "La date de début est obligatoire",
+    "endDateRequired": "La date de fin est obligatoire",
+    "notesTooLong": "Les notes sont trop longues"
+  },
+  "wizard": {
+    "title": "Créer automatiquement",
+    "step": "Étape {{step}} sur {{total}}",
+    "step1": {
+      "description": "Choisissez une période de budget cible et le nombre de mois d'historique de transactions à analyser. Nous calculerons les dépenses moyennes par catégorie et suggérerons des montants de budget.",
+      "budgetPeriod": "Période du budget",
+      "historyWindow": "Fenêtre d'historique",
+      "months_one": "{{count}} mois",
+      "months_other": "{{count}} mois",
+      "analyseError": "Impossible d'analyser les dépenses. Veuillez réessayer.",
+      "analysing": "Analyse en cours…",
+      "analyseSpending": "Analyser les dépenses"
+    },
+    "step2": {
+      "noData": "Aucune donnée de dépenses trouvée pour les {{months}} derniers mois.",
+      "noDataHint": "Essayez une fenêtre d'historique plus longue ou ajoutez d'abord des transactions.",
+      "suggestionsFound_one": "{{count}} suggestion trouvée",
+      "suggestionsFound_other": "{{count}} suggestions trouvées",
+      "selected": "{{count}} sélectionné(s)",
+      "selectAll": "Tout sélectionner",
+      "deselectAll": "Tout désélectionner",
+      "budgetExists": "Budget existant",
+      "avg": "Moy.",
+      "transactions_one": "{{count}} transaction",
+      "transactions_other": "{{count}} transactions",
+      "createError": "Impossible de créer les budgets. Veuillez réessayer.",
+      "creating": "Création en cours…",
+      "createBudgets_one": "Créer {{count}} budget",
+      "createBudgets_other": "Créer {{count}} budgets"
+    },
+    "step3": {
+      "created": "Créés",
+      "skipped": "Ignorés",
+      "errors": "Erreurs",
+      "skippedNote_one": "{{count}} budget a été ignoré car un budget pour cette catégorie et cette période existe déjà.",
+      "skippedNote_other": "{{count}} budgets ont été ignorés car un budget pour cette catégorie et cette période existe déjà.",
+      "errorsLabel": "Erreurs :"
+    },
+    "back": "Retour",
+    "cancel": "Annuler",
+    "done": "Terminé"
+  }
+}

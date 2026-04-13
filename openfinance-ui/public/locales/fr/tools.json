@@ -1,0 +1,238 @@
+{
+  "financialFreedom": {
+    "title": "Calculateur de liberté financière",
+    "description": "Planifiez votre chemin vers l'indépendance financière. Calculez quand votre épargne pourra subvenir à votre mode de vie.",
+    "calculator": {
+      "title": "Calculateur de liberté financière",
+      "reset": "Réinitialiser",
+      "calculate": "Calculer",
+      "calculating": "Calcul en cours...",
+      "useActualData": {
+        "title": "Utiliser vos données financières réelles",
+        "description": "Épargne actuelle : {{savings}} • Dépenses mensuelles moyennes : {{expenses}}",
+        "button": "Utiliser mes données"
+      },
+      "loadingData": "Chargement de vos données financières...",
+      "dataLoadError": "Impossible de charger vos données financières. Vous pouvez toujours saisir les valeurs manuellement.",
+      "fields": {
+        "currentSavings": {
+          "label": "Épargne actuelle",
+          "description": "Votre épargne et vos investissements totaux actuels"
+        },
+        "monthlyExpenses": {
+          "label": "Dépenses mensuelles",
+          "description": "Vos dépenses mensuelles prévues à la retraite"
+        },
+        "expectedReturn": {
+          "label": "Rendement annuel attendu (%)",
+          "description": "Moyenne historique : ~7 % (actions), ~3 % (obligations).",
+          "learnMore": "En savoir plus sur les intérêts composés"
+        },
+        "monthlyContribution": {
+          "label": "Contribution mensuelle",
+          "description": "Épargne mensuelle supplémentaire"
+        },
+        "withdrawalRate": {
+          "label": "Taux de retrait (%)",
+          "description": "Règle des 4 % : taux de retrait sûr (à ajuster selon votre tolérance au risque).",
+          "learnMore": "En savoir plus sur la règle des 4 %"
+        },
+        "inflationRate": {
+          "label": "Taux d'inflation (%)",
+          "description": "Utilisez les rendements réels (après inflation).",
+          "learnMore": "En savoir plus sur les rendements réels vs nominaux"
+        },
+        "adjustForInflation": "Ajuster pour l'inflation"
+      }
+    },
+    "results": {
+      "timeToFreedom": "Temps avant la liberté financière",
+      "achievable": "Réalisable !",
+      "notAchievable": "Non réalisable dans les 50 prochaines années",
+      "savingsWillLast": "L'épargne durera",
+      "forever": "Indéfiniment",
+      "returnsExceedExpenses": "Les rendements dépassent les dépenses",
+      "yearsPlural": "{{count}} ans",
+      "until": "Jusqu'en {{year}}",
+      "pathToFreedom": "Chemin vers la liberté financière",
+      "yearByYear": "Projection année par année",
+      "whatIf": "Analyse de scénarios",
+      "progressToGoal": "Progression vers l'objectif",
+      "percentOfGoal": "{{pct}} % de l'objectif",
+      "targetAmount": {
+        "title": "Montant cible",
+        "description": "Pour un revenu de {{income}}/an"
+      },
+      "passiveIncome": {
+        "title": "Revenu passif",
+        "description": "À un taux de retrait de {{rate}} %"
+      },
+      "timeToFreedom_years_one": "{{count}} an",
+      "timeToFreedom_years_other": "{{count}} ans",
+      "timeToFreedom_months_one": "{{count}} mois",
+      "timeToFreedom_months_other": "{{count}} mois"
+    }
+  },
+  "compoundInterest": {
+    "title": "Calculateur d'intérêts composés",
+    "description": "Visualisez la puissance des intérêts composés. Calculez comment vos investissements croissent dans le temps avec des contributions régulières.",
+    "calculator": {
+      "title": "Calculateur d'intérêts composés",
+      "calculate": "Calculer",
+      "calculating": "Calcul en cours...",
+      "reset": "Réinitialiser",
+      "fields": {
+        "principal": {
+          "label": "Capital initial",
+          "description": "Votre montant d'investissement de départ"
+        },
+        "annualRate": {
+          "label": "Taux d'intérêt annuel (%)",
+          "description": "Taux de rendement annuel attendu (ex. : 7 pour 7 %)"
+        },
+        "frequency": {
+          "label": "Fréquence de capitalisation",
+          "description": "Combien de fois les intérêts sont calculés par an",
+          "options": {
+            "annually": "Annuel (1x/an)",
+            "semiAnnually": "Semestriel (2x/an)",
+            "quarterly": "Trimestriel (4x/an)",
+            "monthly": "Mensuel (12x/an)",
+            "weekly": "Hebdomadaire (52x/an)",
+            "daily": "Quotidien (365x/an)"
+          }
+        },
+        "years": {
+          "label": "Durée (années)",
+          "description": "Durée prévue de l'investissement"
+        },
+        "contribution": {
+          "label": "Contribution régulière",
+          "description": "Montant ajouté à chaque période de capitalisation"
+        },
+        "contributionTiming": "Contribuer en début de période",
+        "contributionTimingDescription": "Activer cette option capitalise votre contribution une période supplémentaire (annuité de début)"
+      }
+    },
+    "results": {
+      "finalBalance": "Solde final",
+      "totalInterest": "Intérêts totaux",
+      "totalInvested": "Total investi",
+      "effectiveAnnualRate": "Taux annuel effectif",
+      "growthChart": "Croissance de l'investissement dans le temps",
+      "yearlyBreakdown": "Détail année par année",
+      "table": {
+        "year": "Année",
+        "startBalance": "Solde début",
+        "contributions": "Contributions",
+        "interest": "Intérêts gagnés",
+        "endBalance": "Solde fin",
+        "totalInterest": "Intérêts cumulés"
+      }
+    },
+    "chart": {
+      "principal": "Capital",
+      "contributions": "Contributions",
+      "interest": "Intérêts"
+    }
+  },
+  "common": {
+    "calculate": "Calculer",
+    "reset": "Réinitialiser"
+  },
+  "loanCalculator": {
+    "title": "Calculateur de prêt",
+    "description": "Calculez vos mensualités, le total des intérêts et consultez le tableau d'amortissement de votre prêt.",
+    "calculator": {
+      "title": "Calculateur de prêt"
+    },
+    "fields": {
+      "principal": "Montant du prêt",
+      "rate": "Taux d'intérêt annuel (%)",
+      "years": "Durée du prêt (années)"
+    },
+    "results": {
+      "monthlyPayment": "Paiement mensuel",
+      "totalInterest": "Total des intérêts",
+      "totalPayment": "Paiement total",
+      "chartTitle": "Évolution du solde",
+      "schedule": "Tableau d'amortissement (Annuel)",
+      "table": {
+        "year": "Année",
+        "payment": "Paiement total",
+        "principal": "Capital payé",
+        "interest": "Intérêts payés",
+        "balance": "Solde restant"
+      }
+    }
+  },
+  "earlyPayoff": {
+    "title": "Simulateur de remboursement anticipé",
+    "description": "Calculez l'impact d'un remboursement anticipé en capital sur votre prêt immobilier. Comparez la réduction de la durée ou la baisse de la mensualité.",
+    "fields": {
+      "loanBalance": "Capital restant dû",
+      "annualRate": "Taux d'intérêt annuel (%)",
+      "remainingYears": "Années restantes",
+      "remainingMonthsExtra": "Mois supplémentaires (0–11)",
+      "country": "Pays",
+      "applyIRA": "Appliquer les indemnités de remboursement anticipé (IRA – France)",
+      "lumpSumPayments": "Remboursements anticipés ponctuels",
+      "addPayment": "Ajouter un versement",
+      "removePayment": "Supprimer",
+      "paymentMonth": "Mois",
+      "paymentMonthDescription": "Mois à partir de maintenant où le versement est effectué (ex. 12 = dans un an)",
+      "paymentAmount": "Montant",
+      "monthlyExtraPayment": "Paiement mensuel supplémentaire",
+      "monthlyExtraPaymentDescription": "Montant fixe supplémentaire versé chaque mois en plus de la mensualité prévue"
+    },
+    "scenarios": {
+      "base": "Programme actuel",
+      "reduceDuration": "Réduire la durée",
+      "reducePayment": "Réduire la mensualité",
+      "comparison": "Comparaison des scénarios"
+    },
+    "results": {
+      "monthlyPayment": "Mensualité",
+      "newMonthlyPayment": "Nouvelle mensualité",
+      "remainingTerm": "Durée restante",
+      "totalInterest": "Total des intérêts",
+      "totalCost": "Coût total",
+      "interestSaved": "Intérêts économisés",
+      "timeSaved": "Temps gagné",
+      "months": "{{count}} mois",
+      "years": "{{years}} an(s) {{months}} mois",
+      "iraAmount": "Pénalité IRA",
+      "netSavings": "Économies nettes (après IRA)",
+      "totalLumpSum": "Total remboursé en anticipé",
+      "schedule": "Tableau d'amortissement (Annuel)",
+      "table": {
+        "year": "Année",
+        "payment": "Mensualités",
+        "principal": "Capital",
+        "interest": "Intérêts",
+        "lumpSum": "RA ponctuel",
+        "ira": "IRA",
+        "balance": "CRD"
+      }
+    },
+    "noPayments": "Ajoutez au moins un versement anticipé et cliquez sur Calculer pour voir les résultats.",
+    "iraInfo": {
+      "title": "Indemnités de Remboursement Anticipé (IRA)",
+      "body": "En vertu du droit français (Code de la consommation, art. L313-47), les IRA sont plafonnées au montant le plus faible entre : 6 mois d'intérêts sur le capital remboursé par anticipation, ou 3 % du capital restant dû avant le remboursement.",
+      "waiver": "Les IRA peuvent être supprimées dans certains cas (perte d'emploi, mutation professionnelle, vente de la résidence principale, etc.).",
+      "threshold": "Certains établissements bancaires exigent un remboursement minimum de 10 % du capital initial."
+    }
+  },
+  "premium": {
+    "title": "Premium",
+    "description": "Débloquez des fonctionnalités avancées et des insights personnalisés",
+    "comingSoon": "Offres premium bientôt disponibles",
+    "comingSoonDescription": "Nous finalisons les fonctionnalités premium telles que l'analyse avancée et le support prioritaire."
+  },
+  "community": {
+    "title": "Communauté",
+    "description": "Apprenez, partagez et connectez-vous avec d'autres utilisateurs d'Open Finance",
+    "comingSoon": "Fonctionnalités communautaires bientôt disponibles",
+    "comingSoonDescription": "Des forums de discussion, des conseils et des insights partagés seront disponibles ici prochainement."
+  }
+}

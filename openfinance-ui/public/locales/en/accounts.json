@@ -1,0 +1,189 @@
+{
+  "title": "Accounts",
+  "description": "Manage your financial accounts",
+  "addAccount": "Add Account",
+  "filters": "Filters",
+  "totalBalance": "Total Balance",
+  "filtered": "Filtered:",
+  "filteredCount": "({{filtered}} of {{total}} accounts)",
+  "decryptError": {
+    "title": "Cannot Decrypt Account Data",
+    "description": "Your master password appears to be incorrect. Account data cannot be decrypted.",
+    "logoutButton": "Logout and Try Again"
+  },
+  "loadError": "Failed to load accounts. Please try again later.",
+  "empty": {
+    "noResults": "No accounts found",
+    "noMatch": "No accounts match your filters. Try adjusting your search criteria.",
+    "noAccounts": "Create your first account to start tracking your finances"
+  },
+  "dialogs": {
+    "editTitle": "Edit Account",
+    "createTitle": "Create Account",
+    "close": {
+      "title": "Close Account",
+      "description": "Are you sure you want to close the account \"{{name}}\"? Closed accounts will no longer appear in active filters but their transaction history will be preserved.",
+      "confirmText": "Close Account"
+    },
+    "reopen": {
+      "title": "Reopen Account",
+      "description": "Are you sure you want to reopen the account \"{{name}}\"? This will make it active again.",
+      "confirmText": "Reopen Account"
+    },
+    "delete": {
+      "title": "Delete Account Permanently",
+      "description": "Are you sure you want to permanently delete the account \"{{name}}\"? All associated transactions will also be deleted. This action cannot be undone.",
+      "confirmText": "Delete Permanently"
+    },
+    "actionFailed": "Action Failed"
+  },
+  "form": {
+    "institution": "Institution (Optional)",
+    "selectBank": "Select your bank",
+    "accountName": "Account Name",
+    "accountNumber": "Account Number (Optional)",
+    "accountNumberHint": "Used for matching imported transactions",
+    "accountType": "Account Type",
+    "currency": "Currency",
+    "initialBalance": "Initial Balance",
+    "currentBalance": "Current Balance",
+    "description": "Description (Optional)",
+    "descriptionPlaceholder": "Add notes about this account...",
+    "accountNamePlaceholder": "e.g., Main Checking",
+    "accountNumberPlaceholder": "e.g., 1234567890",
+    "searchPlaceholder": "Search accounts...",
+    "searchInstitutionPlaceholder": "Search by institution...",
+    "interestCalculation": "Interest Calculation",
+    "interestCalculationHint": "Track interest earnings on this account",
+    "compounding": "Compounding",
+    "interestRate": "Interest Rate %",
+    "taxRate": "Tax Rate %",
+    "interestEditHint": "To manage interest rates over time, use the Interest Rates section on the Account Details page.",
+    "interestPreviewTitle": "Estimated 1-Year Return Preview",
+    "grossInterest": "Gross Interest",
+    "taxDeduction": "Tax Deduction",
+    "netEarnings": "Net Earnings",
+    "interestPreviewHint": "Enter a balance and interest rate above to see a projected return preview.",
+    "createAccount": "Create Account",
+    "updateAccount": "Update Account",
+    "cancel": "Cancel",
+    "types": {
+      "CHECKING": "Checking",
+      "SAVINGS": "Savings",
+      "CREDIT_CARD": "Credit Card",
+      "INVESTMENT": "Investment",
+      "CASH": "Cash",
+      "OTHER": "Other"
+    },
+    "periods": {
+      "DAILY": "Daily",
+      "MONTHLY": "Monthly",
+      "QUARTERLY": "Quarterly",
+      "HALF_YEARLY": "Half-Yearly",
+      "ANNUAL": "Annual"
+    }
+  },
+  "card": {
+    "balance": "Balance",
+    "earnedSoFar": "Earned so far",
+    "projectedNet": "Proj. 1Y Net",
+    "inactive": "Inactive",
+    "loadingAccounts": "Loading accounts...",
+    "failedToLoad": "Failed to load accounts",
+    "noAccountsMatch": "No accounts match your search",
+    "searchAccounts": "Search accounts",
+    "none": "None"
+  },
+  "detail": {
+    "currentBalance": "Current Balance",
+    "closed": "Closed",
+    "edit": "Edit",
+    "overview": "Overview",
+    "interest": "Interest",
+    "attachments": "Attachments",
+    "balanceHistory": "Balance History",
+    "noBalanceHistory": "No balance history for this period",
+    "balance": "Balance",
+    "recentTransactions": "Recent Transactions",
+    "noTransactions": "No transactions for this account",
+    "viewAllTransactions": "View All Transactions",
+    "details": "Details",
+    "accountNumber": "Account Number",
+    "type": "Type",
+    "currency": "Currency",
+    "institution": "Institution",
+    "description": "Description",
+    "failedToLoad": "Failed to load account details.",
+    "editTitle": "Edit Account"
+  },
+  "filters": {
+    "search": "Search",
+    "accountType": "Account Type",
+    "currency": "Currency",
+    "status": "Status",
+    "sortBy": "Sort By",
+    "minBalance": "Min Balance",
+    "maxBalance": "Max Balance",
+    "institution": "Institution",
+    "allTypes": "All types",
+    "allAccounts": "All accounts",
+    "active": "Active",
+    "closed": "Closed",
+    "clear": "Clear",
+    "lowBalance": "Low Balance",
+    "types": {
+      "CHECKING": "Checking Account",
+      "SAVINGS": "Savings Account",
+      "CREDIT_CARD": "Credit Card",
+      "INVESTMENT": "Investment Account",
+      "CASH": "Cash",
+      "OTHER": "Other"
+    },
+    "sort": {
+      "nameAsc": "Name (A-Z)",
+      "nameDesc": "Name (Z-A)",
+      "balanceDesc": "Balance (High to Low)",
+      "balanceAsc": "Balance (Low to High)",
+      "newestFirst": "Newest First",
+      "oldestFirst": "Oldest First"
+    }
+  },
+  "interest": {
+    "historyTitle": "Interest Rate History",
+    "historyDescription": "Manage interest rates applied to this account over time",
+    "earnedSoFar": "Earned so far",
+    "projectedNet": "Proj. 1Y Net",
+    "totalProduced": "Total Produced",
+    "addRate": "Add Rate",
+    "cols": {
+      "effectiveDate": "Effective Date",
+      "interestRate": "Interest Rate",
+      "taxRate": "Tax Rate",
+      "periodActive": "Period Active",
+      "interestProduced": "Interest Produced"
+    },
+    "today": "today",
+    "noVariations": "No interest rate variations found. Add one to start calculating interest.",
+    "addDialog": {
+      "title": "Add Interest Rate",
+      "effectiveDate": "Effective Date",
+      "interestRate": "Interest Rate (%)",
+      "taxRate": "Tax Rate (%)",
+      "saveRate": "Save Rate"
+    },
+    "deleteConfirm": "Are you sure you want to delete this interest rate variation?"
+  },
+  "validation": {
+    "nameRequired": "Name is required",
+    "nameTooLong": "Name is too long",
+    "accountNumberTooLong": "Account number is too long",
+    "descriptionTooLong": "Description is too long",
+    "balanceNegative": "Balance cannot be negative for this account type",
+    "interestRatePositive": "Interest rate must be greater than 0",
+    "interestRateMustBePositive": "Rate must be positive",
+    "taxRateMustBePositive": "Tax rate must be positive",
+    "taxRateMax": "Tax rate cannot exceed 100",
+    "effectiveDateRequired": "Effective date is required",
+    "duplicateName": "An account with this name already exists"
+  }
+}

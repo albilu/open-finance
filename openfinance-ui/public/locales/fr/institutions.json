@@ -1,0 +1,50 @@
+{
+  "title": "Institutions",
+  "description": "Gérez vos institutions financières. Les institutions européennes par défaut ne peuvent pas être modifiées.",
+  "addInstitution": "Ajouter une institution",
+  "searchPlaceholder": "Rechercher des institutions...",
+  "loadError": "Impossible de charger les institutions. Veuillez réessayer.",
+  "custom": {
+    "title": "Institutions personnalisées",
+    "empty": "Aucune institution personnalisée",
+    "addFirst": "Ajouter votre première institution",
+    "noResults": "Aucune institution personnalisée ne correspond à votre recherche"
+  },
+  "system": {
+    "title": "Institutions par défaut ({{count}})",
+    "description": "Ce sont des institutions européennes préchargées et ne peuvent pas être modifiées.",
+    "andMore": "Et {{count}} de plus...",
+    "showFewer": "Afficher moins"
+  },
+  "form": {
+    "editTitle": "Modifier l'institution",
+    "addTitle": "Ajouter une institution",
+    "name": "Nom de l'institution *",
+    "namePlaceholder": "ex. Ma Banque",
+    "nameRequired": "Le nom de l'institution est obligatoire",
+    "bic": "Code BIC",
+    "bicPlaceholder": "ex. BNPAFRPP",
+    "bicHelp": "Code identifiant bancaire de 8 ou 11 caractères (ISO 9362)",
+    "bicLengthError": "Le code BIC doit comporter exactement 8 ou 11 caractères (ISO 9362)",
+    "country": "Pays",
+    "logo": "Logo (Facultatif)",
+    "logoPreview": "Aperçu du logo",
+    "changeLogo": "Changer le logo",
+    "uploadLogo": "Télécharger le logo",
+    "removeLogo": "Supprimer",
+    "logoHelp": "PNG, JPEG, WebP ou SVG. Max 500 Ko. Recommandé : 128x128px.",
+    "logoInvalidType": "Type de fichier invalide. Veuillez utiliser PNG, JPEG, WebP ou SVG.",
+    "logoTooLarge": "Fichier trop volumineux. La taille maximale est de 500 Ko.",
+    "logoReadError": "Impossible de lire le fichier. Veuillez réessayer.",
+    "cancel": "Annuler",
+    "update": "Mettre à jour",
+    "create": "Créer"
+  },
+  "deleteDialog": {
+    "title": "Supprimer l'institution",
+    "description": "Êtes-vous sûr(e) de vouloir supprimer « {{name}} » ? Cette action est irréversible.",
+    "cancel": "Annuler",
+    "confirm": "Supprimer",
+    "error": "Impossible de supprimer cette institution"
+  }
+}

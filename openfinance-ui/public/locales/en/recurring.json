@@ -1,0 +1,149 @@
+{
+  "title": "Recurring Transactions",
+  "description": "Manage automated transactions that repeat on a schedule",
+  "addRecurring": "Add Recurring Transaction",
+  "filters": {
+    "label": "Filters",
+    "search": "Search",
+    "searchPlaceholder": "Search by description...",
+    "account": "Account",
+    "allAccounts": "All Accounts",
+    "type": "Type",
+    "allTypes": "All Types",
+    "income": "Income",
+    "expense": "Expense",
+    "transfer": "Transfer",
+    "frequency": "Frequency",
+    "allFrequencies": "All Frequencies",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "biweekly": "Every 2 Weeks",
+    "monthly": "Monthly",
+    "quarterly": "Quarterly",
+    "yearly": "Yearly",
+    "status": "Status",
+    "allStatus": "All Status",
+    "activeOnly": "Active Only",
+    "pausedOnly": "Paused Only",
+    "clearFilters": "Clear Filters"
+  },
+  "badges": {
+    "active_one": "{{count}} Active",
+    "active_other": "{{count}} Active",
+    "activeFiltered": "{{filtered}} / {{total}} Active",
+    "paused_one": "{{count}} Paused",
+    "paused_other": "{{count}} Paused",
+    "pausedFiltered": "{{filtered}} / {{total}} Paused",
+    "ended_one": "{{count}} Ended",
+    "ended_other": "{{count}} Ended",
+    "endedFiltered": "{{filtered}} / {{total}} Ended",
+    "due_one": "{{count}} Due",
+    "due_other": "{{count}} Due",
+    "dueFiltered": "{{filtered}} / {{total}} Due"
+  },
+  "empty": {
+    "noRecurring": "No recurring transactions",
+    "description": "Set up automated transactions that repeat on a schedule",
+    "addFirstCta": "Add Your First Recurring Transaction",
+    "noResults": "No results match your filters",
+    "noResultsDescription": "Try adjusting or clearing your filters"
+  },
+  "dialogs": {
+    "editTitle": "Edit Recurring Transaction",
+    "createTitle": "Add Recurring Transaction",
+    "delete": {
+      "title": "Delete Recurring Transaction",
+      "description": "Are you sure you want to delete \"{{description}}\"? This will not affect transactions already created from this recurring transaction.",
+      "confirmText": "Delete"
+    }
+  },
+  "saveError": "Failed to save recurring transaction. Please check your input and try again.",
+  "loadError": "Error loading recurring transactions: {{message}}",
+  "form": {
+    "type": "Type",
+    "amount": "Amount",
+    "approx": "Approx.",
+    "inBaseCurrency": "in your base currency",
+    "currency": "Currency",
+    "account": "Account",
+    "fromAccount": "From Account",
+    "toAccount": "To Account",
+    "selectAccount": "Select account...",
+    "payee": "Payee",
+    "payeePlaceholder": "Select or enter a payee...",
+    "description": "Description",
+    "descriptionPlaceholder": "e.g., Monthly rent payment",
+    "category": "Category",
+    "selectCategory": "Select category...",
+    "frequency": "Frequency",
+    "nextOccurrence": "Next Occurrence",
+    "endDate": "End Date (Optional)",
+    "endDatePlaceholder": "Leave empty for indefinite",
+    "notes": "Notes",
+    "notesPlaceholder": "Additional information...",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "update": "Update",
+    "create": "Create",
+    "validation": {
+      "accountRequired": "Account is required",
+      "amountPositive": "Amount must be positive",
+      "currencyLength": "Currency must be a 3-letter code",
+      "descriptionRequired": "Description is required",
+      "descriptionTooLong": "Description is too long",
+      "notesTooLong": "Notes are too long",
+      "nextOccurrenceRequired": "Next occurrence date is required",
+      "toAccountRequired": "To Account is required for transfers",
+      "endDateAfterNext": "End Date must be on or after the Next Occurrence date"
+    }
+  },
+  "status": {
+    "active": "Active",
+    "paused": "Paused",
+    "dueNow": "Due Now",
+    "dueSoon": "Due Soon",
+    "ended": "Ended"
+  },
+  "types": {
+    "INCOME": "Income",
+    "EXPENSE": "Expense",
+    "TRANSFER": "Transfer"
+  },
+  "detail": {
+    "edit": "Edit",
+    "amountLabel": "Amount per occurrence",
+    "tabs": {
+      "overview": "Overview",
+      "attachments": "Attachments"
+    },
+    "sections": {
+      "schedule": "Schedule",
+      "details": "Details",
+      "notes": "Notes"
+    },
+    "fields": {
+      "frequency": "Frequency",
+      "nextOccurrence": "Next Occurrence",
+      "endedOn": "Ended On",
+      "endDate": "End Date",
+      "created": "Created",
+      "type": "Type",
+      "account": "Account",
+      "toAccount": "To Account",
+      "payee": "Payee",
+      "category": "Category",
+      "currency": "Currency"
+    }
+  },
+  "card": {
+    "next": "Next: {{date}}",
+    "endedOn": "Ended on {{date}}",
+    "endsOn": "Ends on {{date}}",
+    "aria": {
+      "pause": "Pause recurring transaction",
+      "resume": "Resume recurring transaction",
+      "edit": "Edit recurring transaction",
+      "delete": "Delete recurring transaction"
+    }
+  }
+}

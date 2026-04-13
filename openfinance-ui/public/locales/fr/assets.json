@@ -1,0 +1,169 @@
+{
+  "title": "Actifs d'investissement",
+  "description": "Suivez et gérez votre portefeuille d'investissement",
+  "addAsset": "Ajouter un actif",
+  "refreshPrices": "Actualiser les prix",
+  "refreshing": "Actualisation...",
+  "filters": "Filtres",
+  "summary": {
+    "totalPortfolioValue": "Valeur totale du portefeuille",
+    "totalCostBasis": "Coût total de revient",
+    "initialInvestment": "Investissement initial",
+    "overallReturn": "Rendement global",
+    "bestPerformer": "Meilleure performance",
+    "noGainsYet": "Pas encore de gains"
+  },
+  "assetCount_one": "{{count}} actif",
+  "assetCount_other": "{{count}} actifs",
+  "filtered": "Filtré :",
+  "loadError": "Impossible de charger les actifs. Veuillez réessayer ultérieurement.",
+  "empty": {
+    "noResults": "Aucun actif trouvé",
+    "noMatch": "Aucun actif ne correspond à vos filtres. Essayez d'ajuster vos critères de recherche.",
+    "noAssets": "Ajoutez votre premier investissement pour commencer à suivre la performance de votre portefeuille"
+  },
+  "dialogs": {
+    "editTitle": "Modifier l'actif",
+    "createTitle": "Créer un actif"
+  },
+  "filtersPanel": {
+    "search": "Rechercher",
+    "assetType": "Type d'actif",
+    "allTypes": "Tous les types",
+    "currency": "Devise",
+    "symbol": "Symbole",
+    "sortBy": "Trier par",
+    "minValue": "Valeur minimale",
+    "maxValue": "Valeur maximale",
+    "purchasedFrom": "Acheté à partir du",
+    "purchasedTo": "Acheté jusqu'au",
+    "clear": "Effacer",
+    "sortOptions": {
+      "nameAsc": "Nom (A-Z)",
+      "nameDesc": "Nom (Z-A)",
+      "valueHighToLow": "Valeur (décroissant)",
+      "valueLowToHigh": "Valeur (croissant)",
+      "gainHighToLow": "Gain (décroissant)",
+      "gainLowToHigh": "Gain (croissant)",
+      "newestFirst": "Plus récent d'abord",
+      "oldestFirst": "Plus ancien d'abord"
+    }
+  },
+  "table": {
+    "name": "Nom",
+    "type": "Type",
+    "symbol": "Symbole",
+    "quantity": "Quantité",
+    "currentValue": "Valeur actuelle",
+    "costBasis": "Prix de revient",
+    "gainLoss": "Gain/Perte",
+    "return": "Rendement",
+    "account": "Compte",
+    "actions": "Actions",
+    "physicalAssets": "Actifs physiques",
+    "financialAssets": "Actifs financiers"
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Aperçu",
+      "attachments": "Pièces jointes"
+    },
+    "metrics": {
+      "currentValue": "Valeur actuelle",
+      "costBasis": "Prix de revient",
+      "gainLoss": "Gain/Perte"
+    },
+    "sections": {
+      "priceHistory": "Historique des prix",
+      "assetDetails": "Détails"
+    },
+    "fields": {
+      "type": "Type",
+      "purchaseDate": "Date d'achat",
+      "lastUpdated": "Dernière mise à jour",
+      "account": "Compte",
+      "notes": "Notes",
+      "daysHeld_one": "{{count}} jour détenu",
+      "daysHeld_other": "{{count}} jours détenus"
+    },
+    "actions": {
+      "close": "Fermer",
+      "delete": "Supprimer",
+      "edit": "Modifier"
+    },
+    "noHistoricalData": "Aucune donnée historique disponible pour cette période",
+    "addSymbolForHistory": "Ajoutez un symbole pour voir l'historique des prix",
+    "deleteConfirm": {
+      "title": "Supprimer l'actif",
+      "message": "Êtes-vous sûr de vouloir supprimer « {{name}} » ? Cette action est irréversible.",
+      "confirm": "Supprimer"
+    }
+  },
+  "validation": {
+    "nameRequired": "Le nom est requis",
+    "nameTooLong": "Le nom est trop long",
+    "quantityRequired": "La quantité doit être supérieure à 0",
+    "purchasePriceRequired": "Le prix d'achat doit être supérieur à 0",
+    "currentPriceRequired": "Le prix actuel doit être supérieur à 0",
+    "currencyInvalid": "La devise doit être un code de 3 lettres",
+    "purchaseDateRequired": "La date d'achat est requise",
+    "notesTooLong": "Les notes sont trop longues",
+    "symbolTooLong": "Le symbole est trop long"
+  },
+  "form": {
+    "assetType": "Type d'actif",
+    "account": "Compte (Facultatif)",
+    "assetName": "Nom de l'actif",
+    "symbol": "Symbole (Facultatif)",
+    "quantity": "Quantité",
+    "purchasePrice": "Prix d'achat",
+    "currentPrice": "Prix actuel",
+    "currency": "Devise",
+    "purchaseDate": "Date d'achat",
+    "notes": "Notes (Facultatif)",
+    "notesPlaceholder": "ex. : Investissement à long terme, réinvestissement des dividendes...",
+    "assetNamePlaceholder": "ex. : Apple Inc., Tesla Model 3, Montre Rolex",
+    "symbolPlaceholder": "ex. : AAPL",
+    "brandPlaceholder": "ex. : Tesla, Apple, Rolex",
+    "modelPlaceholder": "ex. : Model 3, iPhone 15, Submariner",
+    "serialNumberPlaceholder": "ex. : 5YJ3E1EA1KF123456",
+    "usefulLifePlaceholder": "ex. : 10",
+    "selectCurrencyPlaceholder": "Sélectionner une devise",
+    "searchPlaceholder": "Rechercher des actifs...",
+    "symbolFilterPlaceholder": "ex. : AAPL, BTC...",
+    "physicalDetails": "Détails de l'actif physique",
+    "brand": "Marque",
+    "model": "Modèle",
+    "serialNumber": "Numéro de série / NIV",
+    "condition": "État",
+    "selectCondition": "Sélectionner un état...",
+    "warrantyExpiration": "Expiration de la garantie",
+    "usefulLifeYears": "Durée de vie utile (années)",
+    "usefulLifeHint": "Pour le calcul de l'amortissement",
+    "createAsset": "Créer l'actif",
+    "updateAsset": "Mettre à jour l'actif",
+    "cancel": "Annuler",
+    "conditions": {
+      "NEW": "Neuf",
+      "EXCELLENT": "Excellent",
+      "GOOD": "Bon",
+      "FAIR": "Passable",
+      "POOR": "Mauvais"
+    }
+  },
+  "types": {
+    "STOCK": "Action",
+    "ETF": "FNB",
+    "CRYPTO": "Cryptomonnaie",
+    "BOND": "Obligation",
+    "MUTUAL_FUND": "Fonds commun de placement",
+    "COMMODITY": "Matière première",
+    "VEHICLE": "Véhicule",
+    "JEWELRY": "Bijoux",
+    "COLLECTIBLE": "Article de collection",
+    "ELECTRONICS": "Électronique",
+    "FURNITURE": "Mobilier",
+    "REAL_ESTATE": "Immobilier",
+    "OTHER": "Autre"
+  }
+}

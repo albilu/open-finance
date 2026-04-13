@@ -1,0 +1,36 @@
+{
+  "title": "Historique des Opérations",
+  "description": "Consultez et annulez les modifications apportées durant votre session",
+  "entityType": "Type d'Entité",
+  "name": "Nom / Libellé",
+  "operation": "Opération",
+  "date": "Date & Heure",
+  "status": "Statut",
+  "actions": "Actions",
+  "empty": "Aucune opération enregistrée dans cette session.",
+  "undo": "Annuler",
+  "redo": "Rétablir",
+  "undoSuccess": "Opération annulée avec succès",
+  "redoSuccess": "Opération rétablie avec succès",
+  "filters": {
+    "all": "Toutes les Entités",
+    "account": "Compte",
+    "transaction": "Transaction",
+    "asset": "Actif",
+    "liability": "Passif",
+    "realEstate": "Immobilier",
+    "budget": "Budget",
+    "category": "Catégorie"
+  },
+  "operations": {
+    "create": "Créé",
+    "update": "Mis à jour",
+    "delete": "Supprimé",
+    "unknown": "Inconnu"
+  },
+  "badge": {
+    "active": "Actif",
+    "undone": "Annulé",
+    "redone": "Rétabli"
+  }
+}

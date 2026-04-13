@@ -1,0 +1,107 @@
+{
+  "names": {
+    "foodAndDining": "Food & Dining",
+    "housing": "Housing",
+    "transportation": "Transportation",
+    "entertainment": "Entertainment",
+    "healthcare": "Healthcare",
+    "shopping": "Shopping",
+    "education": "Education",
+    "personalCare": "Personal Care",
+    "travel": "Travel",
+    "utilities": "Utilities",
+    "income": "Income",
+    "salary": "Salary",
+    "business": "Business",
+    "investment": "Investment",
+    "other": "Other",
+    "groceries": "Groceries",
+    "restaurants": "Restaurants",
+    "rent": "Rent",
+    "insurance": "Insurance",
+    "subscriptions": "Subscriptions",
+    "savings": "Savings",
+    "taxes": "Taxes",
+    "gifts": "Gifts",
+    "cashAndSavings": "Cash & Savings"
+  },
+  "title": "Categories",
+  "description": "Manage your transaction categories organized in a hierarchical tree structure",
+  "addCategory": "Add Category",
+  "summary": {
+    "totalCategories": "Total Categories",
+    "incomeTransactions": "Income Transactions",
+    "expenseTransactions": "Expense Transactions"
+  },
+  "tabs": {
+    "all": "All Categories",
+    "expenses": "Expenses",
+    "income": "Income"
+  },
+  "search": {
+    "placeholder": "Search categories..."
+  },
+  "select": {
+    "noCategory": "No category",
+    "createNew": "Create new category"
+  },
+  "sort": {
+    "label": "Sort by",
+    "byName": "Sort by Name",
+    "byTransactions": "Sort by Transactions",
+    "byAmount": "Sort by Amount"
+  },
+  "table": {
+    "name": "Name",
+    "transactionCount": "Transaction Count",
+    "totalAmount": "Total Amount",
+    "type": "Type",
+    "txns": "Txns",
+    "amount": "Amount"
+  },
+  "badges": {
+    "system": "System",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "income": "Income",
+    "expense": "Expense"
+  },
+  "aria": {
+    "editCategory": "Edit category",
+    "deleteCategory": "Delete category"
+  },
+  "loadError": {
+    "title": "Failed to load categories",
+    "description": "There was an error loading your categories. Please try again.",
+    "pageError": "Failed to load categories. Please try again later."
+  },
+  "empty": {
+    "noMatch": "No matching categories",
+    "noCategories": "No categories yet",
+    "adjustSearch": "Try adjusting your search query.",
+    "addFirst": "Create your first category to organize your transactions."
+  },
+  "form": {
+    "editTitle": "Edit Category",
+    "addTitle": "Add Category",
+    "name": "Name",
+    "type": "Type",
+    "expense": "Expense",
+    "income": "Income",
+    "parentCategory": "Parent Category (Optional)",
+    "color": "Color",
+    "icon": "Icon",
+    "cancel": "Cancel",
+    "update": "Update",
+    "create": "Create",
+    "saving": "Saving...",
+    "saveError": "Failed to save category. Please check your input and try again."
+  },
+  "dialogs": {
+    "delete": {
+      "title": "Delete Category",
+      "description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+      "confirmText": "Delete"
+    }
+  }
+}

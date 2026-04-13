@@ -1,0 +1,149 @@
+{
+  "title": "Transactions récurrentes",
+  "description": "Gérez les transactions automatisées qui se répètent selon un calendrier",
+  "addRecurring": "Ajouter une transaction récurrente",
+  "filters": {
+    "label": "Filtres",
+    "search": "Rechercher",
+    "searchPlaceholder": "Rechercher par description...",
+    "account": "Compte",
+    "allAccounts": "Tous les comptes",
+    "type": "Type",
+    "allTypes": "Tous les types",
+    "income": "Revenu",
+    "expense": "Dépense",
+    "transfer": "Virement",
+    "frequency": "Fréquence",
+    "allFrequencies": "Toutes les fréquences",
+    "daily": "Quotidien",
+    "weekly": "Hebdomadaire",
+    "biweekly": "Toutes les 2 semaines",
+    "monthly": "Mensuel",
+    "quarterly": "Trimestriel",
+    "yearly": "Annuel",
+    "status": "Statut",
+    "allStatus": "Tous les statuts",
+    "activeOnly": "Actives uniquement",
+    "pausedOnly": "En pause uniquement",
+    "clearFilters": "Effacer les filtres"
+  },
+  "badges": {
+    "active_one": "{{count}} actif",
+    "active_other": "{{count}} actifs",
+    "activeFiltered": "{{filtered}} / {{total}} actifs",
+    "paused_one": "{{count}} en pause",
+    "paused_other": "{{count}} en pause",
+    "pausedFiltered": "{{filtered}} / {{total}} en pause",
+    "ended_one": "{{count}} terminée",
+    "ended_other": "{{count}} terminées",
+    "endedFiltered": "{{filtered}} / {{total}} terminées",
+    "due_one": "{{count}} à échéance",
+    "due_other": "{{count}} à échéance",
+    "dueFiltered": "{{filtered}} / {{total}} à échéance"
+  },
+  "empty": {
+    "noRecurring": "Aucune transaction récurrente",
+    "description": "Configurez des transactions automatisées qui se répètent selon un calendrier",
+    "addFirstCta": "Ajouter votre première transaction récurrente",
+    "noResults": "Aucun résultat ne correspond à vos filtres",
+    "noResultsDescription": "Essayez d'ajuster ou d'effacer vos filtres"
+  },
+  "dialogs": {
+    "editTitle": "Modifier la transaction récurrente",
+    "createTitle": "Ajouter une transaction récurrente",
+    "delete": {
+      "title": "Supprimer la transaction récurrente",
+      "description": "Êtes-vous sûr(e) de vouloir supprimer « {{description}} » ? Cela n'affectera pas les transactions déjà créées à partir de cette transaction récurrente.",
+      "confirmText": "Supprimer"
+    }
+  },
+  "saveError": "Impossible d'enregistrer la transaction récurrente. Veuillez vérifier vos données et réessayer.",
+  "loadError": "Erreur lors du chargement des transactions récurrentes : {{message}}",
+  "form": {
+    "type": "Type",
+    "amount": "Montant",
+    "approx": "Environ",
+    "inBaseCurrency": "dans votre devise de base",
+    "currency": "Devise",
+    "account": "Compte",
+    "fromAccount": "Compte source",
+    "toAccount": "Compte destinataire",
+    "selectAccount": "Sélectionner un compte...",
+    "payee": "Bénéficiaire",
+    "payeePlaceholder": "Sélectionner ou saisir un bénéficiaire...",
+    "description": "Description",
+    "descriptionPlaceholder": "ex. : Paiement mensuel du loyer",
+    "category": "Catégorie",
+    "selectCategory": "Sélectionner une catégorie...",
+    "frequency": "Fréquence",
+    "nextOccurrence": "Prochaine occurrence",
+    "endDate": "Date de fin (Facultatif)",
+    "endDatePlaceholder": "Laisser vide pour une durée indéterminée",
+    "notes": "Notes",
+    "notesPlaceholder": "Informations complémentaires...",
+    "cancel": "Annuler",
+    "saving": "Enregistrement...",
+    "update": "Mettre à jour",
+    "create": "Créer",
+    "validation": {
+      "accountRequired": "Le compte est requis",
+      "amountPositive": "Le montant doit être positif",
+      "currencyLength": "La devise doit être un code à 3 lettres",
+      "descriptionRequired": "La description est requise",
+      "descriptionTooLong": "La description est trop longue",
+      "notesTooLong": "Les notes sont trop longues",
+      "nextOccurrenceRequired": "La date de prochaine occurrence est requise",
+      "toAccountRequired": "Le compte destinataire est requis pour les virements",
+      "endDateAfterNext": "La date de fin doit être égale ou postérieure à la prochaine occurrence"
+    }
+  },
+  "status": {
+    "active": "Actif",
+    "paused": "En pause",
+    "dueNow": "À régler maintenant",
+    "dueSoon": "À venir bientôt",
+    "ended": "Terminé"
+  },
+  "types": {
+    "INCOME": "Revenu",
+    "EXPENSE": "Dépense",
+    "TRANSFER": "Virement"
+  },
+  "detail": {
+    "edit": "Modifier",
+    "amountLabel": "Montant par occurrence",
+    "tabs": {
+      "overview": "Vue d'ensemble",
+      "attachments": "Pièces jointes"
+    },
+    "sections": {
+      "schedule": "Calendrier",
+      "details": "Détails",
+      "notes": "Notes"
+    },
+    "fields": {
+      "frequency": "Fréquence",
+      "nextOccurrence": "Prochaine occurrence",
+      "endedOn": "Terminé le",
+      "endDate": "Date de fin",
+      "created": "Créé le",
+      "type": "Type",
+      "account": "Compte",
+      "toAccount": "Vers le compte",
+      "payee": "Bénéficiaire",
+      "category": "Catégorie",
+      "currency": "Devise"
+    }
+  },
+  "card": {
+    "next": "Suivant : {{date}}",
+    "endedOn": "Terminé le {{date}}",
+    "endsOn": "Termine le {{date}}",
+    "aria": {
+      "pause": "Mettre en pause la transaction récurrente",
+      "resume": "Reprendre la transaction récurrente",
+      "edit": "Modifier la transaction récurrente",
+      "delete": "Supprimer la transaction récurrente"
+    }
+  }
+}

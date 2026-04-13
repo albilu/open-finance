@@ -1,0 +1,34 @@
+{
+  "generic": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. Please try again.",
+    "retry": "Try Again"
+  },
+  "search": {
+    "failed": "Search Failed",
+    "error": "{{error}}",
+    "noResults": "No results found",
+    "noResultsDescription": "No results found for \"{{query}}\". Try a different search term or adjust your filters.",
+    "found_one": "Found {{count}} result",
+    "found_other": "Found {{count}} results",
+    "foundWithTime_one": "Found {{count}} result in {{ms}}ms",
+    "foundWithTime_other": "Found {{count}} results in {{ms}}ms",
+    "placeholder": "Search across all your financial data",
+    "types": {
+      "TRANSACTION": "Transactions",
+      "ACCOUNT": "Accounts",
+      "ASSET": "Assets",
+      "REAL_ESTATE": "Real Estate",
+      "LIABILITY": "Liabilities",
+      "BUDGET": "Budgets",
+      "CATEGORY": "Categories",
+      "RECURRING_TRANSACTION": "Recurring",
+      "DEFAULT": "Results"
+    }
+  },
+  "profile": {
+    "loadError": "Failed to load profile. Please try again later.",
+    "updateError": "Failed to update profile. Please try again.",
+    "loading": "Loading profile..."
+  }
+}

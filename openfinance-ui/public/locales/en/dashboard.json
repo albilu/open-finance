@@ -1,0 +1,331 @@
+{
+  "title": "Dashboard",
+  "assetAllocation": {
+    "title": "Asset Allocation",
+    "tooltip": "The Asset Allocation treemap visualizes how your wealth is distributed across different asset classes, such as stocks, real estate, and crypto. The size of each block represents its proportional value in your total portfolio.",
+    "empty": "No assets to display.",
+    "emptySub": "Add assets to see allocation breakdown."
+  },
+  "subtitle": "Your financial overview as of {{date}}",
+  "addTransaction": "Add Transaction",
+  "cardsButton": "Cards",
+  "showCards": "Show dashboard cards",
+  "resetLayout": "Reset Layout",
+  "period": {
+    "last1d": "last 1d",
+    "last7d": "last 7d",
+    "last30d": "last 30d",
+    "ytd": "YTD",
+    "last1y": "last 1y",
+    "allTime": "all time",
+    "lastNDays": "last {{days}}d",
+    "custom": "{{from}} → {{to}}"
+  },
+  "cards": {
+    "netWorth": {
+      "label": "Net Worth",
+      "description": "Overall net worth summary"
+    },
+    "insights": {
+      "label": "AI Insights",
+      "description": "Personalized financial insights"
+    },
+    "currency": {
+      "label": "Currency Breakdown",
+      "description": "Multi-currency distribution"
+    },
+    "institutionBreakdown": {
+      "label": "By Institution",
+      "description": "Balance breakdown per institution"
+    },
+    "budgetProgress": {
+      "label": "Budget Progress",
+      "description": "Current period budget tracking"
+    },
+    "budgetCard": {
+      "title": "Budget Progress",
+      "tooltip": "Track your spending against set budgets for the current period.",
+      "viewAll": "View all",
+      "overall": "Overall Progress",
+      "over": "over",
+      "warning": "warning",
+      "spent": "spent",
+      "of": "of",
+      "active": "{{count}} active budgets",
+      "remaining": "remaining",
+      "loadError": "Failed to load budget summary",
+      "noBudgets": "No budgets defined for this period",
+      "setUp": "Set up budgets",
+      "createFirst": "Create your first budget",
+      "more": "+{{count}} more"
+    },
+    "cashFlow": {
+      "label": "Cash Flow",
+      "description": "Income vs expenses chart"
+    },
+    "cashflowSankey": {
+      "label": "Cash Flow Sankey",
+      "description": "Income & expense flow diagram"
+    },
+    "dailyCashFlow": {
+      "label": "Daily Cash Flow",
+      "description": "Daily expense/income calendar"
+    },
+    "recentTransactions": {
+      "label": "Recent Transactions",
+      "description": "Latest activity list"
+    },
+    "netWorthTrend": {
+      "label": "Net Worth Trend",
+      "description": "Historical net worth chart"
+    },
+    "portfolioPerformance": {
+      "label": "Portfolio Performance",
+      "description": "Performance metrics and sparklines"
+    },
+    "assetAllocation": {
+      "label": "Asset Allocation",
+      "description": "Allocation by asset class"
+    },
+    "borrowingCapacity": {
+      "label": "Borrowing Capacity",
+      "description": "Analysis of borrowing power"
+    },
+    "netWorthAllocation": {
+      "label": "Net Worth Allocation",
+      "description": "Net worth distribution"
+    },
+    "estimatedInterest": {
+      "label": "Estimated Interest",
+      "description": "Interest earned across accounts"
+    }
+  },
+  "stats": {
+    "totalAccounts": "Total Accounts",
+    "totalTransactions": "Total Transactions",
+    "totalAssets": "Total Assets",
+    "totalLiabilities": "Total Liabilities"
+  },
+  "errors": {
+    "cannotDecrypt": {
+      "title": "Cannot Decrypt Account Data",
+      "description": "Your master password appears to be incorrect."
+    },
+    "loadFailed": "Error loading dashboard",
+    "unexpected": "An unexpected error occurred"
+  },
+  "metrics": {
+    "netWorth": "Net Worth",
+    "netWorthTooltip": "Total value of all your assets minus liabilities",
+    "totalAssets": "Total Assets",
+    "totalAssetsTooltip": "Total value of all your accounts and investments",
+    "totalLiabilities": "Total Liabilities",
+    "totalLiabilitiesTooltip": "Total amount you owe across all loans and credit cards",
+    "vsPeriod": "vs {{period}}"
+  },
+  "insightsCard": {
+    "title": "AI Insights",
+    "priority": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "active": "({{count}} active)",
+    "generate": "Generate Insights",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "noInsights": "No insights available",
+    "generatePrompt": "Click 'Generate Insights' to analyze your financial data",
+    "dismiss": "Dismiss insight",
+    "loadFailed": "Failed to load insights",
+    "tooltip": "AI-powered insights analyse your transactions and spending patterns to surface personalized recommendations, warnings, and opportunities."
+  },
+  "calendar": {
+    "title": "Daily Cash Flow",
+    "subtitle": "Daily income and expenses",
+    "income": "Income",
+    "expense": "Expense",
+    "net": "Net",
+    "today": "Today",
+    "loadError": "Failed to load calendar data",
+    "days": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    }
+  },
+  "accountsCard": {
+    "title": "Accounts",
+    "count": "{{count}} accounts",
+    "empty": "No accounts yet",
+    "emptySub": "Create your first account to get started",
+    "viewDetails": "View {{name}} account details"
+  },
+  "transactions": {
+    "title": "Transactions",
+    "viewAll": "View all",
+    "empty": {
+      "title": "No transactions found",
+      "period": "No activity for {{period}}",
+      "first": "Add your first transaction to see activity"
+    },
+    "future": {
+      "title": "Scheduled for {{date}}",
+      "badge": "Future"
+    }
+  },
+  "cashFlowChart": {
+    "title": "Cash Flow",
+    "lastDays": "Last {{days}} days",
+    "net": "Net Cash Flow",
+    "income": "Income",
+    "expenses": "Expenses",
+    "tooltip": "Cash flow shows your total income vs. expenses over the selected period. Net cash flow = income minus expenses."
+  },
+  "currencyBreakdown": {
+    "title": "Assets by Currency",
+    "total": "Total Assets",
+    "item": "item",
+    "item_one": "item",
+    "item_other": "items",
+    "item_plural": "items",
+    "account": "account",
+    "account_one": "account",
+    "account_other": "accounts",
+    "account_plural": "accounts",
+    "percentOfTotal": "{{percent}}% of total",
+    "converting": "Converting...",
+    "footer": "Foreign currency values converted at current exchange rates",
+    "loadError": "Failed to load currency breakdown",
+    "rate": "Rate: {{rate}}"
+  },
+  "institutionBreakdown": {
+    "title": "Breakdown by Institution",
+    "total": "Total (base currency)",
+    "noInstitution": "Direct / No Institution",
+    "accountCount": "{{count}} account",
+    "accountCount_one": "{{count}} account",
+    "accountCount_other": "{{count}} accounts",
+    "accountCount_plural": "{{count}} accounts",
+    "percentOfTotal": "{{percent}}% of total"
+  },
+  "cashflowSankey": {
+    "title": "Cash Flow",
+    "lastDays": "Last {{days}} days",
+    "income": "Income",
+    "expenses": "Expenses",
+    "surplus": "Surplus",
+    "deficit": "Deficit",
+    "other": "Other",
+    "noData": "No cashflow data available",
+    "zoomHint": "Use the ± buttons or hold Ctrl + scroll to zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetZoom": "Reset zoom",
+    "uncategorized": "Uncategorized",
+    "unspecified": "UNSPECIFIED",
+    "centerLabel": "CASH FLOW"
+  },
+  "netWorthAllocation": {
+    "title": "Net Worth Allocation",
+    "description": "Distribution of assets and liabilities",
+    "tooltip": "This chart shows the absolute value of your assets vs. liabilities to visualize the distribution of your net worth components.",
+    "noData": "No data available",
+    "emptyDescription": "No asset or liability data found.",
+    "asset": "Asset",
+    "liability": "Liability"
+  },
+  "portfolioPerformance": {
+    "title": "Portfolio Performance",
+    "subtitle": "Key metrics and 30-day trends",
+    "metricsForPeriod": "Key metrics for {{period}}",
+    "empty": "No performance data available",
+    "emptySub": "Add assets to track portfolio performance.",
+    "noData": "No historical data",
+    "labels": {
+      "Total Value": "Total Value",
+      "Unrealized Gain": "Unrealized Gain",
+      "Cost Basis": "Cost Basis"
+    }
+  },
+  "netWorthTrend": {
+    "title": "Net Worth Trend",
+    "periodTrend": "Trend for {{period}}",
+    "dataPointsDays": "{{count}} data points over {{days}} days"
+  },
+  "borrowingCapacity": {
+    "title": "Borrowing Capacity",
+    "subtitle": "Based on {{days}}-day income and expense analysis",
+    "available": "Available Borrowing Capacity",
+    "ratio": "Debt-to-Income Ratio",
+    "monthlyIncome": "Monthly Income",
+    "monthlyExpenses": "Monthly Expenses",
+    "monthlyDebt": "Monthly Debt Payments",
+    "recommended": "Recommended Max Borrowing",
+    "insight": "Insight",
+    "status": {
+      "EXCELLENT": "EXCELLENT",
+      "GOOD": "GOOD",
+      "FAIR": "FAIR",
+      "POOR": "POOR",
+      "INSUFFICIENT_DATA": "Insufficient Data"
+    },
+    "insights": {
+      "excellent": "Excellent financial position! You have strong borrowing capacity.",
+      "good": "Good financial health with moderate borrowing capacity available.",
+      "fair": "Fair debt levels. Consider reducing debt before new borrowing.",
+      "poor": "High debt-to-income ratio. Focus on debt reduction is recommended."
+    }
+  },
+  "estimatedInterest": {
+    "title": "Estimated Interest",
+    "subtitle": "Interest earned over {{period}}",
+    "period": {
+      "1M": "last month",
+      "1Y": "last year",
+      "YTD": "year to date",
+      "default": "selected period"
+    },
+    "totalEarned": "Total Earned",
+    "projectedNextYear": "Projected Next Year",
+    "noData": "No interest data available for this period.",
+    "projShort": "Proj"
+  },
+  "assetTypes": {
+    "STOCK": "Stock",
+    "ETF": "ETF",
+    "MUTUAL_FUND": "Mutual Fund",
+    "BOND": "Bond",
+    "CRYPTO": "Cryptocurrency",
+    "COMMODITY": "Commodity",
+    "REAL_ESTATE": "Real Estate",
+    "VEHICLE": "Vehicle",
+    "JEWELRY": "Jewelry",
+    "COLLECTIBLE": "Collectible",
+    "ELECTRONICS": "Electronics",
+    "FURNITURE": "Furniture",
+    "OTHER": "Other"
+  },
+  "allocationCategories": {
+    "Real_Estate": "Real Estate",
+    "Cash___Savings": "Cash & Savings",
+    "Equities": "Equities",
+    "Fixed_Income": "Fixed Income",
+    "Crypto": "Crypto",
+    "Commodities": "Commodities",
+    "Other": "Other",
+    "Bonds": "Bonds",
+    "Money_Market": "Money Market",
+    "Mortgages": "Mortgages",
+    "Investments": "Investments",
+    "Other_Liabilities": "Other Liabilities",
+    "Credit_Cards": "Credit Cards",
+    "Checking": "Checking",
+    "Savings": "Savings",
+    "Pension": "Pension"
+  }
+}

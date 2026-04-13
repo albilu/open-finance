@@ -1,0 +1,42 @@
+{
+  "password": {
+    "minLength": "Password must be at least 8 characters",
+    "uppercase": "Password must contain at least one uppercase letter",
+    "lowercase": "Password must contain at least one lowercase letter",
+    "number": "Password must contain at least one number",
+    "special": "Password must contain at least one special character",
+    "required": "Password is required",
+    "confirm": "Please confirm your password",
+    "mismatch": "Passwords do not match",
+    "dontMatch": "Passwords don't match",
+    "changingPassword": "Changing Password...",
+    "changePassword": "Change Password"
+  },
+  "masterPassword": {
+    "minLength": "Master password must be at least 12 characters",
+    "uppercase": "Master password must contain at least one uppercase letter",
+    "lowercase": "Master password must contain at least one lowercase letter",
+    "number": "Master password must contain at least one number",
+    "special": "Master password must contain at least one special character",
+    "required": "Current master password is required",
+    "confirm": "Please confirm your master password",
+    "mismatch": "Master passwords do not match",
+    "dontMatch": "Master passwords don't match",
+    "minLengthShort": "Master password must be at least 8 characters"
+  },
+  "username": {
+    "minLength": "Username must be at least 3 characters",
+    "maxLength": "Username must be at most 50 characters",
+    "pattern": "Username can only contain letters, numbers, hyphens, and underscores",
+    "required": "Username is required"
+  },
+  "email": {
+    "required": "Email is required",
+    "invalid": "Invalid email address",
+    "provide": "Please provide an email to update"
+  },
+  "currentPassword": {
+    "required": "Current password is required",
+    "requiredForVerification": "Current password is required for verification"
+  }
+}

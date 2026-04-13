@@ -1,0 +1,331 @@
+{
+  "title": "Tableau de bord",
+  "assetAllocation": {
+    "title": "Allocation d'actifs",
+    "tooltip": "La carte proportionnelle d'allocation d'actifs visualise la répartition de votre patrimoine entre différentes classes d'actifs (actions, immobilier, crypto, etc.). La taille de chaque bloc représente sa valeur proportionnelle dans votre portefeuille total.",
+    "empty": "Aucun actif à afficher.",
+    "emptySub": "Ajoutez des actifs pour voir la répartition."
+  },
+  "subtitle": "Votre aperçu financier au {{date}}",
+  "addTransaction": "Ajouter une transaction",
+  "cardsButton": "Cartes",
+  "showCards": "Afficher les cartes du tableau de bord",
+  "resetLayout": "Réinitialiser la mise en page",
+  "period": {
+    "last1d": "1 dernier jour",
+    "last7d": "7 derniers jours",
+    "last30d": "30 derniers jours",
+    "ytd": "Depuis le début de l'année",
+    "last1y": "1 dernière année",
+    "allTime": "Toute la période",
+    "lastNDays": "{{days}} derniers jours",
+    "custom": "{{from}} → {{to}}"
+  },
+  "cards": {
+    "netWorth": {
+      "label": "Valeur nette",
+      "description": "Résumé de la valeur nette globale"
+    },
+    "insights": {
+      "label": "Insights IA",
+      "description": "Perspectives financières personnalisées"
+    },
+    "currency": {
+      "label": "Répartition par devise",
+      "description": "Distribution multidevise"
+    },
+    "institutionBreakdown": {
+      "label": "Par établissement",
+      "description": "Répartition du solde par établissement"
+    },
+    "budgetProgress": {
+      "label": "Avancement du budget",
+      "description": "Suivi du budget pour la période en cours"
+    },
+    "budgetCard": {
+      "title": "Avancement du budget",
+      "tooltip": "Suivez vos dépenses par rapport aux budgets définis pour la période en cours.",
+      "viewAll": "Voir tout",
+      "overall": "Progression globale",
+      "over": "en dépassement",
+      "warning": "alerte",
+      "spent": "dépensés",
+      "of": "sur",
+      "active": "{{count}} budgets actifs",
+      "remaining": "restants",
+      "loadError": "Échec du chargement du résumé du budget",
+      "noBudgets": "Aucun budget défini pour cette période",
+      "setUp": "Configurer les budgets",
+      "createFirst": "Créez votre premier budget",
+      "more": "+{{count}} de plus"
+    },
+    "cashFlow": {
+      "label": "Flux de trésorerie",
+      "description": "Graphique revenus/dépenses"
+    },
+    "cashflowSankey": {
+      "label": "Flux de trésorerie Sankey",
+      "description": "Diagramme des flux de revenus et dépenses"
+    },
+    "dailyCashFlow": {
+      "label": "Flux de trésorerie quotidien",
+      "description": "Calendrier des dépenses/revenus quotidiens"
+    },
+    "recentTransactions": {
+      "label": "Transactions récentes",
+      "description": "Liste des dernières activités"
+    },
+    "netWorthTrend": {
+      "label": "Évolution de la valeur nette",
+      "description": "Graphique historique de la valeur nette"
+    },
+    "portfolioPerformance": {
+      "label": "Performance du portefeuille",
+      "description": "Métriques de performance et sparklines"
+    },
+    "assetAllocation": {
+      "label": "Allocation d'actifs",
+      "description": "Répartition par classe d'actifs"
+    },
+    "borrowingCapacity": {
+      "label": "Capacité d'emprunt",
+      "description": "Analyse de la capacité d'emprunt"
+    },
+    "netWorthAllocation": {
+      "label": "Allocation de la valeur nette",
+      "description": "Distribution de la valeur nette"
+    },
+    "estimatedInterest": {
+      "label": "Intérêts estimés",
+      "description": "Intérêts perçus sur l'ensemble des comptes"
+    }
+  },
+  "stats": {
+    "totalAccounts": "Total des comptes",
+    "totalTransactions": "Total des transactions",
+    "totalAssets": "Total des actifs",
+    "totalLiabilities": "Total des passifs"
+  },
+  "errors": {
+    "cannotDecrypt": {
+      "title": "Impossible de déchiffrer les données du compte",
+      "description": "Votre mot de passe maître semble incorrect."
+    },
+    "loadFailed": "Erreur lors du chargement du tableau de bord",
+    "unexpected": "Une erreur inattendue s'est produite"
+  },
+  "metrics": {
+    "netWorth": "Valeur nette",
+    "netWorthTooltip": "Valeur totale de tous vos actifs moins vos passifs",
+    "totalAssets": "Total des actifs",
+    "totalAssetsTooltip": "Valeur totale de tous vos comptes et investissements",
+    "totalLiabilities": "Total des passifs",
+    "totalLiabilitiesTooltip": "Montant total que vous devez sur tous vos prêts et cartes de crédit",
+    "vsPeriod": "vs {{period}}"
+  },
+  "insightsCard": {
+    "title": "Insights IA",
+    "priority": {
+      "low": "Faible",
+      "medium": "Moyen",
+      "high": "Élevé"
+    },
+    "active": "({{count}} en cours)",
+    "generate": "Générer des insights",
+    "retry": "Réessayer",
+    "refresh": "Actualiser",
+    "noInsights": "Aucun insight disponible",
+    "generatePrompt": "Cliquez sur « Générer des insights » pour analyser vos données financières",
+    "dismiss": "Masquer l'insight",
+    "loadFailed": "Échec du chargement des insights",
+    "tooltip": "Les insights alimentés par l'IA analysent vos transactions et vos habitudes de dépenses pour faire ressortir des recommandations, des avertissements et des opportunités personnalisés."
+  },
+  "calendar": {
+    "title": "Flux de trésorerie quotidien",
+    "subtitle": "Revenus et dépenses quotidiens",
+    "income": "Revenu",
+    "expense": "Dépense",
+    "net": "Net",
+    "today": "Aujourd'hui",
+    "loadError": "Échec du chargement des données du calendrier",
+    "days": {
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Jeu",
+      "fri": "Ven",
+      "sat": "Sam",
+      "sun": "Dim"
+    }
+  },
+  "accountsCard": {
+    "title": "Comptes",
+    "count": "{{count}} comptes",
+    "empty": "Aucun compte pour le moment",
+    "emptySub": "Créez votre premier compte pour commencer",
+    "viewDetails": "Voir les détails du compte {{name}}"
+  },
+  "transactions": {
+    "title": "Transactions",
+    "viewAll": "Voir tout",
+    "empty": {
+      "title": "Aucune transaction trouvée",
+      "period": "Aucune activité pour {{period}}",
+      "first": "Ajoutez votre première transaction pour voir l'activité"
+    },
+    "future": {
+      "title": "Prévu pour le {{date}}",
+      "badge": "Futur"
+    }
+  },
+  "cashFlowChart": {
+    "title": "Flux de trésorerie",
+    "lastDays": "Les {{days}} derniers jours",
+    "net": "Flux de trésorerie net",
+    "income": "Revenus",
+    "expenses": "Dépenses",
+    "tooltip": "Le flux de trésorerie montre le total de vos revenus par rapport à vos dépenses sur la période sélectionnée. Flux de trésorerie net = revenus moins dépenses."
+  },
+  "currencyBreakdown": {
+    "title": "Actifs par devise",
+    "total": "Total des actifs",
+    "item": "élément",
+    "item_one": "élément",
+    "item_other": "éléments",
+    "item_plural": "éléments",
+    "account": "compte",
+    "account_one": "compte",
+    "account_other": "comptes",
+    "account_plural": "comptes",
+    "percentOfTotal": "{{percent}} % du total",
+    "converting": "Conversion...",
+    "footer": "Valeurs en devises étrangères converties aux taux de change actuels",
+    "loadError": "Échec du chargement de la répartition par devise",
+    "rate": "Taux : {{rate}}"
+  },
+  "institutionBreakdown": {
+    "title": "Répartition par établissement",
+    "total": "Total (devise de base)",
+    "noInstitution": "Direct / Aucun établissement",
+    "accountCount": "{{count}} compte",
+    "accountCount_one": "{{count}} compte",
+    "accountCount_other": "{{count}} comptes",
+    "accountCount_plural": "{{count}} comptes",
+    "percentOfTotal": "{{percent}} % du total"
+  },
+  "cashflowSankey": {
+    "title": "Flux de trésorerie",
+    "lastDays": "Les {{days}} derniers jours",
+    "income": "Revenus",
+    "expenses": "Dépenses",
+    "surplus": "Excédent",
+    "deficit": "Déficit",
+    "other": "Autre",
+    "noData": "Aucune donnée de flux de trésorerie disponible",
+    "zoomHint": "Utilisez les boutons ± ou maintenez Ctrl + défilement pour zoomer",
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière",
+    "resetZoom": "Réinitialiser le zoom",
+    "uncategorized": "Non catégorisé",
+    "unspecified": "NON SPÉCIFIÉ",
+    "centerLabel": "FLUX"
+  },
+  "netWorthAllocation": {
+    "title": "Allocation de la valeur nette",
+    "description": "Répartition des actifs et des passifs",
+    "tooltip": "Ce graphique montre la valeur absolue de vos actifs par rapport à vos passifs pour visualiser la répartition des composantes de votre valeur nette.",
+    "noData": "Aucune donnée disponible",
+    "emptyDescription": "Aucune donnée d'actif ou de passif trouvée.",
+    "asset": "Actif",
+    "liability": "Passif"
+  },
+  "portfolioPerformance": {
+    "title": "Performance du portefeuille",
+    "subtitle": "Métriques clés et tendances sur 30 jours",
+    "metricsForPeriod": "Métriques clés pour {{period}}",
+    "empty": "Aucune donnée de performance disponible",
+    "emptySub": "Ajoutez des actifs pour suivre la performance de votre portefeuille.",
+    "noData": "Aucune donnée historique",
+    "labels": {
+      "Total Value": "Valeur totale",
+      "Unrealized Gain": "Gain latent",
+      "Cost Basis": "Prix de revient"
+    }
+  },
+  "netWorthTrend": {
+    "title": "Évolution de la valeur nette",
+    "periodTrend": "Évolution pour {{period}}",
+    "dataPointsDays": "{{count}} points de données sur {{days}} jours"
+  },
+  "borrowingCapacity": {
+    "title": "Capacité d'emprunt",
+    "subtitle": "Basé sur une analyse des revenus et dépenses sur {{days}} jours",
+    "available": "Capacité d'emprunt disponible",
+    "ratio": "Rapport dette/revenu",
+    "monthlyIncome": "Revenu mensuel",
+    "monthlyExpenses": "Dépenses mensuelles",
+    "monthlyDebt": "Mensualités de dette",
+    "recommended": "Emprunt max. recommandé",
+    "insight": "Observation",
+    "status": {
+      "EXCELLENT": "EXCELLENT",
+      "GOOD": "BON",
+      "FAIR": "MOYEN",
+      "POOR": "FAIBLE",
+      "INSUFFICIENT_DATA": "Données insuffisantes"
+    },
+    "insights": {
+      "excellent": "Excellente situation financière ! Vous avez une forte capacité d'emprunt.",
+      "good": "Bonne santé financière avec une capacité d'emprunt modérée.",
+      "fair": "Niveaux d'endettement moyens. Pensez à réduire vos dettes avant tout nouvel emprunt.",
+      "poor": "Rapport dette/revenu élevé. Une réduction de la dette est recommandée."
+    }
+  },
+  "estimatedInterest": {
+    "title": "Intérêts estimés",
+    "subtitle": "Intérêts gagnés sur {{period}}",
+    "period": {
+      "1M": "le mois dernier",
+      "1Y": "l'année dernière",
+      "YTD": "l'année en cours",
+      "default": "la période sélectionnée"
+    },
+    "totalEarned": "Total gagné",
+    "projectedNextYear": "Projection année prochaine",
+    "noData": "Aucune donnée d'intérêt disponible pour cette période.",
+    "projShort": "Proj."
+  },
+  "assetTypes": {
+    "STOCK": "Action",
+    "ETF": "ETF",
+    "MUTUAL_FUND": "Fonds commun",
+    "BOND": "Obligation",
+    "CRYPTO": "Cryptomonnaie",
+    "COMMODITY": "Matière première",
+    "REAL_ESTATE": "Immobilier",
+    "VEHICLE": "Véhicule",
+    "JEWELRY": "Bijou",
+    "COLLECTIBLE": "Objet de collection",
+    "ELECTRONICS": "Électronique",
+    "FURNITURE": "Mobilier",
+    "OTHER": "Autre"
+  },
+  "allocationCategories": {
+    "Real_Estate": "Immobilier",
+    "Cash___Savings": "Liquidités et épargne",
+    "Equities": "Actions",
+    "Fixed_Income": "Titres à revenu fixe",
+    "Crypto": "Crypto",
+    "Commodities": "Matières premières",
+    "Other": "Autre",
+    "Bonds": "Obligations",
+    "Money_Market": "Marché monétaire",
+    "Mortgages": "Prêts immobiliers",
+    "Investments": "Investissements",
+    "Other_Liabilities": "Autres passifs",
+    "Credit_Cards": "Cartes de crédit",
+    "Checking": "Compte courant",
+    "Savings": "Épargne",
+    "Pension": "Retraite"
+  }
+}

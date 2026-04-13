@@ -1,0 +1,164 @@
+{
+  "title": "Transactions",
+  "description": "View and manage your transactions",
+  "addTransaction": "Add Transaction",
+  "filters": "Filters",
+  "filterKeys": {
+    "search": "Search",
+    "searchPlaceholder": "Search transactions...",
+    "allAccounts": "All accounts",
+    "allTypes": "All types",
+    "allCategories": "All categories",
+    "allPayees": "All payees",
+    "sortBy": "Sort By",
+    "sort": {
+      "dateNewest": "Date (Newest)",
+      "dateOldest": "Date (Oldest)",
+      "amountHigh": "Amount (High to Low)",
+      "amountLow": "Amount (Low to High)"
+    },
+    "minAmount": "Min Amount",
+    "maxAmount": "Max Amount",
+    "clear": "Clear",
+    "noCategory": "No Category",
+    "noPayee": "No Payee",
+    "filterByTag": "Filter by Tag",
+    "filteredByTag": "Filtered by tag:",
+    "dateRange": "Date Range",
+    "today": "Today",
+    "last7Days": "Last 7 days",
+    "last30Days": "Last 30 days",
+    "thisMonth": "This month",
+    "thisYear": "This year",
+    "from": "From",
+    "to": "To"
+  },
+  "loadError": "Failed to load transactions. Please try again later.",
+  "empty": {
+    "noResults": "No transactions found",
+    "noMatch": "Try adjusting your filters",
+    "noKeywordMatch": "No transactions match your search. Try a different keyword.",
+    "noTransactions": "Create your first transaction to get started",
+    "addCta": "Add Transaction"
+  },
+  "dialogs": {
+    "editTitle": "Edit Transaction",
+    "createTitle": "Create Transaction",
+    "delete": {
+      "title": "Delete Transaction",
+      "description": "This action is irreversible. The transaction will be permanently deleted.",
+      "confirmText": "Delete"
+    }
+  },
+  "form": {
+    "type": "Type",
+    "amount": "Amount",
+    "date": "Date",
+    "account": "Account",
+    "fromAccount": "From Account",
+    "toAccount": "To Account",
+    "payee": "Payee",
+    "payeeHint": "Select an existing payee or enter a new one. New payees are created automatically.",
+    "payeePlaceholder": "Select or enter a payee...",
+    "paymentMethod": "Payment Method",
+    "paymentMethodHint": "How the transaction was paid (optional)",
+    "selectPaymentMethod": "Select payment method",
+    "category": "Category",
+    "splitTransaction": "Split transaction",
+    "removeSplit": "Remove split",
+    "description": "Description",
+    "descriptionPlaceholder": "Brief description...",
+    "tags": "Tags (Optional)",
+    "tagsPlaceholder": "Add tags (e.g., business, groceries, vacation)",
+    "tagsHint": "Organize transactions with custom tags for easy filtering",
+    "notes": "Notes (Optional)",
+    "notesPlaceholder": "Additional details...",
+    "linkedLiability": "Linked Liability (Optional)",
+    "linkedLiabilityHint": "Link this payment to a loan or mortgage for tracking",
+    "selectLiability": "Select a liability to link",
+    "autoFilledFrom": "Auto-filled from payee:",
+    "createTransaction": "Create Transaction",
+    "updateTransaction": "Update Transaction",
+    "cancel": "Cancel",
+    "types": {
+      "INCOME": "Income",
+      "EXPENSE": "Expense",
+      "TRANSFER": "Transfer"
+    },
+    "paymentMethods": {
+      "CASH": "Cash",
+      "CHEQUE": "Cheque",
+      "CREDIT_CARD": "Credit Card",
+      "DEBIT_CARD": "Debit Card",
+      "BANK_TRANSFER": "Bank Transfer",
+      "DEPOSIT": "Deposit",
+      "STANDING_ORDER": "Standing Order",
+      "DIRECT_DEBIT": "Direct Debit",
+      "ONLINE": "Online",
+      "OTHER": "Other"
+    }
+  },
+  "detail": {
+    "edit": "Edit",
+    "amountLabel": "Amount",
+    "badges": {
+      "reconciled": "Reconciled",
+      "split": "Split"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "splits": "Splits",
+      "attachments": "Attachments"
+    },
+    "sections": {
+      "details": "Details",
+      "notes": "Notes",
+      "tags": "Tags",
+      "splitLines": "Split Lines"
+    },
+    "fields": {
+      "date": "Date",
+      "type": "Type",
+      "account": "Account",
+      "toAccount": "To Account",
+      "payee": "Payee",
+      "description": "Description",
+      "category": "Category",
+      "paymentMethod": "Payment Method",
+      "currency": "Currency"
+    }
+  },
+  "list": {
+    "noTransactions": "No transactions found",
+    "badges": {
+      "future": "Future",
+      "split": "Split"
+    },
+    "aria": {
+      "editTransfer": "Edit transfer (both sides will be updated)",
+      "editTransaction": "Edit transaction",
+      "transferSource": "Transfer source (money leaving)",
+      "transferDest": "Transfer destination (money entering)"
+    }
+  },
+  "splitForm": {
+    "categoryPlaceholder": "Select category (optional)...",
+    "notesPlaceholder": "Note (optional)",
+    "removeDisabledTitle": "At least two splits are required",
+    "removeTitle": "Remove this split",
+    "addSplit": "Add split",
+    "transactionTotal": "Transaction total",
+    "splitTotal": "Split total",
+    "balanced": "Balanced",
+    "remaining": "Remaining",
+    "overBy": "Over by",
+    "validation": {
+      "short": "Split amounts must add up to <bold>{{total}}</bold>. Currently <bold>{{amount}}</bold> short.",
+      "over": "Split amounts must add up to <bold>{{total}}</bold>. Currently <bold>{{amount}}</bold> over."
+    }
+  },
+  "splitDetail": {
+    "noCategory": "No category",
+    "noSplitDetails": "No split details available."
+  }
+}

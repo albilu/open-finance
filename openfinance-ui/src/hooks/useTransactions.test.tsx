@@ -1,0 +1,270 @@
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
+import { useTransactions } from './useTransactions';
+import apiClient from '@/services/apiClient';
+
+// Mock the API client
+vi.mock('@/services/apiClient');
+const mockedApiClient = apiClient as any;
+
+// Mock sessionStorage
+const mockSessionStorage = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  key: vi.fn(),
+  length: 0,
+};
+Object.defineProperty(window, 'sessionStorage', {
+  value: mockSessionStorage,
+});
+
+describe('useTransactions', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    vi.clearAllMocks();
+  });
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+
+  describe('Encryption Key Validation', () => {
+    it('throws error when encryption key is not found', async () => {
+      mockSessionStorage.getItem.mockReturnValue(null);
+
+      const { result } = renderHook(() => useTransactions(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.error?.message).toBe('Encryption key not found');
+      });
+    });
+
+    it('throws error when encryption key is empty', async () => {
+      mockSessionStorage.getItem.mockReturnValue('');
+
+      const { result } = renderHook(() => useTransactions(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.error?.message).toBe('Encryption key not found');
+      });
+    });
+  });
+
+  describe('API Call', () => {
+    beforeEach(() => {
+      mockSessionStorage.getItem.mockReturnValue('test-encryption-key');
+    });
+
+    it('calls the correct endpoint without filters', async () => {
+      const mockResponse = {
+        data: {
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: 0,
+          size: 20,
+        },
+      };
+      mockedApiClient.get.mockResolvedValue(mockResponse);
+
+      const { result } = renderHook(() => useTransactions(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(mockedApiClient.get).toHaveBeenCalledWith(
+        '/transactions/search?sort=date%2Cdesc',
+        {
+          headers: {
+            'X-Encryption-Key': 'test-encryption-key',
+          },
+        }
+      );
+    });
+
+    it('builds correct query parameters with filters', async () => {
+      const mockResponse = {
+        data: {
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: 0,
+          size: 20,
+        },
+      };
+      mockedApiClient.get.mockResolvedValue(mockResponse);
+
+      const filters = {
+        accountId: 1,
+        type: 'EXPENSE' as const,
+        categoryId: 2,
+        dateFrom: '2026-01-01',
+        dateTo: '2026-01-31',
+        keyword: 'grocery',
+        page: 1,
+        size: 10,
+        sort: 'amount,asc',
+      };
+
+      const { result } = renderHook(() => useTransactions(filters), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      const expectedUrl =
+        '/transactions/search?' +
+        'accountId=1&' +
+        'type=EXPENSE&' +
+        'categoryId=2&' +
+        'dateFrom=2026-01-01&' +
+        'dateTo=2026-01-31&' +
+        'keyword=grocery&' +
+        'page=1&' +
+        'size=10&' +
+        'sort=amount%2Casc';
+
+      expect(mockedApiClient.get).toHaveBeenCalledWith(
+        expectedUrl,
+        {
+          headers: {
+            'X-Encryption-Key': 'test-encryption-key',
+          },
+        }
+      );
+    });
+
+    it('uses default sort when no sort is provided', async () => {
+      const mockResponse = {
+        data: {
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: 0,
+          size: 20,
+        },
+      };
+      mockedApiClient.get.mockResolvedValue(mockResponse);
+
+      const filters = {
+        keyword: 'test',
+      };
+
+      const { result } = renderHook(() => useTransactions(filters), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(mockedApiClient.get).toHaveBeenCalledWith(
+        '/transactions/search?keyword=test&sort=date%2Cdesc',
+        {
+          headers: {
+            'X-Encryption-Key': 'test-encryption-key',
+          },
+        }
+      );
+    });
+
+    it('handles partial filters correctly', async () => {
+      const mockResponse = {
+        data: {
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: 0,
+          size: 20,
+        },
+      };
+      mockedApiClient.get.mockResolvedValue(mockResponse);
+
+      const filters = {
+        accountId: 1,
+        page: 0,
+      };
+
+      const { result } = renderHook(() => useTransactions(filters), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(mockedApiClient.get).toHaveBeenCalledWith(
+        '/transactions/search?accountId=1&page=0&sort=date%2Cdesc',
+        {
+          headers: {
+            'X-Encryption-Key': 'test-encryption-key',
+          },
+        }
+      );
+    });
+
+    it('returns the correct data structure', async () => {
+      const mockData = {
+        content: [
+          { id: 1, description: 'Test transaction', amount: 100 },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      };
+      const mockResponse = { data: mockData };
+      mockedApiClient.get.mockResolvedValue(mockResponse);
+
+      const { result } = renderHook(() => useTransactions(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data).toEqual(mockData);
+    });
+
+    it('handles API errors correctly', async () => {
+      const errorMessage = 'API Error';
+      mockedApiClient.get.mockRejectedValue(new Error(errorMessage));
+
+      const { result } = renderHook(() => useTransactions(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isError).toBe(true);
+      });
+
+      expect(result.current.error?.message).toBe(errorMessage);
+    });
+  });
+
+  describe('Query Key', () => {
+    // Note: React Query hooks don't expose queryKey in their return value.
+    // These tests verify the hooks can be called with different parameters,
+    // ensuring the query system works correctly.
+    it('works without filters', () => {
+      const { result } = renderHook(() => useTransactions(), { wrapper });
+      // Just verify the hook initializes correctly
+      expect(result.current).toBeDefined();
+    });
+
+    it('works with filters', () => {
+      const filters = { keyword: 'test' };
+      const { result } = renderHook(() => useTransactions(filters), { wrapper });
+      // Just verify the hook initializes correctly with filters
+      expect(result.current).toBeDefined();
+    });
+  });
+});

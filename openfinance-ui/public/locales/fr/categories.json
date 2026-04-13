@@ -1,0 +1,107 @@
+{
+  "names": {
+    "foodAndDining": "Alimentation & Restauration",
+    "housing": "Logement",
+    "transportation": "Transport",
+    "entertainment": "Divertissement",
+    "healthcare": "Santé",
+    "shopping": "Achats",
+    "education": "Éducation",
+    "personalCare": "Soins personnels",
+    "travel": "Voyages",
+    "utilities": "Services publics",
+    "income": "Revenus",
+    "salary": "Salaire",
+    "business": "Entreprise",
+    "investment": "Investissement",
+    "other": "Autre",
+    "groceries": "Épicerie",
+    "restaurants": "Restaurants",
+    "rent": "Loyer",
+    "insurance": "Assurance",
+    "subscriptions": "Abonnements",
+    "savings": "Épargne",
+    "taxes": "Impôts",
+    "gifts": "Cadeaux",
+    "cashAndSavings": "Épargne & Liquidités"
+  },
+  "title": "Catégories",
+  "description": "Gérez vos catégories de transactions organisées en arborescence hiérarchique",
+  "addCategory": "Ajouter une catégorie",
+  "summary": {
+    "totalCategories": "Total des catégories",
+    "incomeTransactions": "Transactions de revenus",
+    "expenseTransactions": "Transactions de dépenses"
+  },
+  "tabs": {
+    "all": "Toutes les catégories",
+    "expenses": "Dépenses",
+    "income": "Revenus"
+  },
+  "search": {
+    "placeholder": "Rechercher des catégories..."
+  },
+  "select": {
+    "noCategory": "Aucune catégorie",
+    "createNew": "Créer une nouvelle catégorie"
+  },
+  "sort": {
+    "label": "Trier par",
+    "byName": "Trier par nom",
+    "byTransactions": "Trier par transactions",
+    "byAmount": "Trier par montant"
+  },
+  "table": {
+    "name": "Nom",
+    "transactionCount": "Nombre de transactions",
+    "totalAmount": "Montant total",
+    "type": "Type",
+    "txns": "Trans.",
+    "amount": "Montant"
+  },
+  "badges": {
+    "system": "Système",
+    "expand": "Développer",
+    "collapse": "Réduire",
+    "income": "Revenu",
+    "expense": "Dépense"
+  },
+  "aria": {
+    "editCategory": "Modifier la catégorie",
+    "deleteCategory": "Supprimer la catégorie"
+  },
+  "loadError": {
+    "title": "Impossible de charger les catégories",
+    "description": "Une erreur s'est produite lors du chargement de vos catégories. Veuillez réessayer.",
+    "pageError": "Impossible de charger les catégories. Veuillez réessayer ultérieurement."
+  },
+  "empty": {
+    "noMatch": "Aucune catégorie correspondante",
+    "noCategories": "Aucune catégorie pour l'instant",
+    "adjustSearch": "Essayez d'ajuster votre recherche.",
+    "addFirst": "Créez votre première catégorie pour organiser vos transactions."
+  },
+  "form": {
+    "editTitle": "Modifier la catégorie",
+    "addTitle": "Ajouter une catégorie",
+    "name": "Nom",
+    "type": "Type",
+    "expense": "Dépense",
+    "income": "Revenu",
+    "parentCategory": "Catégorie parente (facultatif)",
+    "color": "Couleur",
+    "icon": "Icône",
+    "cancel": "Annuler",
+    "update": "Mettre à jour",
+    "create": "Créer",
+    "saving": "Enregistrement...",
+    "saveError": "Impossible d'enregistrer la catégorie. Veuillez vérifier votre saisie et réessayer."
+  },
+  "dialogs": {
+    "delete": {
+      "title": "Supprimer la catégorie",
+      "description": "Êtes-vous sûr(e) de vouloir supprimer « {{name}} » ? Cette action est irréversible.",
+      "confirmText": "Supprimer"
+    }
+  }
+}

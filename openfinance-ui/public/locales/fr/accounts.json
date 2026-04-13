@@ -1,0 +1,189 @@
+{
+  "title": "Comptes",
+  "description": "Gérez vos comptes financiers",
+  "addAccount": "Ajouter un compte",
+  "filters": "Filtres",
+  "totalBalance": "Solde total",
+  "filtered": "Filtré :",
+  "filteredCount": "({{filtered}} sur {{total}} comptes)",
+  "decryptError": {
+    "title": "Impossible de déchiffrer les données du compte",
+    "description": "Votre mot de passe maître semble incorrect. Les données du compte ne peuvent pas être déchiffrées.",
+    "logoutButton": "Se déconnecter et réessayer"
+  },
+  "loadError": "Impossible de charger les comptes. Veuillez réessayer ultérieurement.",
+  "empty": {
+    "noResults": "Aucun compte trouvé",
+    "noMatch": "Aucun compte ne correspond à vos filtres. Essayez d'ajuster vos critères de recherche.",
+    "noAccounts": "Créez votre premier compte pour commencer à suivre vos finances"
+  },
+  "dialogs": {
+    "editTitle": "Modifier le compte",
+    "createTitle": "Créer un compte",
+    "close": {
+      "title": "Clôturer le compte",
+      "description": "Êtes-vous sûr(e) de vouloir clôturer le compte « {{name}} » ? Les comptes clôturés n'apparaîtront plus dans les filtres actifs, mais leur historique de transactions sera conservé.",
+      "confirmText": "Clôturer le compte"
+    },
+    "reopen": {
+      "title": "Réouvrir le compte",
+      "description": "Êtes-vous sûr(e) de vouloir réouvrir le compte « {{name}} » ? Il redeviendra actif.",
+      "confirmText": "Réouvrir le compte"
+    },
+    "delete": {
+      "title": "Supprimer définitivement le compte",
+      "description": "Êtes-vous sûr(e) de vouloir supprimer définitivement le compte « {{name}} » ? Toutes les transactions associées seront également supprimées. Cette action est irréversible.",
+      "confirmText": "Supprimer définitivement"
+    },
+    "actionFailed": "Échec de l'opération"
+  },
+  "form": {
+    "institution": "Établissement (Facultatif)",
+    "selectBank": "Sélectionnez votre banque",
+    "accountName": "Nom du compte",
+    "accountNumber": "Numéro de compte (Facultatif)",
+    "accountNumberHint": "Utilisé pour associer les transactions importées",
+    "accountType": "Type de compte",
+    "currency": "Devise",
+    "initialBalance": "Solde initial",
+    "currentBalance": "Solde actuel",
+    "description": "Description (Facultatif)",
+    "descriptionPlaceholder": "Ajoutez des notes sur ce compte...",
+    "accountNamePlaceholder": "ex. : Compte courant principal",
+    "accountNumberPlaceholder": "ex. : 1234567890",
+    "searchPlaceholder": "Rechercher des comptes...",
+    "searchInstitutionPlaceholder": "Rechercher par établissement...",
+    "interestCalculation": "Calcul des intérêts",
+    "interestCalculationHint": "Suivre les revenus d'intérêts sur ce compte",
+    "compounding": "Capitalisation",
+    "interestRate": "Taux d'intérêt %",
+    "taxRate": "Taux d'imposition %",
+    "interestEditHint": "Pour gérer les taux d'intérêt dans le temps, utilisez la section Taux d'intérêt sur la page Détails du compte.",
+    "interestPreviewTitle": "Aperçu du rendement estimé sur 1 an",
+    "grossInterest": "Intérêts bruts",
+    "taxDeduction": "Déduction fiscale",
+    "netEarnings": "Revenus nets",
+    "interestPreviewHint": "Saisissez un solde et un taux d'intérêt ci-dessus pour voir un aperçu du rendement projeté.",
+    "createAccount": "Créer le compte",
+    "updateAccount": "Mettre à jour le compte",
+    "cancel": "Annuler",
+    "types": {
+      "CHECKING": "Courant",
+      "SAVINGS": "Épargne",
+      "CREDIT_CARD": "Carte de crédit",
+      "INVESTMENT": "Investissement",
+      "CASH": "Espèces",
+      "OTHER": "Autre"
+    },
+    "periods": {
+      "DAILY": "Quotidien",
+      "MONTHLY": "Mensuel",
+      "QUARTERLY": "Trimestriel",
+      "HALF_YEARLY": "Semestriel",
+      "ANNUAL": "Annuel"
+    }
+  },
+  "card": {
+    "balance": "Solde",
+    "earnedSoFar": "Gagné à ce jour",
+    "projectedNet": "Proj. net 1 an",
+    "inactive": "Inactif",
+    "loadingAccounts": "Chargement des comptes...",
+    "failedToLoad": "Impossible de charger les comptes",
+    "noAccountsMatch": "Aucun compte ne correspond à votre recherche",
+    "searchAccounts": "Rechercher des comptes",
+    "none": "Aucun"
+  },
+  "detail": {
+    "currentBalance": "Solde actuel",
+    "closed": "Fermé",
+    "edit": "Modifier",
+    "overview": "Aperçu",
+    "interest": "Intérêts",
+    "attachments": "Pièces jointes",
+    "balanceHistory": "Historique du solde",
+    "noBalanceHistory": "Aucun historique de solde pour cette période",
+    "balance": "Solde",
+    "recentTransactions": "Transactions récentes",
+    "noTransactions": "Aucune transaction pour ce compte",
+    "viewAllTransactions": "Voir toutes les transactions",
+    "details": "Détails",
+    "accountNumber": "Numéro de compte",
+    "type": "Type",
+    "currency": "Devise",
+    "institution": "Établissement",
+    "description": "Description",
+    "failedToLoad": "Impossible de charger les détails du compte.",
+    "editTitle": "Modifier le compte"
+  },
+  "filters": {
+    "search": "Rechercher",
+    "accountType": "Type de compte",
+    "currency": "Devise",
+    "status": "Statut",
+    "sortBy": "Trier par",
+    "minBalance": "Solde minimum",
+    "maxBalance": "Solde maximum",
+    "institution": "Établissement",
+    "allTypes": "Tous les types",
+    "allAccounts": "Tous les comptes",
+    "active": "Actif",
+    "closed": "Fermé",
+    "clear": "Effacer",
+    "lowBalance": "Solde faible",
+    "types": {
+      "CHECKING": "Compte courant",
+      "SAVINGS": "Compte épargne",
+      "CREDIT_CARD": "Carte de crédit",
+      "INVESTMENT": "Compte investissement",
+      "CASH": "Espèces",
+      "OTHER": "Autre"
+    },
+    "sort": {
+      "nameAsc": "Nom (A-Z)",
+      "nameDesc": "Nom (Z-A)",
+      "balanceDesc": "Solde (décroissant)",
+      "balanceAsc": "Solde (croissant)",
+      "newestFirst": "Plus récent d'abord",
+      "oldestFirst": "Plus ancien d'abord"
+    }
+  },
+  "interest": {
+    "historyTitle": "Historique des taux d'intérêt",
+    "historyDescription": "Gérez les taux d'intérêt appliqués à ce compte au fil du temps",
+    "earnedSoFar": "Gagné à ce jour",
+    "projectedNet": "Proj. net 1 an",
+    "totalProduced": "Total produit",
+    "addRate": "Ajouter un taux",
+    "cols": {
+      "effectiveDate": "Date d'effet",
+      "interestRate": "Taux d'intérêt",
+      "taxRate": "Taux d'imposition",
+      "periodActive": "Période active",
+      "interestProduced": "Intérêts produits"
+    },
+    "today": "aujourd'hui",
+    "noVariations": "Aucune variation de taux d'intérêt trouvée. Ajoutez-en une pour commencer à calculer les intérêts.",
+    "addDialog": {
+      "title": "Ajouter un taux d'intérêt",
+      "effectiveDate": "Date d'effet",
+      "interestRate": "Taux d'intérêt (%)",
+      "taxRate": "Taux d'imposition (%)",
+      "saveRate": "Enregistrer le taux"
+    },
+    "deleteConfirm": "Êtes-vous sûr(e) de vouloir supprimer cette variation de taux d'intérêt ?"
+  },
+  "validation": {
+    "nameRequired": "Le nom est obligatoire",
+    "nameTooLong": "Le nom est trop long",
+    "accountNumberTooLong": "Le numéro de compte est trop long",
+    "descriptionTooLong": "La description est trop longue",
+    "balanceNegative": "Le solde ne peut pas être négatif pour ce type de compte",
+    "interestRatePositive": "Le taux d'intérêt doit être supérieur à 0",
+    "interestRateMustBePositive": "Le taux doit être positif",
+    "taxRateMustBePositive": "Le taux d'imposition doit être positif",
+    "taxRateMax": "Le taux d'imposition ne peut pas dépasser 100",
+    "effectiveDateRequired": "La date d'effet est obligatoire",
+    "duplicateName": "Un compte avec ce nom existe déjà"
+  }
+}

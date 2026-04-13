@@ -1,0 +1,162 @@
+{
+  "title": "Budgets",
+  "description": "Track and manage your spending budgets",
+  "addBudget": "Add Budget",
+  "autoCreate": "Auto-Create",
+  "loadError": "Failed to load budgets. Please try again later.",
+  "saveError": "Failed to save budget",
+  "alerts": {
+    "exceeded": "Budget Exceeded: {{categoryName}}",
+    "warning": "Budget Warning: {{categoryName}}",
+    "exceededMessage": "You've spent {{pct}}% of your {{categoryName}} budget.",
+    "warningMessage": "You've used {{pct}}% of your {{categoryName}} budget."
+  },
+  "empty": {
+    "noBudgets": "No budgets yet",
+    "addFirst": "Create your first budget to start tracking your spending",
+    "noMatch": "No matching budgets",
+    "noMatchDescription": "No budgets match your current filters. Try adjusting your search criteria.",
+    "noBudgetsFound": "No budgets found.",
+    "clearFilters": "Clear Filters"
+  },
+  "dialogs": {
+    "editTitle": "Edit Budget",
+    "createTitle": "Create Budget",
+    "delete": {
+      "title": "Delete Budget",
+      "description": "Are you sure you want to delete the budget for \"{{name}}\"? This action cannot be undone.",
+      "confirmText": "Delete"
+    }
+  },
+  "form": {
+    "category": "Category",
+    "categoryPlaceholder": "Search and select a category...",
+    "categorySearchPlaceholder": "Search categories...",
+    "budgetPeriod": "Budget Period",
+    "budgetAmount": "Budget Amount",
+    "currency": "Currency",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "rollover": "Rollover unused budget to next period",
+    "notes": "Notes (Optional)",
+    "notesPlaceholder": "Add notes about this budget...",
+    "searchPlaceholder": "Search budgets...",
+    "createBudget": "Create Budget",
+    "updateBudget": "Update Budget",
+    "cancel": "Cancel",
+    "periods": {
+      "WEEKLY": "Weekly",
+      "MONTHLY": "Monthly",
+      "QUARTERLY": "Quarterly",
+      "YEARLY": "Yearly",
+      "UNKNOWN": "Unknown"
+    }
+  },
+  "summary": {
+    "title": "Budget Overview",
+    "totalBudgeted": "Total Budgeted",
+    "totalSpent": "Total Spent",
+    "remaining": "Remaining",
+    "overBudget": "Over Budget",
+    "exceededBudget": "Exceeded budget",
+    "availableToSpend": "Available to spend",
+    "avgSpent": "Avg. Spent",
+    "ofBudget": "of budget",
+    "activeCount": "{{active}} of {{total}} active",
+    "filtered": "Filtered:",
+    "budgetsCount_one": "({{count}} budget)",
+    "budgetsCount_other": "({{count}} budgets)",
+    "over": "over",
+    "remainingLabel": "remaining"
+  },
+  "filters": {
+    "label": "Filters",
+    "search": "Search",
+    "period": "Period",
+    "allPeriods": "All Periods",
+    "clear": "Clear"
+  },
+  "validation": {
+    "categoryRequired": "Category is required",
+    "amountPositive": "Amount must be greater than 0",
+    "endDateAfterStart": "End date must be at least 1 day after start date",
+    "currencyRequired": "Currency must be a 3-letter code",
+    "startDateRequired": "Start date is required",
+    "endDateRequired": "End date is required",
+    "notesTooLong": "Notes are too long"
+  },
+  "wizard": {
+    "title": "Auto-Create Budgets",
+    "step": "Step {{step}} of {{total}}",
+    "step1": {
+      "description": "Choose a target budget period and how many months of transaction history to analyse. We'll compute average spending per category and suggest budget amounts.",
+      "budgetPeriod": "Budget Period",
+      "historyWindow": "History Window",
+      "months_one": "{{count}} month",
+      "months_other": "{{count}} months",
+      "analyseError": "Failed to analyse spending. Please try again.",
+      "analysing": "Analysing…",
+      "analyseSpending": "Analyse Spending"
+    },
+    "step2": {
+      "noData": "No spending data found in the last {{months}} months.",
+      "noDataHint": "Try a longer history window or add some transactions first.",
+      "suggestionsFound_one": "{{count}} suggestion found",
+      "suggestionsFound_other": "{{count}} suggestions found",
+      "selected": "{{count}} selected",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "budgetExists": "Budget exists",
+      "avg": "Avg",
+      "transactions_one": "{{count}} transaction",
+      "transactions_other": "{{count}} transactions",
+      "createError": "Failed to create budgets. Please try again.",
+      "creating": "Creating…",
+      "createBudgets_one": "Create {{count}} Budget",
+      "createBudgets_other": "Create {{count}} Budgets"
+    },
+    "step3": {
+      "created": "Created",
+      "skipped": "Skipped",
+      "errors": "Errors",
+      "skippedNote_one": "{{count}} budget was skipped because a budget for that category and period already exists.",
+      "skippedNote_other": "{{count}} budgets were skipped because a budget for that category and period already exists.",
+      "errorsLabel": "Errors:"
+    },
+    "back": "Back",
+    "cancel": "Cancel",
+    "done": "Done"
+  },
+  "card": {
+    "budget": "Budget",
+    "budgeted": "Budgeted",
+    "spent": "Spent",
+    "remaining": "Remaining",
+    "progress": "Progress",
+    "overBudgetBy": "Over budget by",
+    "daysLeft_one": "{{count}} day left",
+    "daysLeft_other": "{{count}} days left",
+    "expired": "Expired",
+    "viewHistory": "View {{category}} budget history",
+    "status": {
+      "onTrack": "On Track",
+      "warning": "Warning",
+      "exceeded": "Exceeded"
+    }
+  },
+  "detail": {
+    "overallUsage": "Overall Usage",
+    "spendingByPeriod": "Spending by Period",
+    "periodBreakdown": "Period Breakdown ({{count}} periods)",
+    "noHistory": "No history entries found for this budget.",
+    "loadError": "Failed to load budget history.",
+    "historyTitle": "{{category}} History",
+    "periodLabel": "{{period}} budget • {{startDate}} to {{endDate}}",
+    "columns": {
+      "period": "Period",
+      "dateRange": "Date Range",
+      "pctUsed": "% Used",
+      "status": "Status"
+    }
+  }
+}

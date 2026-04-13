@@ -1,0 +1,188 @@
+{
+  "title": "Importer des transactions",
+  "description": "Téléversez des fichiers de transactions provenant de vos établissements financiers",
+  "supportedFormats": {
+    "title": "Formats de fichiers pris en charge",
+    "qif": {
+      "name": "QIF (Quicken Interchange Format)",
+      "description": "Format standard utilisé par Quicken et de nombreux établissements financiers"
+    },
+    "ofx": {
+      "name": "OFX/QFX (Open Financial Exchange)",
+      "description": "Format XML utilisé par les banques et les sociétés de cartes de crédit"
+    },
+    "csv": {
+      "name": "CSV (valeurs séparées par des virgules)",
+      "description": "Format de tableur générique contenant des données de transactions"
+    }
+  },
+  "howTo": {
+    "title": "Comment obtenir vos fichiers de transactions",
+    "intro": "La plupart des banques et établissements financiers vous permettent de télécharger l'historique de vos transactions dans l'un des formats pris en charge :",
+    "steps": [
+      "Connectez-vous à votre banque en ligne ou au site de votre établissement financier",
+      "Accédez à vos relevés de compte ou à l'historique de vos transactions",
+      "Recherchez les options « Télécharger » ou « Exporter »",
+      "Sélectionnez QIF, OFX/QFX ou CSV comme format d'export",
+      "Choisissez la plage de dates souhaitée",
+      "Téléchargez le fichier et importez-le ci-dessous"
+    ]
+  },
+  "privacy": "Vos données financières sont chiffrées et stockées de manière sécurisée. Les fichiers téléversés sont temporairement conservés pour traitement et automatiquement supprimés après 24 heures.",
+  "summary": {
+    "title": "Résumé de l'importation",
+    "ready": "Prêt à importer",
+    "total": "Total des transactions",
+    "duplicates": "Doublons potentiels",
+    "errors": "Transactions avec erreurs",
+    "skipDuplicates": "Ignorer les doublons potentiels",
+    "confirm": "Confirmer l'importation",
+    "categorized": "Catégories assignées",
+    "file": "Fichier",
+    "account": "Compte",
+    "transactionsToImport": "Transactions à importer",
+    "confirming": "Confirmation de l'importation…"
+  },
+  "wizard": {
+    "upload": {
+      "title": "Téléverser le fichier",
+      "description": "Sélectionnez un fichier QIF, OFX/QFX ou CSV à importer"
+    },
+    "account": {
+      "title": "Sélectionner le compte",
+      "description": "Choisissez le compte pour ces transactions"
+    },
+    "review": {
+      "title": "Réviser les transactions",
+      "description": "Révisez, catégorisez et modifiez les transactions avant l'importation"
+    },
+    "confirm": {
+      "title": "Confirmer l'importation",
+      "description": "Révisez le résumé de l'importation et confirmez"
+    },
+    "progress": {
+      "title": "Importation en cours",
+      "description": "Traitement de votre importation"
+    },
+    "cancelConfirm": {
+      "title": "Annuler l'importation ?",
+      "description": "Une importation est en cours. Si vous partez maintenant, elle sera annulée et toutes les modifications effectuées lors de la révision seront perdues.",
+      "stay": "Rester",
+      "leave": "Quitter quand même"
+    },
+    "accountSelection": {
+      "description": "Choisissez le compte pour ces transactions, ou laissez vide pour laisser l'assistant en créer un automatiquement.",
+      "matched": "Compte mis en correspondance automatiquement :",
+      "matchedSuffix": "a été présélectionné ci-dessous. Vous pouvez le modifier si nécessaire.",
+      "detected": "Compte détecté mais non mis en correspondance :",
+      "detectedSuffix": "Sélectionnez un compte existant ci-dessous, ou laissez vide et un nouveau compte nommé « {{name}} » sera créé automatiquement.",
+      "noneFound": "Aucune information de compte n'a été trouvée dans le fichier. Sélectionnez un compte existant ci-dessous, ou laissez vide et un nouveau compte nommé « {{name}} » sera créé automatiquement.",
+      "parsing": "Analyse du fichier et détection des détails du compte… veuillez patienter",
+      "uploadFailed": "Échec du téléversement",
+      "uploadFailedDesc": "Impossible de démarrer l'importation. Veuillez vérifier votre connexion et réessayer.",
+      "parsingFailed": "Échec de l'analyse",
+      "parsingFailedDesc": "Le fichier n'a pas pu être analysé. Il est peut-être corrompu, dans un format non pris en charge ou des balises requises sont manquantes.",
+      "startOver": "Recommencer",
+      "applying": "Application du compte…",
+      "autoCreateLabel": "Création automatique : \"{{name}}\"",
+      "leaveBlank": "Laissez vide pour créer automatiquement",
+      "label": "Compte"
+    }
+  },
+  "upload": {
+    "dropHere": "Déposez votre fichier ici",
+    "orBrowse": "ou cliquez pour parcourir",
+    "browse": "Parcourir les fichiers",
+    "acceptedFormats": "Formats acceptés : {{formats}}",
+    "maxSize": "Taille maximale du fichier : {{size}}Mo",
+    "uploading": "Téléversement en cours...",
+    "validating": "Veuillez patienter pendant que nous validons votre fichier",
+    "success": "Téléversement réussi !",
+    "successDesc": "Votre fichier a été téléversé et validé",
+    "uploadAnother": "Téléverser un autre fichier",
+    "failed": "Échec du téléversement",
+    "tryAgain": "Réessayer",
+    "removeFile": "Supprimer le fichier",
+    "invalidFormat": "Format de fichier non valide. Formats acceptés : {{formats}}",
+    "fileTooLarge": "La taille du fichier dépasse la limite de {{max}} Mo ({{actual}} Mo)",
+    "fileEmpty": "Le fichier sélectionné est vide (0 octet). Veuillez sélectionner un fichier valide."
+  },
+  "review": {
+    "autoAssignedCount": "{{count}} transaction(s) automatiquement assignée(s).",
+    "autoAssignedDescription": "Les catégories ont été assignées en fonction de votre historique de transactions. Vous pouvez ajuster n'importe quelle affectation ci-dessous.",
+    "adjustAny": "Vous pouvez ajuster n'importe quelle affectation ci-dessous.",
+    "categorizationHint": "{{count}} transaction(s) nécessite(nt) encore une affectation de catégorie.",
+    "stats": {
+      "transactions": "transactions",
+      "categorized": "catégorisées",
+      "duplicates": "doublons",
+      "errors": "erreurs"
+    },
+    "filters": {
+      "all": "Tout",
+      "duplicates": "Doublons ({{count}})",
+      "errors": "Erreurs ({{count}})"
+    },
+    "mappings": {
+      "title": "Affectations de catégories ({{count}} catégories uniques)",
+      "notMapped": "non mappé",
+      "help": "Les mappages de catégories sont appliqués automatiquement lorsque vous confirmez l'importation. Les catégories non mappées resteront non assignées sur les transactions importées."
+    },
+    "categoryAssignments": {
+      "title": "Affectations de catégories ({{count}} catégories uniques)",
+      "notMapped": "non mappé",
+      "footer": "Les mappages de catégories sont appliqués automatiquement lorsque vous confirmez l'importation. Les catégories non mappées resteront non assignées sur les transactions importées."
+    },
+    "bulk": {
+      "selected": "{{count}} sélectionnés",
+      "setCategory": "Définir la catégorie...",
+      "setPayee": "Définir le bénéficiaire...",
+      "applyTo": "Appliquer à {{count}}"
+    },
+    "bulkAction": {
+      "selected": "{{count}} sélectionnés",
+      "setCategory": "Définir la catégorie...",
+      "setPayee": "Définir le bénéficiaire...",
+      "applyButton": "Appliquer à {{count}}"
+    },
+    "table": {
+      "noMatches": "aucune transaction ne correspond au filtre sélectionné.",
+      "noResults": "Aucune transaction ne correspond au filtre sélectionné.",
+      "assign": "+ Assigner",
+      "noCategory": "Pas de catégorie",
+      "selectAll": "Tout sélectionner",
+      "date": "Date",
+      "payee": "Bénéficiaire",
+      "amount": "Montant",
+      "category": "Catégorie",
+      "memo": "Mémo",
+      "status": "État",
+      "validationErrors": "Erreurs de validation",
+      "splitLines": "Lignes ventilées"
+    }
+  },
+  "progress": {
+    "preparing": "Préparation de l'importation...",
+    "parsing": "Analyse des transactions...",
+    "importing": "Importation des transactions ({{current}}/{{total}})...",
+    "success": "Importation terminée avec succès !",
+    "failed": "Échec de l'importation",
+    "cancelled": "Importation annulée",
+    "processing": "Traitement...",
+    "skipped": "{{count}} transactions ont été ignorées (doublons ou erreurs de validation)",
+    "viewTransactions": "Voir les transactions",
+    "completedAt": "Terminé à {{date}}",
+    "stats": {
+      "total": "Total",
+      "imported": "Importées",
+      "duplicates": "Doublons",
+      "errors": "Erreurs"
+    }
+  },
+  "validation": {
+    "dateRequired": "La date de la transaction est requise",
+    "amountRequired": "Le montant de la transaction est requis",
+    "amountZero": "Le montant de la transaction ne peut pas être nul",
+    "dateFuture": "La date de la transaction ne peut pas être dans le futur"
+  }
+}

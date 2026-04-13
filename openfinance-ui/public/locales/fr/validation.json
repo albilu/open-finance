@@ -1,0 +1,42 @@
+{
+  "password": {
+    "minLength": "Le mot de passe doit comporter au moins 8 caractères",
+    "uppercase": "Le mot de passe doit contenir au moins une lettre majuscule",
+    "lowercase": "Le mot de passe doit contenir au moins une lettre minuscule",
+    "number": "Le mot de passe doit contenir au moins un chiffre",
+    "special": "Le mot de passe doit contenir au moins un caractère spécial",
+    "required": "Le mot de passe est requis",
+    "confirm": "Veuillez confirmer votre mot de passe",
+    "mismatch": "Les mots de passe ne correspondent pas",
+    "dontMatch": "Les mots de passe ne correspondent pas",
+    "changingPassword": "Modification du mot de passe...",
+    "changePassword": "Modifier le mot de passe"
+  },
+  "masterPassword": {
+    "minLength": "Le mot de passe maître doit comporter au moins 12 caractères",
+    "uppercase": "Le mot de passe maître doit contenir au moins une lettre majuscule",
+    "lowercase": "Le mot de passe maître doit contenir au moins une lettre minuscule",
+    "number": "Le mot de passe maître doit contenir au moins un chiffre",
+    "special": "Le mot de passe maître doit contenir au moins un caractère spécial",
+    "required": "Le mot de passe maître actuel est requis",
+    "confirm": "Veuillez confirmer votre mot de passe maître",
+    "mismatch": "Les mots de passe maîtres ne correspondent pas",
+    "dontMatch": "Les mots de passe maîtres ne correspondent pas",
+    "minLengthShort": "Le mot de passe maître doit comporter au moins 8 caractères"
+  },
+  "username": {
+    "minLength": "Le nom d'utilisateur doit comporter au moins 3 caractères",
+    "maxLength": "Le nom d'utilisateur ne peut pas dépasser 50 caractères",
+    "pattern": "Le nom d'utilisateur ne peut contenir que des lettres, des chiffres, des tirets et des tirets bas",
+    "required": "Le nom d'utilisateur est requis"
+  },
+  "email": {
+    "required": "L'adresse e-mail est requise",
+    "invalid": "Adresse e-mail invalide",
+    "provide": "Veuillez fournir une adresse e-mail à mettre à jour"
+  },
+  "currentPassword": {
+    "required": "Le mot de passe actuel est requis",
+    "requiredForVerification": "Le mot de passe actuel est requis pour la vérification"
+  }
+}

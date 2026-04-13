@@ -1,0 +1,53 @@
+{
+  "title": "Bienvenue sur Open Finance !",
+  "subtitle": "Configurons vos préférences. Vous pouvez les modifier à tout moment dans les Paramètres.",
+  "step": "Étape {{current}} sur {{total}}",
+  "country": {
+    "label": "Pays",
+    "placeholder": "Sélectionnez votre pays",
+    "searchPlaceholder": "Rechercher un pays…",
+    "noMatch": "Aucun pays ne correspond à votre recherche"
+  },
+  "baseCurrency": {
+    "label": "Devise principale",
+    "hint": "Tous les montants seront affichés dans cette devise.",
+    "placeholder": "Sélectionnez la devise principale"
+  },
+  "secondaryCurrency": {
+    "label": "Devise secondaire",
+    "hint": "Affichée en info-bulle à côté des montants convertis. Optionnel.",
+    "placeholder": "Aucune (optionnel)"
+  },
+  "language": {
+    "label": "Langue",
+    "english": "English",
+    "french": "Français"
+  },
+  "dateFormat": {
+    "label": "Format de date",
+    "hint": "Choisissez comment les dates sont affichées dans l'application."
+  },
+  "numberFormat": {
+    "label": "Format des nombres",
+    "hint": "Choisissez comment les nombres et montants sont formatés.",
+    "usUkStyle": "Style US / UK",
+    "usUkDescription": "Virgule comme séparateur des milliers, point décimal (1,234.56)",
+    "europeanStyle": "Style européen",
+    "europeanDescription": "Point comme séparateur des milliers, virgule décimale (1.234,56)",
+    "frenchSwissStyle": "Style français / suisse",
+    "frenchSwissDescription": "Espace comme séparateur des milliers, virgule décimale (1 234,56)"
+  },
+  "amountDisplayMode": {
+    "label": "Affichage des montants",
+    "hint": "Choisissez comment les montants sont affichés dans l'application.",
+    "base": "Devise principale",
+    "base_description": "Affiche les montants dans votre devise principale. Survolez pour voir le montant natif.",
+    "native": "Devise native",
+    "native_description": "Affiche les montants dans leur devise d'origine. Survolez pour voir la valeur en devise principale.",
+    "both": "Les deux devises",
+    "both_description": "Affiche la devise principale et la devise native côte à côte."
+  },
+  "submit": "Commencer",
+  "submitting": "Enregistrement de vos préférences…",
+  "error": "Une erreur s'est produite. Veuillez réessayer."
+}

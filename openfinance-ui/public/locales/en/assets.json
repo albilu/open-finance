@@ -1,0 +1,169 @@
+{
+  "title": "Investment Assets",
+  "description": "Track and manage your investment portfolio",
+  "addAsset": "Add Asset",
+  "refreshPrices": "Refresh Prices",
+  "refreshing": "Refreshing...",
+  "filters": "Filters",
+  "summary": {
+    "totalPortfolioValue": "Total Portfolio Value",
+    "totalCostBasis": "Total Cost Basis",
+    "initialInvestment": "Initial investment",
+    "overallReturn": "Overall Return",
+    "bestPerformer": "Best Performer",
+    "noGainsYet": "No gains yet"
+  },
+  "assetCount_one": "{{count}} asset",
+  "assetCount_other": "{{count}} assets",
+  "filtered": "Filtered:",
+  "loadError": "Failed to load assets. Please try again later.",
+  "empty": {
+    "noResults": "No assets found",
+    "noMatch": "No assets match your filters. Try adjusting your search criteria.",
+    "noAssets": "Add your first investment to start tracking your portfolio performance"
+  },
+  "dialogs": {
+    "editTitle": "Edit Asset",
+    "createTitle": "Create Asset"
+  },
+  "filtersPanel": {
+    "search": "Search",
+    "assetType": "Asset Type",
+    "allTypes": "All types",
+    "currency": "Currency",
+    "symbol": "Symbol",
+    "sortBy": "Sort By",
+    "minValue": "Min Value",
+    "maxValue": "Max Value",
+    "purchasedFrom": "Purchased From",
+    "purchasedTo": "Purchased To",
+    "clear": "Clear",
+    "sortOptions": {
+      "nameAsc": "Name (A-Z)",
+      "nameDesc": "Name (Z-A)",
+      "valueHighToLow": "Value (High to Low)",
+      "valueLowToHigh": "Value (Low to High)",
+      "gainHighToLow": "Gain (High to Low)",
+      "gainLowToHigh": "Gain (Low to High)",
+      "newestFirst": "Newest First",
+      "oldestFirst": "Oldest First"
+    }
+  },
+  "table": {
+    "name": "Name",
+    "type": "Type",
+    "symbol": "Symbol",
+    "quantity": "Quantity",
+    "currentValue": "Current Value",
+    "costBasis": "Cost Basis",
+    "gainLoss": "Gain/Loss",
+    "return": "Return",
+    "account": "Account",
+    "actions": "Actions",
+    "physicalAssets": "Physical Assets",
+    "financialAssets": "Financial Assets"
+  },
+  "detail": {
+    "tabs": {
+      "overview": "Overview",
+      "attachments": "Attachments"
+    },
+    "metrics": {
+      "currentValue": "Current Value",
+      "costBasis": "Cost Basis",
+      "gainLoss": "Gain/Loss"
+    },
+    "sections": {
+      "priceHistory": "Price History",
+      "assetDetails": "Details"
+    },
+    "fields": {
+      "type": "Type",
+      "purchaseDate": "Purchase Date",
+      "lastUpdated": "Last Updated",
+      "account": "Account",
+      "notes": "Notes",
+      "daysHeld_one": "{{count}} day held",
+      "daysHeld_other": "{{count}} days held"
+    },
+    "actions": {
+      "close": "Close",
+      "delete": "Delete",
+      "edit": "Edit"
+    },
+    "noHistoricalData": "No historical data available for this time range",
+    "addSymbolForHistory": "Add a symbol to view price history",
+    "deleteConfirm": {
+      "title": "Delete Asset",
+      "message": "Are you sure you want to delete '{{name}}'? This action cannot be undone.",
+      "confirm": "Delete"
+    }
+  },
+  "validation": {
+    "nameRequired": "Name is required",
+    "nameTooLong": "Name is too long",
+    "quantityRequired": "Quantity must be greater than 0",
+    "purchasePriceRequired": "Purchase price must be greater than 0",
+    "currentPriceRequired": "Current price must be greater than 0",
+    "currencyInvalid": "Currency must be a 3-letter code",
+    "purchaseDateRequired": "Purchase date is required",
+    "notesTooLong": "Notes are too long",
+    "symbolTooLong": "Symbol is too long"
+  },
+  "form": {
+    "assetType": "Asset Type",
+    "account": "Account (Optional)",
+    "assetName": "Asset Name",
+    "symbol": "Symbol (Optional)",
+    "quantity": "Quantity",
+    "purchasePrice": "Purchase Price",
+    "currentPrice": "Current Price",
+    "currency": "Currency",
+    "purchaseDate": "Purchase Date",
+    "notes": "Notes (Optional)",
+    "notesPlaceholder": "e.g., Long-term hold, dividend reinvestment...",
+    "assetNamePlaceholder": "e.g., Apple Inc., Tesla Model 3, Rolex Watch",
+    "symbolPlaceholder": "e.g., AAPL",
+    "brandPlaceholder": "e.g., Tesla, Apple, Rolex",
+    "modelPlaceholder": "e.g., Model 3, iPhone 15, Submariner",
+    "serialNumberPlaceholder": "e.g., 5YJ3E1EA1KF123456",
+    "usefulLifePlaceholder": "e.g., 10",
+    "selectCurrencyPlaceholder": "Select currency",
+    "searchPlaceholder": "Search assets...",
+    "symbolFilterPlaceholder": "e.g., AAPL, BTC...",
+    "physicalDetails": "Physical Asset Details",
+    "brand": "Brand",
+    "model": "Model",
+    "serialNumber": "Serial Number / VIN",
+    "condition": "Condition",
+    "selectCondition": "Select condition...",
+    "warrantyExpiration": "Warranty Expiration",
+    "usefulLifeYears": "Useful Life (Years)",
+    "usefulLifeHint": "For depreciation calculation",
+    "createAsset": "Create Asset",
+    "updateAsset": "Update Asset",
+    "cancel": "Cancel",
+    "conditions": {
+      "NEW": "New",
+      "EXCELLENT": "Excellent",
+      "GOOD": "Good",
+      "FAIR": "Fair",
+      "POOR": "Poor"
+    }
+  },
+  "types": {
+    "STOCK": "Stock",
+    "ETF": "ETF",
+    "CRYPTO": "Cryptocurrency",
+    "BOND": "Bond",
+    "MUTUAL_FUND": "Mutual Fund",
+    "COMMODITY": "Commodity",
+    "VEHICLE": "Vehicle",
+    "JEWELRY": "Jewelry",
+    "COLLECTIBLE": "Collectible",
+    "ELECTRONICS": "Electronics",
+    "FURNITURE": "Furniture",
+    "REAL_ESTATE": "Real Estate",
+    "OTHER": "Other"
+  }
+}

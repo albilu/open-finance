@@ -1,0 +1,63 @@
+{
+  "title": "AI Financial Advisor",
+  "subtitle": "Powered by Ollama • Ask me about your finances",
+  "newConversation": "New Conversation",
+  "minimize": "Minimize chat",
+  "closeChat": "Close chat",
+  "openChat": "Open AI Assistant",
+  "unavailable": {
+    "title": "AI Service Unavailable",
+    "description": "The Ollama AI service is not available. Please make sure Ollama is running and try again.",
+    "retry": "Retry Connection"
+  },
+  "welcome": {
+    "title": "Welcome to Your AI Financial Advisor",
+    "description": "I can help you analyze your spending, create budgets, optimize investments, and provide personalized financial advice based on your actual financial data."
+  },
+  "prompt": {
+    "spending": "Analyze my spending",
+    "budget": "Budget advice",
+    "summary": "Financial summary",
+    "savings": "Savings tips"
+  },
+  "suggestedQuestions": "Suggested Questions",
+  "inputPlaceholder": "Ask me about your finances...",
+  "sendError": "Failed to send message. Please try again.",
+  "processingError": "Sorry, I encountered an error processing your request. Please try again.",
+  "networkError": "The AI service is temporarily unreachable. Please check your connection and try again.",
+  "serverError": "The AI service encountered an internal error. Please try again in a moment.",
+  "prompts": {
+    "analyzeSpending": {
+      "label": "Analyze My Spending",
+      "question": "Can you analyze my spending patterns and tell me where most of my money is going?"
+    },
+    "budgetRecommendations": {
+      "label": "Budget Recommendations",
+      "question": "Based on my income and expenses, what budget recommendations do you have for me?"
+    },
+    "investmentPerformance": {
+      "label": "Investment Performance",
+      "question": "How is my investment portfolio performing? What are my best and worst performers?"
+    },
+    "debtStrategy": {
+      "label": "Debt Strategy",
+      "question": "What strategy should I follow to pay off my debts most efficiently?"
+    },
+    "savingsGoals": {
+      "label": "Savings Goals",
+      "question": "How much should I be saving each month to reach my financial goals?"
+    },
+    "cashFlowAnalysis": {
+      "label": "Cash Flow Analysis",
+      "question": "What does my cash flow look like? Am I spending more than I earn?"
+    },
+    "financialSummary": {
+      "label": "Financial Summary",
+      "question": "Can you give me an overall summary of my current financial situation?"
+    },
+    "moneySavingTips": {
+      "label": "Money-Saving Tips",
+      "question": "What are some practical tips to reduce my expenses and save more money?"
+    }
+  }
+}

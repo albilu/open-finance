@@ -1,0 +1,36 @@
+{
+  "title": "Operation History",
+  "description": "View and revert changes made in your current session",
+  "entityType": "Entity Type",
+  "name": "Name / Label",
+  "operation": "Operation",
+  "date": "Date & Time",
+  "status": "Status",
+  "actions": "Actions",
+  "empty": "No operations recorded in this session.",
+  "undo": "Undo",
+  "redo": "Redo",
+  "undoSuccess": "Operation undone successfully",
+  "redoSuccess": "Operation redone successfully",
+  "filters": {
+    "all": "All Entities",
+    "account": "Account",
+    "transaction": "Transaction",
+    "asset": "Asset",
+    "liability": "Liability",
+    "realEstate": "Real Estate",
+    "budget": "Budget",
+    "category": "Category"
+  },
+  "operations": {
+    "create": "Created",
+    "update": "Updated",
+    "delete": "Deleted",
+    "unknown": "Unknown"
+  },
+  "badge": {
+    "active": "Active",
+    "undone": "Undone",
+    "redone": "Redone"
+  }
+}

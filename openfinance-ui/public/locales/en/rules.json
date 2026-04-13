@@ -1,0 +1,116 @@
+{
+  "title": "Transaction Rules",
+  "description": "Automatically categorise, tag, and enrich transactions during import using custom rules.",
+  "addRule": "Add Rule",
+  "summary": {
+    "totalRules": "Total Rules",
+    "activeRules": "Active Rules",
+    "inactiveRules": "Inactive Rules"
+  },
+  "loadError": "Failed to load rules. Please try again.",
+  "list": {
+    "emptyTitle": "No rules yet",
+    "emptyDescription": "Create your first rule to automatically categorise and enrich imported transactions.",
+    "createFirst": "Create your first rule",
+    "name": "Name",
+    "priority": "Priority",
+    "status": "Status",
+    "conditions": "Conditions",
+    "actions": "Actions",
+    "controls": "Controls",
+    "active": "Active",
+    "inactive": "Inactive",
+    "disableRule": "Disable rule",
+    "enableRule": "Enable rule",
+    "editRule": "Edit rule",
+    "deleteRule": "Delete rule",
+    "sortAsc": "Sort ascending",
+    "sortDesc": "Sort descending"
+  },
+  "dialogs": {
+    "delete": {
+      "title": "Delete Rule",
+      "description": "Are you sure you want to delete the rule \"{{name}}\"? This action cannot be undone.",
+      "confirmText": "Delete"
+    }
+  },
+  "form": {
+    "createTitle": "Create Rule",
+    "editTitle": "Edit Rule",
+    "name": "Rule Name",
+    "namePlaceholder": "e.g. Categorise groceries",
+    "priority": "Priority",
+    "priorityHint": "Lower numbers run first (0 = highest priority).",
+    "enabled": "Enabled",
+    "active": "Active",
+    "inactive": "Inactive",
+    "conditionsLabel": "Conditions",
+    "conditionsHint": "All conditions must match for the rule to fire (AND logic).",
+    "actionsLabel": "Actions",
+    "actionsHint": "Actions applied when all conditions match.",
+    "addCondition": "Add Condition",
+    "addAction": "Add Action",
+    "removeAction": "Remove action",
+    "removeCondition": "Remove condition",
+    "cancel": "Cancel",
+    "create": "Create Rule",
+    "update": "Update Rule",
+    "errors": {
+      "nameRequired": "Rule name is required.",
+      "nameTooLong": "Rule name must not exceed 100 characters.",
+      "nameDuplicate": "A rule with this name already exists.",
+      "conditionRequired": "At least one condition is required.",
+      "conditionValueRequired": "All conditions must have a value.",
+      "actionRequired": "At least one action is required.",
+      "actionValueRequired": "All actions must have a value.",
+      "priorityNegative": "Priority must be 0 or greater.",
+      "saveFailed": "Failed to save rule. Please try again."
+    },
+    "conditions": {
+      "fields": {
+        "DESCRIPTION": "Description / Payee",
+        "AMOUNT": "Amount",
+        "TRANSACTION_TYPE": "Transaction Type"
+      },
+      "operators": {
+        "CONTAINS": "Contains",
+        "NOT_CONTAINS": "Does not contain",
+        "EQUALS": "Equals",
+        "NOT_EQUALS": "Does not equal",
+        "GREATER_THAN": "Greater than",
+        "LESS_THAN": "Less than",
+        "GREATER_OR_EQUAL": "Greater than or equal to",
+        "LESS_OR_EQUAL": "Less than or equal to"
+      },
+      "typeValues": {
+        "CREDIT": "Credit (Income)",
+        "DEBIT": "Debit (Expense)"
+      },
+      "empty": "No conditions added yet. Add at least one condition.",
+      "selectType": "Select type...",
+      "enterValue": "Enter value..."
+    },
+    "actions": {
+      "types": {
+        "SET_CATEGORY": "Set Category",
+        "SET_PAYEE": "Set Payee",
+        "ADD_TAG": "Add Tag",
+        "SET_DESCRIPTION": "Set Description",
+        "SET_AMOUNT": "Set Amount",
+        "ADD_SPLIT": "Add Split",
+        "SKIP_TRANSACTION": "Skip Transaction"
+      },
+      "empty": "No actions added yet. Add at least one action.",
+      "skipTransactionHint": "Transaction will be skipped during import.",
+      "placeholders": {
+        "category": "Category name...",
+        "payee": "Payee name...",
+        "tag": "Tag name...",
+        "description": "Description text...",
+        "splitCategory": "Split category...",
+        "splitAmount": "Split amount...",
+        "splitDescription": "Split description (optional)..."
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "generic": {
+    "title": "Une erreur s'est produite",
+    "description": "Une erreur inattendue s'est produite. Veuillez réessayer.",
+    "retry": "Réessayer"
+  },
+  "search": {
+    "failed": "Recherche échouée",
+    "error": "{{error}}",
+    "noResults": "Aucun résultat trouvé",
+    "noResultsDescription": "Aucun résultat trouvé pour « {{query}} ». Essayez un autre terme de recherche ou ajustez vos filtres.",
+    "found_one": "{{count}} résultat trouvé",
+    "found_other": "{{count}} résultats trouvés",
+    "foundWithTime_one": "{{count}} résultat trouvé en {{ms}} ms",
+    "foundWithTime_other": "{{count}} résultats trouvés en {{ms}} ms",
+    "placeholder": "Rechercher dans toutes vos données financières",
+    "types": {
+      "TRANSACTION": "Transactions",
+      "ACCOUNT": "Comptes",
+      "ASSET": "Actifs",
+      "REAL_ESTATE": "Immobilier",
+      "LIABILITY": "Passifs",
+      "BUDGET": "Budgets",
+      "CATEGORY": "Catégories",
+      "RECURRING_TRANSACTION": "Récurrentes",
+      "DEFAULT": "Résultats"
+    }
+  },
+  "profile": {
+    "loadError": "Impossible de charger le profil. Veuillez réessayer ultérieurement.",
+    "updateError": "Impossible de mettre à jour le profil. Veuillez réessayer.",
+    "loading": "Chargement du profil..."
+  }
+}

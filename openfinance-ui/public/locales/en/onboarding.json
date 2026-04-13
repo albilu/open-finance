@@ -1,0 +1,53 @@
+{
+  "title": "Welcome to Open Finance!",
+  "subtitle": "Let's set up your preferences. You can change these anytime in Settings.",
+  "step": "Step {{current}} of {{total}}",
+  "country": {
+    "label": "Country",
+    "placeholder": "Select your country",
+    "searchPlaceholder": "Search country…",
+    "noMatch": "No countries match your search"
+  },
+  "baseCurrency": {
+    "label": "Base Currency",
+    "hint": "All amounts will be displayed in this currency.",
+    "placeholder": "Select base currency"
+  },
+  "secondaryCurrency": {
+    "label": "Secondary Currency",
+    "hint": "Shown as a tooltip beside converted amounts. Optional.",
+    "placeholder": "None (optional)"
+  },
+  "language": {
+    "label": "Language",
+    "english": "English",
+    "french": "Français"
+  },
+  "dateFormat": {
+    "label": "Date Format",
+    "hint": "Choose how dates are displayed across the app."
+  },
+  "numberFormat": {
+    "label": "Number Format",
+    "hint": "Choose how numbers and amounts are formatted.",
+    "usUkStyle": "US / UK style",
+    "usUkDescription": "Comma as thousands separator, dot as decimal (1,234.56)",
+    "europeanStyle": "European style",
+    "europeanDescription": "Dot as thousands separator, comma as decimal (1.234,56)",
+    "frenchSwissStyle": "French / Swiss style",
+    "frenchSwissDescription": "Space as thousands separator, comma as decimal (1 234,56)"
+  },
+  "amountDisplayMode": {
+    "label": "Amount Display",
+    "hint": "Choose how monetary amounts are shown across the app.",
+    "base": "Base currency",
+    "base_description": "Show amounts in your base currency. Hover to see the native amount.",
+    "native": "Native currency",
+    "native_description": "Show amounts in their original currency. Hover to see the base value.",
+    "both": "Both currencies",
+    "both_description": "Show base and native amounts side by side."
+  },
+  "submit": "Get Started",
+  "submitting": "Saving your preferences…",
+  "error": "Something went wrong. Please try again."
+}

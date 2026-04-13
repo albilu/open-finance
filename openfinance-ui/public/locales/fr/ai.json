@@ -1,0 +1,63 @@
+{
+  "title": "Conseiller financier IA",
+  "subtitle": "Propulsé par Ollama • Posez-moi des questions sur vos finances",
+  "newConversation": "Nouvelle conversation",
+  "minimize": "Réduire le chat",
+  "closeChat": "Fermer le chat",
+  "openChat": "Ouvrir l'assistant IA",
+  "unavailable": {
+    "title": "Service IA indisponible",
+    "description": "Le service IA Ollama n'est pas disponible. Veuillez vous assurer qu'Ollama est en cours d'exécution et réessayer.",
+    "retry": "Réessayer la connexion"
+  },
+  "welcome": {
+    "title": "Bienvenue chez votre conseiller financier IA",
+    "description": "Je peux vous aider à analyser vos dépenses, créer des budgets, optimiser vos investissements et vous fournir des conseils financiers personnalisés basés sur vos données financières réelles."
+  },
+  "prompt": {
+    "spending": "Analyser mes dépenses",
+    "budget": "Conseils budgétaires",
+    "summary": "Résumé financier",
+    "savings": "Conseils d'épargne"
+  },
+  "suggestedQuestions": "Questions suggérées",
+  "inputPlaceholder": "Posez-moi une question sur vos finances...",
+  "sendError": "Impossible d'envoyer le message. Veuillez réessayer.",
+  "processingError": "Désolé, une erreur s'est produite lors du traitement de votre demande. Veuillez réessayer.",
+  "networkError": "Le service IA est temporairement inaccessible. Veuillez vérifier votre connexion et réessayer.",
+  "serverError": "Le service IA a rencontré une erreur interne. Veuillez réessayer dans quelques instants.",
+  "prompts": {
+    "analyzeSpending": {
+      "label": "Analyser mes dépenses",
+      "question": "Pouvez-vous analyser mes habitudes de dépenses et me dire où va la majorité de mon argent ?"
+    },
+    "budgetRecommendations": {
+      "label": "Recommandations budgétaires",
+      "question": "Sur la base de mes revenus et dépenses, quelles recommandations budgétaires avez-vous pour moi ?"
+    },
+    "investmentPerformance": {
+      "label": "Performance des investissements",
+      "question": "Comment se porte mon portefeuille d'investissement ? Quels sont mes meilleurs et moins bons placements ?"
+    },
+    "debtStrategy": {
+      "label": "Stratégie de désendettement",
+      "question": "Quelle stratégie devrais-je suivre pour rembourser mes dettes de la manière la plus efficace ?"
+    },
+    "savingsGoals": {
+      "label": "Objectifs d'épargne",
+      "question": "Combien devrais-je épargner chaque mois pour atteindre mes objectifs financiers ?"
+    },
+    "cashFlowAnalysis": {
+      "label": "Analyse des flux de trésorerie",
+      "question": "À quoi ressemblent mes flux de trésorerie ? Est-ce que je dépense plus que je ne gagne ?"
+    },
+    "financialSummary": {
+      "label": "Bilan financier",
+      "question": "Pouvez-vous me donner un résumé global de ma situation financière actuelle ?"
+    },
+    "moneySavingTips": {
+      "label": "Conseils pour économiser",
+      "question": "Quels sont des conseils pratiques pour réduire mes dépenses et économiser davantage ?"
+    }
+  }
+}

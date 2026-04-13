@@ -1,0 +1,102 @@
+{
+  "title": "Backup & Restore",
+  "description": "Create and manage database backups",
+  "createBackup": "Create Backup",
+  "uploadBackup": "Upload Backup",
+  "table": {
+    "filename": "Filename",
+    "size": "Size",
+    "date": "Date",
+    "type": "Type",
+    "status": "Status",
+    "actions": "Actions"
+  },
+  "status": {
+    "completed": "Completed",
+    "failed": "Failed",
+    "inProgress": "In Progress",
+    "pending": "Pending"
+  },
+  "type": {
+    "manual": "Manual",
+    "automatic": "Automatic"
+  },
+  "actions": {
+    "download": "Download backup",
+    "restore": "Restore from this backup",
+    "delete": "Delete backup"
+  },
+  "loadError": "Failed to load backups. Please try again later.",
+  "empty": {
+    "noBackups": "No backups yet",
+    "description": "Create your first backup to secure your data",
+    "createCta": "Create Backup"
+  },
+  "createDialog": {
+    "title": "Create Backup",
+    "description": "Create a manual backup of your database. This may take a few moments.",
+    "descriptionLabel": "Description (optional)",
+    "descriptionPlaceholder": "e.g., Before tax season preparation",
+    "cancel": "Cancel",
+    "creating": "Creating...",
+    "create": "Create Backup"
+  },
+  "uploadDialog": {
+    "title": "Upload and Restore Backup",
+    "description": "Upload a backup file (.ofbak) to restore your database",
+    "selectFile": "Click to select backup file",
+    "fileRestriction": "Only .ofbak files up to 100 MB",
+    "warning": "This will overwrite all current data. A safety backup will be created automatically.",
+    "cancel": "Cancel",
+    "restoring": "Restoring...",
+    "upload": "Upload & Restore"
+  },
+  "restoreDialog": {
+    "title": "Restore Backup?",
+    "description": "This will overwrite all current data with the backup from {{date}}. A safety backup will be created automatically. This action cannot be undone.",
+    "confirmText": "Restore Backup"
+  },
+  "deleteDialog": {
+    "title": "Delete Backup?",
+    "description": "Are you sure you want to delete \"{{filename}}\"? This action cannot be undone.",
+    "confirmText": "Delete"
+  },
+  "alerts": {
+    "invalidFileType": "Invalid file type. Please select a .ofbak file.",
+    "fileTooLarge": "File is too large. Maximum size is 100 MB.",
+    "restoreSuccess": "Success: {{message}}\n\nPlease restart the application for changes to take effect.",
+    "restoreFailed": "Failed to restore backup. Please check the console for details."
+  },
+  "overview": {
+    "sectionTitle": "Backup & Restore",
+    "sectionDescription": "Manage your database backups",
+    "cardTitle": "Backup Overview",
+    "cardDescription": "Create and manage backups of your financial data. Backups are compressed and include integrity verification for secure restoration.",
+    "totalBackups": "Total Backups",
+    "automatic": "{{count}} automatic",
+    "lastBackup": "Last Backup",
+    "never": "Never",
+    "automatic_type": "Automatic",
+    "manual_type": "Manual",
+    "storageUsed": "Storage Used",
+    "average": "Avg: {{size}}",
+    "tip": "Tip",
+    "tipText": "Automatic backups are created weekly by default. You can manually create backups at any time and restore from previous versions.",
+    "manageBackups": "Manage Backups",
+    "aboutTitle": "About Backups",
+    "aboutGzip": "Backups are compressed (GZIP) to save disk space",
+    "aboutChecksum": "Each backup includes SHA-256 checksum for integrity verification",
+    "aboutSafety": "A safety backup is automatically created before restoring",
+    "aboutRetention": "Automatic backups are retained for the last 7 versions by default",
+    "aboutDownload": "You can download backups to store them externally",
+    "timeAgo": {
+      "justNow": "Just now",
+      "minuteAgo_one": "{{count}} minute ago",
+      "minuteAgo_other": "{{count}} minutes ago",
+      "hourAgo_one": "{{count}} hour ago",
+      "hourAgo_other": "{{count}} hours ago",
+      "dayAgo_one": "{{count}} day ago",
+      "dayAgo_other": "{{count}} days ago"
+    }
+  }
+}

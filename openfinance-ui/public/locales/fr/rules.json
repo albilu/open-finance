@@ -1,0 +1,116 @@
+{
+  "title": "Règles de transaction",
+  "description": "Catégorisez, étiquetez et enrichissez automatiquement les transactions lors de l'importation à l'aide de règles personnalisées.",
+  "addRule": "Ajouter une règle",
+  "summary": {
+    "totalRules": "Total des règles",
+    "activeRules": "Règles actives",
+    "inactiveRules": "Règles inactives"
+  },
+  "loadError": "Impossible de charger les règles. Veuillez réessayer.",
+  "list": {
+    "emptyTitle": "Aucune règle pour l'instant",
+    "emptyDescription": "Créez votre première règle pour catégoriser et enrichir automatiquement les transactions importées.",
+    "createFirst": "Créer votre première règle",
+    "name": "Nom",
+    "priority": "Priorité",
+    "status": "Statut",
+    "conditions": "Conditions",
+    "actions": "Actions",
+    "controls": "Contrôles",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "disableRule": "Désactiver la règle",
+    "enableRule": "Activer la règle",
+    "editRule": "Modifier la règle",
+    "deleteRule": "Supprimer la règle",
+    "sortAsc": "Trier par ordre croissant",
+    "sortDesc": "Trier par ordre décroissant"
+  },
+  "dialogs": {
+    "delete": {
+      "title": "Supprimer la règle",
+      "description": "Êtes-vous sûr(e) de vouloir supprimer la règle « {{name}} » ? Cette action est irréversible.",
+      "confirmText": "Supprimer"
+    }
+  },
+  "form": {
+    "createTitle": "Créer une règle",
+    "editTitle": "Modifier la règle",
+    "name": "Nom de la règle",
+    "namePlaceholder": "ex. : Catégoriser les courses",
+    "priority": "Priorité",
+    "priorityHint": "Les nombres plus bas s'exécutent en premier (0 = priorité la plus haute).",
+    "enabled": "Activée",
+    "active": "Active",
+    "inactive": "Inactive",
+    "conditionsLabel": "Conditions",
+    "conditionsHint": "Toutes les conditions doivent correspondre pour que la règle s'applique (logique ET).",
+    "actionsLabel": "Actions",
+    "actionsHint": "Actions appliquées lorsque toutes les conditions correspondent.",
+    "addCondition": "Ajouter une condition",
+    "addAction": "Ajouter une action",
+    "removeAction": "Supprimer l'action",
+    "removeCondition": "Supprimer la condition",
+    "cancel": "Annuler",
+    "create": "Créer la règle",
+    "update": "Mettre à jour la règle",
+    "errors": {
+      "nameRequired": "Le nom de la règle est obligatoire.",
+      "nameTooLong": "Le nom de la règle ne doit pas dépasser 100 caractères.",
+      "nameDuplicate": "Une règle avec ce nom existe déjà.",
+      "conditionRequired": "Au moins une condition est requise.",
+      "conditionValueRequired": "Toutes les conditions doivent avoir une valeur.",
+      "actionRequired": "Au moins une action est requise.",
+      "actionValueRequired": "Toutes les actions doivent avoir une valeur.",
+      "priorityNegative": "La priorité doit être égale ou supérieure à 0.",
+      "saveFailed": "Impossible d'enregistrer la règle. Veuillez réessayer."
+    },
+    "conditions": {
+      "fields": {
+        "DESCRIPTION": "Description / Bénéficiaire",
+        "AMOUNT": "Montant",
+        "TRANSACTION_TYPE": "Type de transaction"
+      },
+      "operators": {
+        "CONTAINS": "Contient",
+        "NOT_CONTAINS": "Ne contient pas",
+        "EQUALS": "Égal à",
+        "NOT_EQUALS": "Différent de",
+        "GREATER_THAN": "Supérieur à",
+        "LESS_THAN": "Inférieur à",
+        "GREATER_OR_EQUAL": "Supérieur ou égal à",
+        "LESS_OR_EQUAL": "Inférieur ou égal à"
+      },
+      "typeValues": {
+        "CREDIT": "Crédit (Revenu)",
+        "DEBIT": "Débit (Dépense)"
+      },
+      "empty": "Aucune condition ajoutée. Ajoutez au moins une condition.",
+      "selectType": "Sélectionner un type...",
+      "enterValue": "Saisir une valeur..."
+    },
+    "actions": {
+      "types": {
+        "SET_CATEGORY": "Définir la catégorie",
+        "SET_PAYEE": "Définir le bénéficiaire",
+        "ADD_TAG": "Ajouter une étiquette",
+        "SET_DESCRIPTION": "Définir la description",
+        "SET_AMOUNT": "Définir le montant",
+        "ADD_SPLIT": "Ajouter une division",
+        "SKIP_TRANSACTION": "Ignorer la transaction"
+      },
+      "empty": "Aucune action ajoutée. Ajoutez au moins une action.",
+      "skipTransactionHint": "La transaction sera ignorée lors de l'importation.",
+      "placeholders": {
+        "category": "Nom de la catégorie...",
+        "payee": "Nom du bénéficiaire...",
+        "tag": "Nom de l'étiquette...",
+        "description": "Texte de la description...",
+        "splitCategory": "Catégorie de la division...",
+        "splitAmount": "Montant de la division...",
+        "splitDescription": "Description de la division (facultatif)..."
+      }
+    }
+  }
+}

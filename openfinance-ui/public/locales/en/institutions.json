@@ -1,0 +1,50 @@
+{
+  "title": "Institutions",
+  "description": "Manage your financial institutions. Default EU institutions cannot be modified.",
+  "addInstitution": "Add Institution",
+  "searchPlaceholder": "Search institutions...",
+  "loadError": "Failed to load institutions. Please try again.",
+  "custom": {
+    "title": "Custom Institutions",
+    "empty": "No custom institutions yet",
+    "addFirst": "Add your first institution",
+    "noResults": "No custom institutions match your search"
+  },
+  "system": {
+    "title": "Default Institutions ({{count}})",
+    "description": "These are pre-loaded EU institutions and cannot be modified.",
+    "andMore": "And {{count}} more...",
+    "showFewer": "Show fewer"
+  },
+  "form": {
+    "editTitle": "Edit Institution",
+    "addTitle": "Add Institution",
+    "name": "Institution Name *",
+    "namePlaceholder": "e.g., My Bank",
+    "nameRequired": "Institution name is required",
+    "bic": "BIC Code",
+    "bicPlaceholder": "e.g., BNPAFRPP",
+    "bicHelp": "8 or 11 character bank identifier code (ISO 9362)",
+    "bicLengthError": "BIC must be exactly 8 or 11 characters (ISO 9362)",
+    "country": "Country",
+    "logo": "Logo (Optional)",
+    "logoPreview": "Logo preview",
+    "changeLogo": "Change Logo",
+    "uploadLogo": "Upload Logo",
+    "removeLogo": "Remove",
+    "logoHelp": "PNG, JPEG, WebP, or SVG. Max 500KB. Recommended: 128x128px.",
+    "logoInvalidType": "Invalid file type. Please use PNG, JPEG, WebP, or SVG.",
+    "logoTooLarge": "File too large. Maximum size is 500KB.",
+    "logoReadError": "Failed to read file. Please try again.",
+    "cancel": "Cancel",
+    "update": "Update",
+    "create": "Create"
+  },
+  "deleteDialog": {
+    "title": "Delete Institution",
+    "description": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "error": "Cannot delete this institution"
+  }
+}

@@ -1,0 +1,238 @@
+{
+  "financialFreedom": {
+    "title": "Financial Freedom Calculator",
+    "description": "Plan your path to financial independence. Calculate when your savings can sustain your lifestyle.",
+    "calculator": {
+      "title": "Financial Freedom Calculator",
+      "reset": "Reset",
+      "calculate": "Calculate",
+      "calculating": "Calculating...",
+      "useActualData": {
+        "title": "Use Your Actual Financial Data",
+        "description": "Current savings: {{savings}} • Avg. monthly expenses: {{expenses}}",
+        "button": "Use My Data"
+      },
+      "loadingData": "Loading your financial data...",
+      "dataLoadError": "Could not load your financial data. You can still enter values manually.",
+      "fields": {
+        "currentSavings": {
+          "label": "Current Savings",
+          "description": "Your total current savings and investments"
+        },
+        "monthlyExpenses": {
+          "label": "Monthly Expenses",
+          "description": "Your expected monthly expenses in retirement"
+        },
+        "expectedReturn": {
+          "label": "Expected Annual Return (%)",
+          "description": "Historical average: ~7% (stocks), ~3% (bonds).",
+          "learnMore": "Learn about compound interest"
+        },
+        "monthlyContribution": {
+          "label": "Monthly Contribution",
+          "description": "Additional monthly savings"
+        },
+        "withdrawalRate": {
+          "label": "Withdrawal Rate (%)",
+          "description": "4% rule: Safe withdrawal rate (adjust based on risk tolerance).",
+          "learnMore": "Learn more about the 4% rule"
+        },
+        "inflationRate": {
+          "label": "Inflation Rate (%)",
+          "description": "Use real returns (after inflation).",
+          "learnMore": "Learn about real vs nominal returns"
+        },
+        "adjustForInflation": "Adjust for inflation"
+      }
+    },
+    "results": {
+      "timeToFreedom": "Time to Financial Freedom",
+      "achievable": "Achievable!",
+      "notAchievable": "Not achievable within 50 years",
+      "savingsWillLast": "Savings Will Last",
+      "forever": "Forever",
+      "returnsExceedExpenses": "Returns exceed expenses",
+      "yearsPlural": "{{count}} years",
+      "until": "Until {{year}}",
+      "pathToFreedom": "Path to Financial Freedom",
+      "yearByYear": "Year-by-Year Projection",
+      "whatIf": "What If Analysis",
+      "progressToGoal": "Progress to Goal",
+      "percentOfGoal": "{{pct}}% of goal",
+      "targetAmount": {
+        "title": "Target Amount",
+        "description": "For {{income}}/year income"
+      },
+      "passiveIncome": {
+        "title": "Passive Income",
+        "description": "At {{rate}}% withdrawal rate"
+      },
+      "timeToFreedom_years_one": "{{count}} year",
+      "timeToFreedom_years_other": "{{count}} years",
+      "timeToFreedom_months_one": "{{count}} month",
+      "timeToFreedom_months_other": "{{count}} months"
+    }
+  },
+  "compoundInterest": {
+    "title": "Compound Interest Calculator",
+    "description": "Visualize the power of compounding. Calculate how your investments grow over time with regular contributions.",
+    "calculator": {
+      "title": "Compound Interest Calculator",
+      "calculate": "Calculate",
+      "calculating": "Calculating...",
+      "reset": "Reset",
+      "fields": {
+        "principal": {
+          "label": "Initial Principal",
+          "description": "Your starting investment amount"
+        },
+        "annualRate": {
+          "label": "Annual Interest Rate (%)",
+          "description": "Expected annual return rate (e.g. 7 for 7%)"
+        },
+        "frequency": {
+          "label": "Compounding Frequency",
+          "description": "How often interest is compounded per year",
+          "options": {
+            "annually": "Annually (1x/year)",
+            "semiAnnually": "Semi-Annually (2x/year)",
+            "quarterly": "Quarterly (4x/year)",
+            "monthly": "Monthly (12x/year)",
+            "weekly": "Weekly (52x/year)",
+            "daily": "Daily (365x/year)"
+          }
+        },
+        "years": {
+          "label": "Duration (years)",
+          "description": "How long you plan to invest"
+        },
+        "contribution": {
+          "label": "Regular Contribution",
+          "description": "Amount added at each compounding period"
+        },
+        "contributionTiming": "Contribute at beginning of period",
+        "contributionTimingDescription": "Enabling this compounds your contribution for one extra period (annuity-due)"
+      }
+    },
+    "results": {
+      "finalBalance": "Final Balance",
+      "totalInterest": "Total Interest",
+      "totalInvested": "Total Invested",
+      "effectiveAnnualRate": "Effective Annual Rate",
+      "growthChart": "Investment Growth Over Time",
+      "yearlyBreakdown": "Year-by-Year Breakdown",
+      "table": {
+        "year": "Year",
+        "startBalance": "Start Balance",
+        "contributions": "Contributions",
+        "interest": "Interest Earned",
+        "endBalance": "End Balance",
+        "totalInterest": "Cumulative Interest"
+      }
+    },
+    "chart": {
+      "principal": "Principal",
+      "contributions": "Contributions",
+      "interest": "Interest"
+    }
+  },
+  "common": {
+    "calculate": "Calculate",
+    "reset": "Reset"
+  },
+  "loanCalculator": {
+    "title": "Loan Calculator",
+    "description": "Calculate your monthly payments, total interest, and view the amortization schedule for your loan.",
+    "calculator": {
+      "title": "Loan Calculator"
+    },
+    "fields": {
+      "principal": "Loan Amount",
+      "rate": "Annual Interest Rate (%)",
+      "years": "Loan Term (Years)"
+    },
+    "results": {
+      "monthlyPayment": "Monthly Payment",
+      "totalInterest": "Total Interest",
+      "totalPayment": "Total Payment",
+      "chartTitle": "Balance Over Time",
+      "schedule": "Amortization Schedule (Yearly)",
+      "table": {
+        "year": "Year",
+        "payment": "Total Payment",
+        "principal": "Principal Paid",
+        "interest": "Interest Paid",
+        "balance": "Remaining Balance"
+      }
+    }
+  },
+  "earlyPayoff": {
+    "title": "Early Mortgage Payoff Calculator",
+    "description": "Calculate the impact of one-off lump-sum prepayments on your mortgage. Compare reducing your loan term versus lowering your monthly payment.",
+    "fields": {
+      "loanBalance": "Remaining Loan Balance",
+      "annualRate": "Annual Interest Rate (%)",
+      "remainingYears": "Remaining Years",
+      "remainingMonthsExtra": "Additional Months (0–11)",
+      "country": "Country",
+      "applyIRA": "Apply early-repayment penalty (IRA – France)",
+      "lumpSumPayments": "One-Off Lump-Sum Payments",
+      "addPayment": "Add Payment",
+      "removePayment": "Remove",
+      "paymentMonth": "Month",
+      "paymentMonthDescription": "Month from now when the payment is made (e.g. 12 = one year from now)",
+      "paymentAmount": "Amount",
+      "monthlyExtraPayment": "Extra Monthly Payment",
+      "monthlyExtraPaymentDescription": "Fixed additional amount paid every month on top of the scheduled payment"
+    },
+    "scenarios": {
+      "base": "Current Schedule",
+      "reduceDuration": "Reduce Duration",
+      "reducePayment": "Reduce Monthly Payment",
+      "comparison": "Scenario Comparison"
+    },
+    "results": {
+      "monthlyPayment": "Monthly Payment",
+      "newMonthlyPayment": "New Monthly Payment",
+      "remainingTerm": "Remaining Term",
+      "totalInterest": "Total Interest",
+      "totalCost": "Total Cost",
+      "interestSaved": "Interest Saved",
+      "timeSaved": "Time Saved",
+      "months": "{{count}}mo",
+      "years": "{{years}}y {{months}}mo",
+      "iraAmount": "IRA Penalty",
+      "netSavings": "Net Savings (after IRA)",
+      "totalLumpSum": "Total Prepayment",
+      "schedule": "Amortisation Schedule (Yearly)",
+      "table": {
+        "year": "Year",
+        "payment": "Regular Payments",
+        "principal": "Principal",
+        "interest": "Interest",
+        "lumpSum": "Lump Sum",
+        "ira": "IRA",
+        "balance": "Balance"
+      }
+    },
+    "noPayments": "Add at least one lump-sum payment and click Calculate to see results.",
+    "iraInfo": {
+      "title": "French Early Repayment Penalty (IRA)",
+      "body": "Under French law (Code de la consommation, art. L313-47), early repayment penalties are capped at the lower of: 6 months' interest on the reimbursed amount, or 3 % of the outstanding capital before repayment.",
+      "waiver": "IRA may be waived in certain situations (job loss, forced relocation for a new job, sale of primary residence, etc.).",
+      "threshold": "Some lenders require a minimum prepayment of 10 % of the initial loan amount."
+    }
+  },
+  "premium": {
+    "title": "Premium",
+    "description": "Unlock advanced features and personalized insights",
+    "comingSoon": "Premium plans coming soon",
+    "comingSoonDescription": "We're finalizing premium features like advanced analytics and priority support."
+  },
+  "community": {
+    "title": "Community",
+    "description": "Learn, share, and connect with other Open Finance users",
+    "comingSoon": "Community features coming soon",
+    "comingSoonDescription": "Discussion boards, tips, and shared insights will be available here soon."
+  }
+}

@@ -1,0 +1,294 @@
+/**
+ * RegimeComparisonGrid Component
+ * 
+ * Grid layout showing all 4 tax regimes side-by-side
+ * Requirements: REQ-2.6.x
+ */
+
+import React, { useState } from 'react';
+import { Download } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import { RegimeCard } from './RegimeCard';
+import type { InvestmentResults, TaxRegime, RegimeCalculationResult } from '@/types/realEstateTools';
+import { useAuthContext } from '@/context/AuthContext';
+import { useFormatCurrency } from '@/hooks/useFormatCurrency';
+
+export interface RegimeComparisonGridProps {
+  results: InvestmentResults;
+  recommendedRegime: TaxRegime | null;
+  eligibleRegimes: TaxRegime[];
+  getRegimeResult: (regime: TaxRegime) => RegimeCalculationResult | null;
+  isRegimeEligible: (regime: TaxRegime) => boolean;
+  forceCollapse?: number;
+}
+
+export const RegimeComparisonGrid: React.FC<RegimeComparisonGridProps> = ({
+  results,
+  recommendedRegime,
+  eligibleRegimes,
+  getRegimeResult,
+  isRegimeEligible,
+  forceCollapse,
+}) => {
+  const { baseCurrency } = useAuthContext();
+  const { format: formatCurrency } = useFormatCurrency();
+  const [microFoncierOpen, setMicroFoncierOpen] = useState(false);
+  const [reelFoncierOpen, setReelFoncierOpen] = useState(false);
+  const [lmnpReelOpen, setLmnpReelOpen] = useState(false);
+  const [microBicOpen, setMicroBicOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (forceCollapse) {
+      setMicroFoncierOpen(false);
+      setReelFoncierOpen(false);
+      setLmnpReelOpen(false);
+      setMicroBicOpen(false);
+    }
+  }, [forceCollapse]);
+
+  const regimes: TaxRegime[] = ['micro_foncier', 'reel_foncier', 'lmnp_reel', 'micro_bic'];
+
+  const handleExport = () => {
+    // Create export data
+    const exportData = {
+      date: new Date().toISOString(),
+      regimes: {
+        microFoncier: results.microFoncier,
+        reelFoncier: results.reelFoncier,
+        lmnpReel: results.lmnpReel,
+        microBic: results.microBic,
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `comparaison-regimes-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+  };
+
+  const toggleMicroFoncier = () => {
+    setMicroFoncierOpen(p => {
+      const n = !p;
+      if (window.innerWidth >= 768) setReelFoncierOpen(n);
+      return n;
+    });
+  };
+
+  const toggleReelFoncier = () => {
+    setReelFoncierOpen(p => {
+      const n = !p;
+      if (window.innerWidth >= 768) setMicroFoncierOpen(n);
+      return n;
+    });
+  };
+
+  const toggleLmnpReel = () => {
+    setLmnpReelOpen(p => {
+      const n = !p;
+      if (window.innerWidth >= 768) setMicroBicOpen(n);
+      return n;
+    });
+  };
+
+  const toggleMicroBic = () => {
+    setMicroBicOpen(p => {
+      const n = !p;
+      if (window.innerWidth >= 768) setLmnpReelOpen(n);
+      return n;
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Export Button */}
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={handleExport}>
+          <Download className="mr-2 h-4 w-4" />
+          Exporter les résultats
+        </Button>
+      </div>
+
+      {/* Summary */}
+      <Card className="bg-success/5 border-success/20">
+        <CardContent className="p-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-sm text-muted-foreground">Régimes éligibles</p>
+              <p className="text-2xl font-bold">{eligibleRegimes.length}/4</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Meilleur cash-flow</p>
+              <p className="text-2xl font-bold text-green-600">
+                {formatCurrency(Math.max(
+                  ...regimes.map(r => getRegimeResult(r)?.performance.monthlyCashFlow || 0)
+                ), baseCurrency)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Meilleure renta. nette</p>
+              <p className="text-2xl font-bold text-primary">
+                {Math.max(
+                  ...regimes.map(r => getRegimeResult(r)?.performance.netYield || 0)
+                ).toFixed(2)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Régime recommandé</p>
+              <p className="text-lg font-bold text-success">
+                {recommendedRegime ?
+                  recommendedRegime === 'micro_foncier' ? 'Micro-Foncier' :
+                    recommendedRegime === 'reel_foncier' ? 'Réel Foncier' :
+                      recommendedRegime === 'lmnp_reel' ? 'LMNP Réel' : 'Micro-BIC'
+                  : '-'
+                }
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Regime Cards — 2×2 grid (each card individually collapsible) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {regimes.map((regime) => {
+          const result = getRegimeResult(regime);
+          if (!result) return null;
+
+          let isOpen = true;
+          let onToggle = () => { };
+
+          switch (regime) {
+            case 'micro_foncier':
+              isOpen = microFoncierOpen;
+              onToggle = toggleMicroFoncier;
+              break;
+            case 'reel_foncier':
+              isOpen = reelFoncierOpen;
+              onToggle = toggleReelFoncier;
+              break;
+            case 'lmnp_reel':
+              isOpen = lmnpReelOpen;
+              onToggle = toggleLmnpReel;
+              break;
+            case 'micro_bic':
+              isOpen = microBicOpen;
+              onToggle = toggleMicroBic;
+              break;
+          }
+
+          return (
+            <RegimeCard
+              key={regime}
+              regime={regime}
+              result={result}
+              isRecommended={regime === recommendedRegime}
+              isOpen={isOpen}
+              onToggle={onToggle}
+            />
+          );
+        })}
+      </div>
+
+      {/* Comparison Table */}
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Tableau comparatif</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-4">Critère</th>
+                  {regimes.map((regime) => (
+                    <th key={regime} className="text-center py-2 px-4">
+                      {regime === 'micro_foncier' ? 'Micro-Foncier' :
+                        regime === 'reel_foncier' ? 'Réel Foncier' :
+                          regime === 'lmnp_reel' ? 'LMNP Réel' : 'Micro-BIC'}
+                      {regime === recommendedRegime && (
+                        <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                          Recommandé
+                        </span>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b">
+                  <td className="py-2 px-4 font-medium">Éligible</td>
+                  {regimes.map((regime) => (
+                    <td key={regime} className="text-center py-2 px-4">
+                      {isRegimeEligible(regime) ? (
+                        <span className="text-green-600">✓</span>
+                      ) : (
+                        <span className="text-red-600">✗</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+                <tr className="border-b">
+                  <td className="py-2 px-4 font-medium">Cash-flow mensuel</td>
+                  {regimes.map((regime) => {
+                    const result = getRegimeResult(regime);
+                    return (
+                      <td key={regime} className="text-center py-2 px-4">
+                        {result ? formatCurrency(result.performance.monthlyCashFlow, baseCurrency) : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="border-b">
+                  <td className="py-2 px-4 font-medium">Rentabilité brute</td>
+                  {regimes.map((regime) => {
+                    const result = getRegimeResult(regime);
+                    return (
+                      <td key={regime} className="text-center py-2 px-4">
+                        {result ? `${result.performance.grossYield.toFixed(2)}%` : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="border-b">
+                  <td className="py-2 px-4 font-medium">Rentabilité nette</td>
+                  {regimes.map((regime) => {
+                    const result = getRegimeResult(regime);
+                    return (
+                      <td key={regime} className={`text-center py-2 px-4 font-semibold ${regime === recommendedRegime ? 'text-green-600' : ''
+                        }`}>
+                        {result ? `${result.performance.netYield.toFixed(2)}%` : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="border-b">
+                  <td className="py-2 px-4 font-medium">Revenu imposable</td>
+                  {regimes.map((regime) => {
+                    const result = getRegimeResult(regime);
+                    return (
+                      <td key={regime} className="text-center py-2 px-4">
+                        {result ? formatCurrency(result.revenue.taxable, baseCurrency) : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="border-b">
+                  <td className="py-2 px-4 font-medium">Total impôts</td>
+                  {regimes.map((regime) => {
+                    const result = getRegimeResult(regime);
+                    return (
+                      <td key={regime} className="text-center py-2 px-4 text-red-600">
+                        {result ? formatCurrency(result.taxation.totalTaxes, baseCurrency) : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default RegimeComparisonGrid;

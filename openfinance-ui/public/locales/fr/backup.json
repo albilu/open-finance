@@ -1,0 +1,102 @@
+{
+  "title": "Sauvegarde et restauration",
+  "description": "Créez et gérez des sauvegardes de la base de données",
+  "createBackup": "Créer une sauvegarde",
+  "uploadBackup": "Téléverser une sauvegarde",
+  "table": {
+    "filename": "Nom de fichier",
+    "size": "Taille",
+    "date": "Date",
+    "type": "Type",
+    "status": "Statut",
+    "actions": "Actions"
+  },
+  "status": {
+    "completed": "Terminée",
+    "failed": "Échouée",
+    "inProgress": "En cours",
+    "pending": "En attente"
+  },
+  "type": {
+    "manual": "Manuelle",
+    "automatic": "Automatique"
+  },
+  "actions": {
+    "download": "Télécharger la sauvegarde",
+    "restore": "Restaurer à partir de cette sauvegarde",
+    "delete": "Supprimer la sauvegarde"
+  },
+  "loadError": "Impossible de charger les sauvegardes. Veuillez réessayer ultérieurement.",
+  "empty": {
+    "noBackups": "Aucune sauvegarde pour l'instant",
+    "description": "Créez votre première sauvegarde pour sécuriser vos données",
+    "createCta": "Créer une sauvegarde"
+  },
+  "createDialog": {
+    "title": "Créer une sauvegarde",
+    "description": "Créez une sauvegarde manuelle de votre base de données. Cela peut prendre quelques instants.",
+    "descriptionLabel": "Description (facultatif)",
+    "descriptionPlaceholder": "ex. : Avant la préparation de la déclaration fiscale",
+    "cancel": "Annuler",
+    "creating": "Création en cours...",
+    "create": "Créer une sauvegarde"
+  },
+  "uploadDialog": {
+    "title": "Téléverser et restaurer une sauvegarde",
+    "description": "Téléversez un fichier de sauvegarde (.ofbak) pour restaurer votre base de données",
+    "selectFile": "Cliquez pour sélectionner le fichier de sauvegarde",
+    "fileRestriction": "Fichiers .ofbak uniquement, jusqu'à 100 Mo",
+    "warning": "Cela remplacera toutes les données actuelles. Une sauvegarde de sécurité sera créée automatiquement.",
+    "cancel": "Annuler",
+    "restoring": "Restauration en cours...",
+    "upload": "Téléverser et restaurer"
+  },
+  "restoreDialog": {
+    "title": "Restaurer la sauvegarde ?",
+    "description": "Cela remplacera toutes les données actuelles par la sauvegarde du {{date}}. Une sauvegarde de sécurité sera créée automatiquement. Cette action est irréversible.",
+    "confirmText": "Restaurer la sauvegarde"
+  },
+  "deleteDialog": {
+    "title": "Supprimer la sauvegarde ?",
+    "description": "Êtes-vous sûr(e) de vouloir supprimer « {{filename}} » ? Cette action est irréversible.",
+    "confirmText": "Supprimer"
+  },
+  "alerts": {
+    "invalidFileType": "Type de fichier invalide. Veuillez sélectionner un fichier .ofbak.",
+    "fileTooLarge": "Le fichier est trop volumineux. La taille maximale est de 100 Mo.",
+    "restoreSuccess": "Succès : {{message}}\n\nVeuillez redémarrer l'application pour que les modifications prennent effet.",
+    "restoreFailed": "Échec de la restauration. Veuillez vérifier la console pour plus de détails."
+  },
+  "overview": {
+    "sectionTitle": "Sauvegarde et restauration",
+    "sectionDescription": "Gérez les sauvegardes de votre base de données",
+    "cardTitle": "Aperçu des sauvegardes",
+    "cardDescription": "Créez et gérez des sauvegardes de vos données financières. Les sauvegardes sont compressées et incluent une vérification d'intégrité pour une restauration sécurisée.",
+    "totalBackups": "Total des sauvegardes",
+    "automatic": "{{count}} automatique",
+    "lastBackup": "Dernière sauvegarde",
+    "never": "Jamais",
+    "automatic_type": "Automatique",
+    "manual_type": "Manuelle",
+    "storageUsed": "Espace utilisé",
+    "average": "Moy. : {{size}}",
+    "tip": "Astuce",
+    "tipText": "Les sauvegardes automatiques sont créées chaque semaine par défaut. Vous pouvez créer manuellement des sauvegardes à tout moment et restaurer à partir de versions précédentes.",
+    "manageBackups": "Gérer les sauvegardes",
+    "aboutTitle": "À propos des sauvegardes",
+    "aboutGzip": "Les sauvegardes sont compressées (GZIP) pour économiser l'espace disque",
+    "aboutChecksum": "Chaque sauvegarde inclut une somme de contrôle SHA-256 pour la vérification de l'intégrité",
+    "aboutSafety": "Une sauvegarde de sécurité est automatiquement créée avant toute restauration",
+    "aboutRetention": "Les sauvegardes automatiques conservent les 7 dernières versions par défaut",
+    "aboutDownload": "Vous pouvez télécharger les sauvegardes pour les stocker en externe",
+    "timeAgo": {
+      "justNow": "À l'instant",
+      "minuteAgo_one": "Il y a {{count}} minute",
+      "minuteAgo_other": "Il y a {{count}} minutes",
+      "hourAgo_one": "Il y a {{count}} heure",
+      "hourAgo_other": "Il y a {{count}} heures",
+      "dayAgo_one": "Il y a {{count}} jour",
+      "dayAgo_other": "Il y a {{count}} jours"
+    }
+  }
+}
