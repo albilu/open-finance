@@ -81,6 +81,10 @@ application:
   
   seed:
     enabled: false
+  logo-fetch:
+    enabled: false          # set to true to enable automatic logo fetching on creation
+    timeout-seconds: 5      # HTTP connect + read timeout per request
+    min-response-bytes: 100 # reject responses smaller than this (generic/empty icons)
   live-demo:
     # Set to true only in development/demo environments.
     # When enabled, seeds a complete realistic dataset for the 'demo' user on first startup.

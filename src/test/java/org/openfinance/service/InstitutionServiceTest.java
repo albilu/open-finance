@@ -11,12 +11,10 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.openfinance.service.OperationHistoryService;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openfinance.dto.InstitutionRequest;
@@ -28,22 +26,19 @@ import org.openfinance.repository.InstitutionRepository;
 /**
  * Unit tests for InstitutionService.
  *
- * <p>
- * Tests business logic for institution CRUD operations, including
- * system institution protection and validation.
- * </p>
+ * <p>Tests business logic for institution CRUD operations, including system institution protection
+ * and validation.
  */
 @ExtendWith(MockitoExtension.class)
 class InstitutionServiceTest {
 
-    @Mock
-    private InstitutionRepository institutionRepository;
+    @Mock private InstitutionRepository institutionRepository;
 
-    @Mock
-    private OperationHistoryService operationHistoryService;
+    @Mock private OperationHistoryService operationHistoryService;
 
-    @InjectMocks
-    private InstitutionService institutionService;
+    @Mock private LogoFetchService logoFetchService;
+
+    @InjectMocks private InstitutionService institutionService;
 
     private Institution systemInstitution;
     private Institution customInstitution;
@@ -51,34 +46,37 @@ class InstitutionServiceTest {
 
     @BeforeEach
     void setUp() {
-        systemInstitution = Institution.builder()
-                .id(1L)
-                .name("BNP Paribas")
-                .bic("BNPAFRPP")
-                .country("FR")
-                .logo("base64logo")
-                .isSystem(true)
-                .createdAt(LocalDateTime.now().minusDays(1))
-                .updatedAt(LocalDateTime.now().minusDays(1))
-                .build();
+        systemInstitution =
+                Institution.builder()
+                        .id(1L)
+                        .name("BNP Paribas")
+                        .bic("BNPAFRPP")
+                        .country("FR")
+                        .logo("base64logo")
+                        .isSystem(true)
+                        .createdAt(LocalDateTime.now().minusDays(1))
+                        .updatedAt(LocalDateTime.now().minusDays(1))
+                        .build();
 
-        customInstitution = Institution.builder()
-                .id(2L)
-                .name("My Custom Bank")
-                .bic("CUSTFRPP")
-                .country("FR")
-                .logo("customlogo")
-                .isSystem(false)
-                .createdAt(LocalDateTime.now().minusHours(1))
-                .updatedAt(LocalDateTime.now().minusHours(1))
-                .build();
+        customInstitution =
+                Institution.builder()
+                        .id(2L)
+                        .name("My Custom Bank")
+                        .bic("CUSTFRPP")
+                        .country("FR")
+                        .logo("customlogo")
+                        .isSystem(false)
+                        .createdAt(LocalDateTime.now().minusHours(1))
+                        .updatedAt(LocalDateTime.now().minusHours(1))
+                        .build();
 
-        validRequest = InstitutionRequest.builder()
-                .name("New Bank")
-                .bic("NEWBFRPP")
-                .country("FR")
-                .logo("newlogo")
-                .build();
+        validRequest =
+                InstitutionRequest.builder()
+                        .name("New Bank")
+                        .bic("NEWBFRPP")
+                        .country("FR")
+                        .logo("newlogo")
+                        .build();
     }
 
     @Test
@@ -118,7 +116,8 @@ class InstitutionServiceTest {
         when(institutionRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(InstitutionNotFoundException.class,
+        assertThrows(
+                InstitutionNotFoundException.class,
                 () -> institutionService.getInstitutionById(999L));
         verify(institutionRepository).findById(999L);
     }
@@ -127,7 +126,8 @@ class InstitutionServiceTest {
     void shouldGetInstitutionsByCountry() {
         // Arrange
         List<Institution> frenchInstitutions = List.of(systemInstitution, customInstitution);
-        when(institutionRepository.findByCountryOrderByNameAsc("FR")).thenReturn(frenchInstitutions);
+        when(institutionRepository.findByCountryOrderByNameAsc("FR"))
+                .thenReturn(frenchInstitutions);
 
         // Act
         List<InstitutionResponse> result = institutionService.getInstitutionsByCountry("FR");
@@ -142,7 +142,8 @@ class InstitutionServiceTest {
     void shouldGetSystemInstitutions() {
         // Arrange
         List<Institution> systemInstitutions = List.of(systemInstitution);
-        when(institutionRepository.findByIsSystemTrueOrderByCountryAscNameAsc()).thenReturn(systemInstitutions);
+        when(institutionRepository.findByIsSystemTrueOrderByCountryAscNameAsc())
+                .thenReturn(systemInstitutions);
 
         // Act
         List<InstitutionResponse> result = institutionService.getSystemInstitutions();
@@ -157,7 +158,8 @@ class InstitutionServiceTest {
     void shouldGetCustomInstitutions() {
         // Arrange
         List<Institution> customInstitutions = List.of(customInstitution);
-        when(institutionRepository.findByIsSystemFalseOrderByNameAsc()).thenReturn(customInstitutions);
+        when(institutionRepository.findByIsSystemFalseOrderByNameAsc())
+                .thenReturn(customInstitutions);
 
         // Act
         List<InstitutionResponse> result = institutionService.getCustomInstitutions();
@@ -200,16 +202,17 @@ class InstitutionServiceTest {
     @Test
     void shouldCreateInstitutionSuccessfully() {
         // Arrange
-        Institution savedInstitution = Institution.builder()
-                .id(3L)
-                .name("New Bank")
-                .bic("NEWBFRPP")
-                .country("FR")
-                .logo("newlogo")
-                .isSystem(false)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        Institution savedInstitution =
+                Institution.builder()
+                        .id(3L)
+                        .name("New Bank")
+                        .bic("NEWBFRPP")
+                        .country("FR")
+                        .logo("newlogo")
+                        .isSystem(false)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
 
         when(institutionRepository.save(any(Institution.class))).thenReturn(savedInstitution);
 
@@ -226,23 +229,25 @@ class InstitutionServiceTest {
     @Test
     void shouldUpdateInstitutionSuccessfully() {
         // Arrange
-        InstitutionRequest updateRequest = InstitutionRequest.builder()
-                .name("Updated Bank")
-                .bic("UPDTFRPP")
-                .country("FR")
-                .logo("updatedlogo")
-                .build();
+        InstitutionRequest updateRequest =
+                InstitutionRequest.builder()
+                        .name("Updated Bank")
+                        .bic("UPDTFRPP")
+                        .country("FR")
+                        .logo("updatedlogo")
+                        .build();
 
-        Institution updatedInstitution = Institution.builder()
-                .id(2L)
-                .name("Updated Bank")
-                .bic("UPDTFRPP")
-                .country("FR")
-                .logo("updatedlogo")
-                .isSystem(false)
-                .createdAt(customInstitution.getCreatedAt())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        Institution updatedInstitution =
+                Institution.builder()
+                        .id(2L)
+                        .name("Updated Bank")
+                        .bic("UPDTFRPP")
+                        .country("FR")
+                        .logo("updatedlogo")
+                        .isSystem(false)
+                        .createdAt(customInstitution.getCreatedAt())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
 
         when(institutionRepository.findById(2L)).thenReturn(Optional.of(customInstitution));
         when(institutionRepository.save(any(Institution.class))).thenReturn(updatedInstitution);
@@ -263,7 +268,8 @@ class InstitutionServiceTest {
         when(institutionRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(InstitutionNotFoundException.class,
+        assertThrows(
+                InstitutionNotFoundException.class,
                 () -> institutionService.updateInstitution(999L, validRequest));
         verify(institutionRepository).findById(999L);
         verify(institutionRepository, never()).save(any(Institution.class));
@@ -275,7 +281,8 @@ class InstitutionServiceTest {
         when(institutionRepository.findById(1L)).thenReturn(Optional.of(systemInstitution));
 
         // Act & Assert
-        assertThrows(IllegalStateException.class,
+        assertThrows(
+                IllegalStateException.class,
                 () -> institutionService.updateInstitution(1L, validRequest));
         verify(institutionRepository).findById(1L);
         verify(institutionRepository, never()).save(any(Institution.class));
@@ -302,7 +309,8 @@ class InstitutionServiceTest {
         when(institutionRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(InstitutionNotFoundException.class,
+        assertThrows(
+                InstitutionNotFoundException.class,
                 () -> institutionService.deleteInstitution(999L));
         verify(institutionRepository).findById(999L);
         verify(institutionRepository, never()).delete(any(Institution.class));
@@ -314,8 +322,7 @@ class InstitutionServiceTest {
         when(institutionRepository.findById(1L)).thenReturn(Optional.of(systemInstitution));
 
         // Act & Assert
-        assertThrows(IllegalStateException.class,
-                () -> institutionService.deleteInstitution(1L));
+        assertThrows(IllegalStateException.class, () -> institutionService.deleteInstitution(1L));
         verify(institutionRepository).findById(1L);
         verify(institutionRepository, never()).isInUse(anyLong());
         verify(institutionRepository, never()).delete(any(Institution.class));
@@ -328,9 +335,11 @@ class InstitutionServiceTest {
         when(institutionRepository.isInUse(2L)).thenReturn(true);
 
         // Act & Assert
-        assertThrows(IllegalStateException.class, () -> {
-            institutionService.deleteInstitution(2L);
-        });
+        assertThrows(
+                IllegalStateException.class,
+                () -> {
+                    institutionService.deleteInstitution(2L);
+                });
         verify(institutionRepository).findById(2L);
         verify(institutionRepository).isInUse(2L);
         verify(institutionRepository, never()).delete(any(Institution.class));
@@ -360,5 +369,98 @@ class InstitutionServiceTest {
         // Assert
         assertThat(result).isFalse();
         verify(institutionRepository).existsById(999L);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("createInstitution fetches logo when request has no logo")
+    void shouldFetchLogoWhenCreatingInstitutionWithNoLogo() {
+        // Arrange
+        InstitutionRequest noLogoRequest =
+                InstitutionRequest.builder()
+                        .name("New Bank")
+                        .bic("NEWBFRPP")
+                        .country("FR")
+                        .logo(null)
+                        .build();
+
+        String fetchedLogo = "data:image/png;base64,AAAA";
+        when(logoFetchService.fetchLogo("New Bank")).thenReturn(Optional.of(fetchedLogo));
+
+        Institution savedInstitution =
+                Institution.builder()
+                        .id(3L)
+                        .name("New Bank")
+                        .logo(fetchedLogo)
+                        .isSystem(false)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+        when(institutionRepository.save(any(Institution.class))).thenReturn(savedInstitution);
+
+        // Act
+        InstitutionResponse result = institutionService.createInstitution(noLogoRequest);
+
+        // Assert
+        verify(logoFetchService).fetchLogo("New Bank");
+        assertThat(result.getLogo()).isEqualTo(fetchedLogo);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "createInstitution skips logo fetch when logo is already provided")
+    void shouldNotFetchLogoWhenLogoAlreadyProvided() {
+        // Arrange
+        InstitutionRequest requestWithLogo =
+                InstitutionRequest.builder()
+                        .name("New Bank")
+                        .bic("NEWBFRPP")
+                        .country("FR")
+                        .logo("data:image/png;base64,EXISTING")
+                        .build();
+
+        Institution savedInstitution =
+                Institution.builder()
+                        .id(3L)
+                        .name("New Bank")
+                        .logo("data:image/png;base64,EXISTING")
+                        .isSystem(false)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+        when(institutionRepository.save(any(Institution.class))).thenReturn(savedInstitution);
+
+        // Act
+        institutionService.createInstitution(requestWithLogo);
+
+        // Assert
+        verify(logoFetchService, never()).fetchLogo(any());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("createInstitution saves null logo when fetch returns empty")
+    void shouldSaveWithNullLogoWhenFetchFails() {
+        // Arrange
+        InstitutionRequest noLogoRequest =
+                InstitutionRequest.builder().name("Unknown Corp").logo(null).build();
+
+        when(logoFetchService.fetchLogo("Unknown Corp")).thenReturn(Optional.empty());
+
+        Institution savedInstitution =
+                Institution.builder()
+                        .id(4L)
+                        .name("Unknown Corp")
+                        .logo(null)
+                        .isSystem(false)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+        when(institutionRepository.save(any(Institution.class))).thenReturn(savedInstitution);
+
+        // Act
+        InstitutionResponse result = institutionService.createInstitution(noLogoRequest);
+
+        // Assert
+        verify(logoFetchService).fetchLogo("Unknown Corp");
+        assertThat(result.getLogo()).isNull();
     }
 }

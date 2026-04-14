@@ -5,7 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.PayeeRequest;
 import org.openfinance.dto.PayeeResponse;
 import org.openfinance.entity.Category;
@@ -18,30 +19,24 @@ import org.openfinance.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 /**
  * Service layer for managing payees.
- * 
- * <p>
- * This service handles business logic for payee CRUD operations:
+ *
+ * <p>This service handles business logic for payee CRUD operations:
+ *
  * <ul>
- * <li>Creating new payees (custom/user-created)</li>
- * <li>Updating existing payees (custom only)</li>
- * <li>Deleting payees (custom only - system payees protected)</li>
- * <li>Retrieving payees with filters</li>
- * <li>Searching payees by name</li>
- * <li>Finding or creating payees automatically for transactions</li>
+ *   <li>Creating new payees (custom/user-created)
+ *   <li>Updating existing payees (custom only)
+ *   <li>Deleting payees (custom only - system payees protected)
+ *   <li>Retrieving payees with filters
+ *   <li>Searching payees by name
+ *   <li>Finding or creating payees automatically for transactions
  * </ul>
- * 
- * <p>
- * Requirements: Payee Management Feature
- * </p>
- * <p>
- * Requirements: REQ-CAT-5.1 - Payee-to-Category Auto-Fill
- * </p>
- * 
+ *
+ * <p>Requirements: Payee Management Feature
+ *
+ * <p>Requirements: REQ-CAT-5.1 - Payee-to-Category Auto-Fill
+ *
  * @see org.openfinance.entity.Payee
  * @see org.openfinance.dto.PayeeRequest
  * @see org.openfinance.dto.PayeeResponse
@@ -55,24 +50,24 @@ public class PayeeService {
     private final PayeeRepository payeeRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
+    private final LogoFetchService logoFetchService;
 
     /**
      * Get all payees.
-     * 
+     *
      * @return list of all payees ordered by name
      */
     @Transactional(readOnly = true)
     public List<PayeeResponse> getAllPayees() {
         log.debug("Fetching all payees");
-        return payeeRepository.findAllByOrderByNameAsc()
-                .stream()
+        return payeeRepository.findAllByOrderByNameAsc().stream()
                 .map(p -> toResponse(p, null, null))
                 .toList();
     }
 
     /**
      * Get all payees with transaction statistics for a user.
-     * 
+     *
      * @param userId the user ID
      * @return list of all payees with stats
      */
@@ -81,34 +76,34 @@ public class PayeeService {
         log.debug("Fetching all payees with stats for user: {}", userId);
         Map<String, TransactionRepository.PayeeStats> statsMap = getPayeeStatsMap(userId);
 
-        return payeeRepository.findAllByOrderByNameAsc()
-                .stream()
-                .map(payee -> {
-                    TransactionRepository.PayeeStats stats = statsMap.get(payee.getName());
-                    return toResponse(payee,
-                            stats != null ? stats.getCount() : 0L,
-                            stats != null ? stats.getTotal() : BigDecimal.ZERO);
-                })
+        return payeeRepository.findAllByOrderByNameAsc().stream()
+                .map(
+                        payee -> {
+                            TransactionRepository.PayeeStats stats = statsMap.get(payee.getName());
+                            return toResponse(
+                                    payee,
+                                    stats != null ? stats.getCount() : 0L,
+                                    stats != null ? stats.getTotal() : BigDecimal.ZERO);
+                        })
                 .toList();
     }
 
     /**
      * Get all active payees (both system and custom).
-     * 
+     *
      * @return list of active payees ordered by system first, then name
      */
     @Transactional(readOnly = true)
     public List<PayeeResponse> getActivePayees() {
         log.debug("Fetching active payees");
-        return payeeRepository.findAllActiveOrderBySystemFirst()
-                .stream()
+        return payeeRepository.findAllActiveOrderBySystemFirst().stream()
                 .map(p -> toResponse(p, null, null))
                 .toList();
     }
 
     /**
      * Get payee by ID.
-     * 
+     *
      * @param id the payee ID
      * @return the payee
      * @throws PayeeNotFoundException if not found
@@ -116,57 +111,54 @@ public class PayeeService {
     @Transactional(readOnly = true)
     public PayeeResponse getPayeeById(Long id) {
         log.debug("Fetching payee by id: {}", id);
-        Payee payee = payeeRepository.findById(id)
-                .orElseThrow(() -> new PayeeNotFoundException(id));
+        Payee payee =
+                payeeRepository.findById(id).orElseThrow(() -> new PayeeNotFoundException(id));
         return toResponse(payee, null, null);
     }
 
     /**
      * Get system payees (default merchants/providers).
-     * 
+     *
      * @return list of system payees
      */
     @Transactional(readOnly = true)
     public List<PayeeResponse> getSystemPayees() {
         log.debug("Fetching system payees");
-        return payeeRepository.findByIsSystemTrueOrderByNameAsc()
-                .stream()
+        return payeeRepository.findByIsSystemTrueOrderByNameAsc().stream()
                 .map(p -> toResponse(p, null, null))
                 .toList();
     }
 
     /**
      * Get custom (user-created) payees.
-     * 
+     *
      * @return list of custom payees
      */
     @Transactional(readOnly = true)
     public List<PayeeResponse> getCustomPayees() {
         log.debug("Fetching custom payees");
-        return payeeRepository.findByIsSystemFalseOrderByNameAsc()
-                .stream()
+        return payeeRepository.findByIsSystemFalseOrderByNameAsc().stream()
                 .map(p -> toResponse(p, null, null))
                 .toList();
     }
 
     /**
      * Search payees by name.
-     * 
+     *
      * @param query the search query
      * @return list of matching payees
      */
     @Transactional(readOnly = true)
     public List<PayeeResponse> searchPayees(String query) {
         log.debug("Searching payees by name: {}", query);
-        return payeeRepository.searchByName(query)
-                .stream()
+        return payeeRepository.searchByName(query).stream()
                 .map(p -> toResponse(p, null, null))
                 .toList();
     }
 
     /**
      * Get distinct category names from payees.
-     * 
+     *
      * @return list of category names
      */
     @Transactional(readOnly = true)
@@ -177,7 +169,7 @@ public class PayeeService {
 
     /**
      * Get distinct categories from payees.
-     * 
+     *
      * @return list of categories
      */
     @Transactional(readOnly = true)
@@ -188,28 +180,25 @@ public class PayeeService {
 
     /**
      * Get payees by category ID.
-     * 
+     *
      * @param categoryId the category ID
      * @return list of payees in the category
      */
     @Transactional(readOnly = true)
     public List<PayeeResponse> getPayeesByCategoryId(Long categoryId) {
         log.debug("Fetching payees by category id: {}", categoryId);
-        return payeeRepository.findByDefaultCategoryIdAndIsActiveTrue(categoryId)
-                .stream()
+        return payeeRepository.findByDefaultCategoryIdAndIsActiveTrue(categoryId).stream()
                 .map(p -> toResponse(p, null, null))
                 .toList();
     }
 
     /**
      * Find or create a payee by name.
-     * 
-     * <p>
-     * This method is used when entering transactions. If a payee with the given
-     * name already exists (case-insensitive), it returns that payee. Otherwise, it
-     * creates a new custom payee automatically.
-     * </p>
-     * 
+     *
+     * <p>This method is used when entering transactions. If a payee with the given name already
+     * exists (case-insensitive), it returns that payee. Otherwise, it creates a new custom payee
+     * automatically.
+     *
      * @param name the payee name
      * @return the existing or newly created payee
      */
@@ -236,12 +225,11 @@ public class PayeeService {
             return toResponse(existingPayee, null, null);
         }
 
-        // Create new custom payee
-        Payee newPayee = Payee.builder()
-                .name(trimmedName)
-                .isSystem(false)
-                .isActive(true)
-                .build();
+        // Create new custom payee — attempt to auto-fetch a logo
+        String logo = logoFetchService.fetchLogo(trimmedName).orElse(null);
+
+        Payee newPayee =
+                Payee.builder().name(trimmedName).logo(logo).isSystem(false).isActive(true).build();
 
         Payee saved = payeeRepository.save(newPayee);
         log.info("Created new payee: {}", saved.getName());
@@ -250,11 +238,9 @@ public class PayeeService {
 
     /**
      * Create a new custom payee.
-     * 
-     * <p>
-     * User-created payees are marked as non-system.
-     * </p>
-     * 
+     *
+     * <p>User-created payees are marked as non-system.
+     *
      * @param request the payee request
      * @return the created payee
      */
@@ -272,13 +258,19 @@ public class PayeeService {
             defaultCategory = categoryRepository.findById(request.getCategoryId()).orElse(null);
         }
 
-        Payee payee = Payee.builder()
-                .name(trimmedName)
-                .logo(request.getLogo())
-                .defaultCategory(defaultCategory)
-                .isSystem(false)
-                .isActive(true)
-                .build();
+        String logo = request.getLogo();
+        if (logo == null || logo.isBlank()) {
+            logo = logoFetchService.fetchLogo(trimmedName).orElse(null);
+        }
+
+        Payee payee =
+                Payee.builder()
+                        .name(trimmedName)
+                        .logo(logo)
+                        .defaultCategory(defaultCategory)
+                        .isSystem(false)
+                        .isActive(true)
+                        .build();
 
         Payee saved = payeeRepository.save(payee);
         log.info("Created custom payee with id: {}", saved.getId());
@@ -287,22 +279,20 @@ public class PayeeService {
 
     /**
      * Update an existing payee.
-     * 
-     * <p>
-     * Only custom (non-system) payees can be updated.
-     * </p>
-     * 
-     * @param id      the payee ID
+     *
+     * <p>Only custom (non-system) payees can be updated.
+     *
+     * @param id the payee ID
      * @param request the update request
      * @return the updated payee
      * @throws PayeeNotFoundException if not found
-     * @throws IllegalStateException  if trying to update a system payee
+     * @throws IllegalStateException if trying to update a system payee
      */
     public PayeeResponse updatePayee(Long id, PayeeRequest request) {
         log.debug("Updating payee id: {}", id);
 
-        Payee payee = payeeRepository.findById(id)
-                .orElseThrow(() -> new PayeeNotFoundException(id));
+        Payee payee =
+                payeeRepository.findById(id).orElseThrow(() -> new PayeeNotFoundException(id));
 
         // Prevent updating system payees
         if (Boolean.TRUE.equals(payee.getIsSystem())) {
@@ -311,7 +301,8 @@ public class PayeeService {
 
         String trimmedName = request.getName().trim();
         // Check for duplicate name if name is being changed
-        if (!payee.getName().equalsIgnoreCase(trimmedName) && payeeRepository.existsByNameIgnoreCase(trimmedName)) {
+        if (!payee.getName().equalsIgnoreCase(trimmedName)
+                && payeeRepository.existsByNameIgnoreCase(trimmedName)) {
             throw new DuplicatePayeeException(trimmedName);
         }
 
@@ -320,7 +311,8 @@ public class PayeeService {
 
         // Update default category if provided
         if (request.getCategoryId() != null) {
-            Category defaultCategory = categoryRepository.findById(request.getCategoryId()).orElse(null);
+            Category defaultCategory =
+                    categoryRepository.findById(request.getCategoryId()).orElse(null);
             payee.setDefaultCategory(defaultCategory);
         }
 
@@ -331,11 +323,9 @@ public class PayeeService {
 
     /**
      * Toggle payee active status.
-     * 
-     * <p>
-     * Used to hide/show system payees without deleting them.
-     * </p>
-     * 
+     *
+     * <p>Used to hide/show system payees without deleting them.
+     *
      * @param id the payee ID
      * @return the updated payee
      * @throws PayeeNotFoundException if not found
@@ -343,11 +333,12 @@ public class PayeeService {
     public PayeeResponse togglePayeeActive(Long id) {
         log.debug("Toggling payee active status id: {}", id);
 
-        Payee payee = payeeRepository.findById(id)
-                .orElseThrow(() -> new PayeeNotFoundException(id));
+        Payee payee =
+                payeeRepository.findById(id).orElseThrow(() -> new PayeeNotFoundException(id));
 
         if (!Boolean.TRUE.equals(payee.getIsSystem())) {
-            throw new IllegalStateException("Only system payees can be toggled. Delete custom payees instead.");
+            throw new IllegalStateException(
+                    "Only system payees can be toggled. Delete custom payees instead.");
         }
 
         payee.setIsActive(!payee.getIsActive());
@@ -359,20 +350,18 @@ public class PayeeService {
 
     /**
      * Delete a payee.
-     * 
-     * <p>
-     * Only custom (non-system) payees can be deleted.
-     * </p>
-     * 
+     *
+     * <p>Only custom (non-system) payees can be deleted.
+     *
      * @param id the payee ID
      * @throws PayeeNotFoundException if not found
-     * @throws IllegalStateException  if trying to delete a system payee
+     * @throws IllegalStateException if trying to delete a system payee
      */
     public void deletePayee(Long id) {
         log.debug("Deleting payee id: {}", id);
 
-        Payee payee = payeeRepository.findById(id)
-                .orElseThrow(() -> new PayeeNotFoundException(id));
+        Payee payee =
+                payeeRepository.findById(id).orElseThrow(() -> new PayeeNotFoundException(id));
 
         // Prevent deleting system payees
         if (Boolean.TRUE.equals(payee.getIsSystem())) {
@@ -385,7 +374,7 @@ public class PayeeService {
 
     /**
      * Check if payee exists.
-     * 
+     *
      * @param id the payee ID
      * @return true if exists
      */
@@ -394,35 +383,32 @@ public class PayeeService {
         return payeeRepository.existsById(id);
     }
 
-    /**
-     * Map helper to get statistics for all payees of a user.
-     */
+    /** Map helper to get statistics for all payees of a user. */
     private Map<String, TransactionRepository.PayeeStats> getPayeeStatsMap(Long userId) {
-        if (userId == null)
-            return Collections.emptyMap();
-        return transactionRepository.findPayeeStatsByUserId(userId)
-                .stream()
-                .collect(Collectors.toMap(
-                        TransactionRepository.PayeeStats::getPayee,
-                        stats -> stats,
-                        (existing, replacement) -> existing // Should not happen with GROUP BY
-                ));
+        if (userId == null) return Collections.emptyMap();
+        return transactionRepository.findPayeeStatsByUserId(userId).stream()
+                .collect(
+                        Collectors.toMap(
+                                TransactionRepository.PayeeStats::getPayee,
+                                stats -> stats,
+                                (existing, replacement) ->
+                                        existing // Should not happen with GROUP BY
+                                ));
     }
 
-    /**
-     * Convert entity to response DTO.
-     */
+    /** Convert entity to response DTO. */
     private PayeeResponse toResponse(Payee payee, Long transactionCount, BigDecimal totalAmount) {
-        PayeeResponse.PayeeResponseBuilder builder = PayeeResponse.builder()
-                .id(payee.getId())
-                .name(payee.getName())
-                .logo(payee.getLogo())
-                .isSystem(payee.getIsSystem())
-                .isActive(payee.getIsActive())
-                .createdAt(payee.getCreatedAt())
-                .updatedAt(payee.getUpdatedAt())
-                .transactionCount(transactionCount)
-                .totalAmount(totalAmount);
+        PayeeResponse.PayeeResponseBuilder builder =
+                PayeeResponse.builder()
+                        .id(payee.getId())
+                        .name(payee.getName())
+                        .logo(payee.getLogo())
+                        .isSystem(payee.getIsSystem())
+                        .isActive(payee.getIsActive())
+                        .createdAt(payee.getCreatedAt())
+                        .updatedAt(payee.getUpdatedAt())
+                        .transactionCount(transactionCount)
+                        .totalAmount(totalAmount);
 
         // Include default category info if set
         if (payee.getDefaultCategory() != null) {
