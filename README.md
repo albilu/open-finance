@@ -29,6 +29,8 @@ docker compose up -d
 
 _Bug reports and feature requests → [GitHub Issues](https://github.com/open-finance/open-finance/issues)_
 
+---
+
 ## Deployment Options
 
 |                   | Self-Hosted    | Cloud           |
@@ -37,8 +39,6 @@ _Bug reports and feature requests → [GitHub Issues](https://github.com/open-fi
 | **Setup**         | Docker Compose | None            |
 | **Data location** | Your machine   | Managed hosting |
 | **Updates**       | Manual         | Automatic       |
-
----
 
 ## Development
 
