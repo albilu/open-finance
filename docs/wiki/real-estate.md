@@ -8,6 +8,8 @@
 
 The Real Estate module goes beyond generic asset tracking to provide property-specific features: property type classification, value history, income/expense tracking, mortgage linkage, and investment simulations.
 
+![Real Estate Portfolio](screenshots/real-estate.png)
+
 ---
 
 ## Property Types

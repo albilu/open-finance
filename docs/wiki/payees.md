@@ -8,6 +8,8 @@
 
 The payee registry stores the merchants, individuals, and organisations involved in your transactions. Assigning payees enables per-payee spending analysis, logo display, and automatic category assignment.
 
+![Payees Registry](screenshots/payees.png)
+
 ---
 
 ## Payee Fields

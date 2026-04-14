@@ -8,6 +8,8 @@
 
 Recurring transactions model predictable income or expenses that repeat on a regular schedule — rent, salaries, subscriptions, loan repayments, standing orders. Open-Finance generates the actual transaction records automatically when each occurrence falls due.
 
+![Recurring Transactions Management](screenshots/recurring-transactions.png)
+
 ---
 
 ## Supported Frequencies

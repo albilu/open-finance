@@ -8,6 +8,8 @@
 
 The Dashboard is the central view in Open-Finance. It brings together your accounts, assets, liabilities, budgets, and transactions into a set of widgets that give you an instant snapshot of your financial situation.
 
+![Dashboard Overview](screenshots/dashboard.png)
+
 ---
 
 ## Financial Summary

@@ -8,6 +8,8 @@
 
 Categories classify your transactions into meaningful groups — Groceries, Utilities, Salary, Health, etc. They power budget tracking, spending breakdowns, insights, and reports.
 
+![Categories Hierarchy](screenshots/categories.png)
+
 ---
 
 ## Category Types

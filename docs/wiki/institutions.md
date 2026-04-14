@@ -8,6 +8,8 @@
 
 The institution registry lets you track and group accounts by their real-world financial institution — banks, credit card companies, brokers, insurance companies, and more. Linking accounts to institutions enables institution-level balance summaries and simplifies account management.
 
+![Financial Institutions Registry](screenshots/institutions.png)
+
 ---
 
 ## Institution Fields

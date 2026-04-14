@@ -8,6 +8,8 @@
 
 Transactions are the primary record of financial activity. Each transaction belongs to one account and can optionally be split across multiple categories, linked to a payee, tagged, or annotated with notes and attachments.
 
+![Transactions List](screenshots/transactions.png)
+
 ---
 
 ## Transaction Types

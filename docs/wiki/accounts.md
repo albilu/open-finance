@@ -8,6 +8,8 @@
 
 Accounts are the foundation of Open-Finance. Every transaction, import, and budget is linked to an account. Accounts represent your real-world bank accounts, investment accounts, wallets, and other financial containers.
 
+![Accounts Overview](screenshots/accounts.png)
+
 ---
 
 ## Account Types

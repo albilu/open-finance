@@ -8,6 +8,8 @@
 
 Budgets set spending (or income) targets per category for a given time period. Open-Finance tracks your actual spending against each budget in real time, shows sub-period breakdowns, and sends warnings via [Budget Alerts](budget-alerts.md).
 
+![Budgets Overview](screenshots/budgets.png)
+
 ---
 
 ## Budget Periods

@@ -8,6 +8,8 @@
 
 The Liability module tracks money you owe — mortgages, personal loans, student loans, auto loans, credit cards. For each liability, Open-Finance calculates amortization schedules, projects total interest paid, and lets you record interest rate changes over time.
 
+![Liabilities Management](screenshots/liabilities.png)
+
 ---
 
 ## Liability Types

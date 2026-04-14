@@ -8,6 +8,8 @@
 
 Open-Finance can import transaction history from the most common bank export formats and export all your data in multiple formats for external analysis or migration.
 
+![Import Transactions Interface](screenshots/import.png)
+
 ---
 
 ## Supported Import Formats

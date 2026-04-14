@@ -8,6 +8,8 @@
 
 The Asset module tracks your investment portfolio — stocks, ETFs, mutual funds, bonds, cryptocurrencies, commodities, real estate investments, vehicles, jewellery, and collectibles. Live market prices are fetched automatically for assets with a ticker symbol.
 
+![Investment Assets Portfolio](screenshots/assets.png)
+
 ---
 
 ## Asset Types

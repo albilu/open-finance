@@ -8,6 +8,8 @@
 
 The Transaction Rules Engine automatically categorises, tags, and processes transactions when they are created or imported. Rules are evaluated in priority order and can be configured to stop after the first match or to continue applying all matching rules.
 
+![Transaction Rules Configuration](screenshots/transaction-rules.png)
+
 ---
 
 ## How Rules Work
