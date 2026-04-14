@@ -8,6 +8,8 @@
 
 Open-Finance includes four standalone financial calculators accessible from the **Tools** menu. They can be used for planning purposes before committing to any financial decision and do not require any account data.
 
+![Financial Calculators](screenshots/calculators.png)
+
 ---
 
 ## Loan Calculator

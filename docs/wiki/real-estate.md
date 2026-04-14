@@ -84,6 +84,14 @@ This feeds into the net-worth dashboard, where real estate equity is shown along
 
 ---
 
+## Real Estate Tools
+
+The Real Estate module also includes specialized tools for analyzing property investments and market trends.
+
+![Real Estate Tools](screenshots/real-estate-tools.png)
+
+---
+
 ## Related Pages
 
 - [Assets](assets.md)
