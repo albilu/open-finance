@@ -28,6 +28,7 @@ import {
   History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AppLogo } from '@/components/ui/AppLogo';
 import { useIsMobile } from '@/hooks/useBreakpoint';
 import { useCountryToolConfig } from '@/hooks/useCountryToolConfig';
 import { useHasSessionHistory } from '@/hooks/useHasSessionHistory';
@@ -339,19 +340,7 @@ function SidebarContent({ isCollapsed, onToggle, onClose, showCloseButton }: Sid
     <div className="flex flex-col h-full py-6">
       {/* Logo */}
       <div className="flex items-center justify-between px-6 mb-8">
-        {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-background font-bold text-lg">F</span>
-            </div>
-            <span className="text-xl font-bold text-text-primary">Open Finance</span>
-          </div>
-        )}
-        {isCollapsed && (
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
-            <span className="text-background font-bold text-lg">F</span>
-          </div>
-        )}
+        <AppLogo showText={!isCollapsed} className={isCollapsed ? 'mx-auto' : ''} />
 
         {/* Close button (mobile) */}
         {showCloseButton && (

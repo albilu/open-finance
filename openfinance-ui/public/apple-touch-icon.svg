@@ -1,0 +1,30 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f7b733"/>
+      <stop offset="100%" stop-color="#d4881a"/>
+    </linearGradient>
+    <clipPath id="clip">
+      <rect width="180" height="180" rx="42"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="180" height="180" rx="42" fill="url(#bg)"/>
+
+  <g clip-path="url(#clip)">
+    <!-- Area fill -->
+    <path d="M22 132 L53 98 L87 113 L121 70 L158 39 L158 157 L22 157 Z"
+          fill="white" fill-opacity="0.22"/>
+    <!-- Trend line -->
+    <polyline points="22,132 53,98 87,113 121,70 158,39"
+              stroke="white" stroke-width="14"
+              stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Peak dot -->
+    <circle cx="158" cy="39" r="14" fill="white"/>
+    <!-- Upward arrow -->
+    <path d="M143 28 L158 14 L173 28"
+          stroke="white" stroke-width="10"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
