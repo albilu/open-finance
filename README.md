@@ -13,17 +13,6 @@
 
 ---
 
-## Deployment Options
-
-|                   | Self-Hosted    | Cloud           |
-| ----------------- | -------------- | --------------- |
-| **Cost**          | Free           | Subscription    |
-| **Setup**         | Docker Compose | None            |
-| **Data location** | Your machine   | Managed hosting |
-| **Updates**       | Manual         | Automatic       |
-
----
-
 ## Quick Start — Docker (Recommended)
 
 Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/).
@@ -39,6 +28,17 @@ docker compose up -d
 ```
 
 _Bug reports and feature requests → [GitHub Issues](https://github.com/open-finance/open-finance/issues)_
+
+## Deployment Options
+
+|                   | Self-Hosted    | Cloud           |
+| ----------------- | -------------- | --------------- |
+| **Cost**          | Free           | Subscription    |
+| **Setup**         | Docker Compose | None            |
+| **Data location** | Your machine   | Managed hosting |
+| **Updates**       | Manual         | Automatic       |
+
+---
 
 ## Development
 
