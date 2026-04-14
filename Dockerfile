@@ -26,9 +26,8 @@ FROM maven:3.9-eclipse-temurin-21 AS backend-build
 WORKDIR /app
 
 # Cache Maven dependencies before copying source.
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-RUN chmod +x mvn && mvn dependency:go-offline -B -q
+COPY pom.xml ./
+RUN mvn dependency:go-offline -B -q
 
 # Copy backend source.
 COPY src ./src
