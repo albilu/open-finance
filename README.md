@@ -3,6 +3,8 @@
 > **Local-first, privacy-focused personal finance application.**  
 > Consolidates your assets, liabilities, and transactions in one secured dashboard.
 
+![Open Finance Dashboard](docs/wiki/screenshots/hero.png)
+
 [![Backend CI](https://github.com/albilu/open-finance/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/albilu/open-finance/actions/workflows/backend-ci.yml)
 [![Frontend CI](https://github.com/albilu/open-finance/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/albilu/open-finance/actions/workflows/frontend-ci.yml)
 [![Publish Docker Image](https://github.com/albilu/open-finance/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/albilu/open-finance/actions/workflows/docker-publish.yml)
