@@ -11,23 +11,36 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.TransactionRequest;
 import org.openfinance.dto.TransactionResponse;
+import org.openfinance.dto.TransactionSplitRequest;
 import org.openfinance.dto.TransactionSplitResponse;
 import org.openfinance.dto.TransferUpdateRequest;
 import org.openfinance.entity.Account;
 import org.openfinance.entity.Category;
 import org.openfinance.entity.CategoryType;
+import org.openfinance.entity.Liability;
+import org.openfinance.entity.LiabilityTranche;
+import org.openfinance.entity.MovementType;
+import org.openfinance.entity.RealEstateProperty;
+import org.openfinance.entity.RealEstateValueHistory;
+import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
 import org.openfinance.exception.AccountNotFoundException;
 import org.openfinance.exception.CategoryNotFoundException;
 import org.openfinance.exception.InvalidTransactionException;
+import org.openfinance.exception.LiabilityNotFoundException;
+import org.openfinance.exception.RealEstatePropertyNotFoundException;
 import org.openfinance.exception.TransactionNotFoundException;
 import org.openfinance.mapper.TransactionMapper;
 import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.CategoryRepository;
 import org.openfinance.repository.CurrencyRepository;
+import org.openfinance.repository.LiabilityRepository;
+import org.openfinance.repository.LiabilityTrancheRepository;
 import org.openfinance.repository.NetWorthRepository;
 import org.openfinance.repository.PayeeRepository;
+import org.openfinance.repository.RealEstateRepository;
+import org.openfinance.repository.RealEstateValueHistoryRepository;
 import org.openfinance.repository.TransactionRepository;
 import org.openfinance.repository.UserRepository;
 import org.openfinance.security.EncryptionService;
@@ -105,6 +118,10 @@ public class TransactionService {
     private final SearchTokenService searchTokenService;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
     private final CurrencyConversionHelper currencyConversionHelper;
+    private final LiabilityRepository liabilityRepository;
+    private final LiabilityTrancheRepository liabilityTrancheRepository;
+    private final RealEstateRepository realEstateRepository;
+    private final RealEstateValueHistoryRepository realEstateValueHistoryRepository;
 
     /**
      * Creates a new transaction for the specified user.
@@ -270,6 +287,9 @@ public class TransactionService {
                 userId,
                 savedTransaction.getType(),
                 savedTransaction.getAccountId());
+
+        // Sync linked liability / property balances (Task 3)
+        applyLinkedMovements(userId, savedTransaction, request);
 
         // Transparently invalidate net worth snapshots whose historical balance
         // calculation is affected by this transaction's date.
@@ -919,6 +939,15 @@ public class TransactionService {
         Long oldAccountId = transaction.getAccountId();
         LocalDate oldDate = transaction.getDate();
 
+        // Capture old linked-instrument legs before the mapper overwrites them (Task 3)
+        Long oldLiabilityId = transaction.getLiabilityId();
+        Long oldRealEstateId = transaction.getRealEstateId();
+        MovementType oldMovementType = transaction.getMovementType();
+        List<TransactionSplitResponse> oldSplits =
+                oldLiabilityId != null
+                        ? transactionSplitService.getSplitsForTransaction(transactionId)
+                        : List.of();
+
         // Validate the transaction request
         validateTransactionRequest(userId, request);
 
@@ -1015,6 +1044,11 @@ public class TransactionService {
 
             accountRepository.save(account);
         }
+
+        // Reverse old linked liability / property legs, then apply the new ones (Task 3)
+        reverseLinkedMovements(
+                userId, oldLiabilityId, oldRealEstateId, oldMovementType, oldAmount, oldSplits);
+        applyLinkedMovements(userId, transaction, request);
 
         log.info(
                 "Transaction updated successfully: id={}, userId={}, balance adjusted",
@@ -1158,6 +1192,17 @@ public class TransactionService {
                 account.setBalance(account.getBalance().add(transaction.getAmount()));
             }
             accountRepository.save(account);
+
+            // Reverse linked liability / property movements (Task 3)
+            reverseLinkedMovements(
+                    userId,
+                    transaction.getLiabilityId(),
+                    transaction.getRealEstateId(),
+                    transaction.getMovementType(),
+                    transaction.getAmount(),
+                    transaction.getLiabilityId() != null
+                            ? transactionSplitService.getSplitsForTransaction(transactionId)
+                            : List.of());
 
             log.info(
                     "Transaction soft-deleted successfully: id={}, userId={}, balance reversed",
@@ -2129,6 +2174,261 @@ public class TransactionService {
                     "Could not invalidate net worth snapshots for user {} after transaction at {}: {}",
                     userId,
                     transactionDate,
+                    e.getMessage());
+        }
+    }
+
+    // ========== Linked liability / property balance sync (Task 3) ==========
+
+    /**
+     * Applies the liability / property balance effects of a newly created (or updated) transaction
+     * linked to an instrument.
+     *
+     * <p>DISBURSEMENT movements increase the liability balance by the full amount; every other
+     * movement reduces it by the principal leg only (total minus categorized splits). {@code
+     * CAPITAL_IMPROVEMENT} movements increase the property's current value.
+     *
+     * @param userId the owner's ID
+     * @param transaction the transaction carrying the (post-mapper) instrument links
+     * @param request the request carrying amounts, splits and currencies
+     */
+    private void applyLinkedMovements(
+            Long userId, Transaction transaction, TransactionRequest request) {
+        if (transaction.getLiabilityId() != null) {
+            Liability liability =
+                    liabilityRepository
+                            .findByIdAndUserId(transaction.getLiabilityId(), userId)
+                            .orElseThrow(
+                                    () ->
+                                            LiabilityNotFoundException.byIdAndUser(
+                                                    transaction.getLiabilityId(), userId));
+
+            // Currency guard: the liability's currency must match the movement currency. When a
+            // conversion was applied the original currency is what the user actually moved.
+            String movementCurrency =
+                    request.getOriginalCurrency() != null
+                            ? request.getOriginalCurrency()
+                            : request.getCurrency();
+            if (movementCurrency != null
+                    && liability.getCurrency() != null
+                    && !liability.getCurrency().equalsIgnoreCase(movementCurrency)) {
+                throw new IllegalArgumentException(
+                        String.format(
+                                "Liability %d currency %s does not match transaction currency %s",
+                                liability.getId(), liability.getCurrency(), movementCurrency));
+            }
+
+            BigDecimal delta;
+            if (transaction.getMovementType() == MovementType.DISBURSEMENT) {
+                delta = request.getAmount();
+            } else {
+                delta = extractPrincipalLeg(request.getAmount(), request.getSplits()).negate();
+            }
+            adjustLiabilityBalance(liability, delta);
+        }
+
+        if (transaction.getRealEstateId() != null
+                && transaction.getMovementType() == MovementType.CAPITAL_IMPROVEMENT) {
+            applyCapitalImprovement(userId, transaction.getRealEstateId(), request.getAmount());
+        }
+        // Asset balance sync is owned by Task 6 (RealEstateService.applyCapitalImprovement).
+    }
+
+    /**
+     * Reverses the liability / property balance effects of a transaction that is being deleted or
+     * replaced by an update.
+     *
+     * @param userId the owner's ID
+     * @param liabilityId the old liability link (nullable)
+     * @param realEstateId the old property link (nullable)
+     * @param movementType the old movement classification
+     * @param amount the old transaction amount
+     * @param splits the old stored split lines (used to recover the principal leg)
+     */
+    private void reverseLinkedMovements(
+            Long userId,
+            Long liabilityId,
+            Long realEstateId,
+            MovementType movementType,
+            BigDecimal amount,
+            List<TransactionSplitResponse> splits) {
+        if (liabilityId != null) {
+            Liability liability =
+                    liabilityRepository
+                            .findByIdAndUserId(liabilityId, userId)
+                            .orElseThrow(
+                                    () ->
+                                            LiabilityNotFoundException.byIdAndUser(
+                                                    liabilityId, userId));
+            BigDecimal delta;
+            if (movementType == MovementType.DISBURSEMENT) {
+                delta = amount.negate();
+            } else {
+                delta = extractPrincipalLegFromStored(amount, splits);
+            }
+            adjustLiabilityBalance(liability, delta);
+        }
+
+        if (realEstateId != null && movementType == MovementType.CAPITAL_IMPROVEMENT) {
+            reverseCapitalImprovement(userId, realEstateId, amount);
+        }
+    }
+
+    /**
+     * Computes the principal leg of a movement from request splits: the total minus the sum of
+     * split amounts that carry a categoryId, floored at zero.
+     */
+    private BigDecimal extractPrincipalLeg(BigDecimal total, List<TransactionSplitRequest> splits) {
+        BigDecimal categorized = BigDecimal.ZERO;
+        if (splits != null) {
+            for (TransactionSplitRequest split : splits) {
+                if (split.getCategoryId() != null) {
+                    categorized = categorized.add(split.getAmount());
+                }
+            }
+        }
+        return total.subtract(categorized).max(BigDecimal.ZERO);
+    }
+
+    /** Stored-split variant of {@link #extractPrincipalLeg(BigDecimal, List)}. */
+    private BigDecimal extractPrincipalLegFromStored(
+            BigDecimal total, List<TransactionSplitResponse> splits) {
+        BigDecimal categorized = BigDecimal.ZERO;
+        if (splits != null) {
+            for (TransactionSplitResponse split : splits) {
+                if (split.getCategoryId() != null) {
+                    categorized = categorized.add(split.getAmount());
+                }
+            }
+        }
+        return total.subtract(categorized).max(BigDecimal.ZERO);
+    }
+
+    /**
+     * Applies a signed delta to a liability's encrypted current balance, floored at zero, then
+     * guards the result against the drawn tranche sum.
+     */
+    private void adjustLiabilityBalance(Liability liability, BigDecimal delta) {
+        BigDecimal updated =
+                parseEncryptedAmount(liability.getCurrentBalance()).add(delta).max(BigDecimal.ZERO);
+        liability.setCurrentBalance(updated.toPlainString());
+        reconcileTranches(liability);
+        liabilityRepository.save(liability);
+        log.debug(
+                "Liability {} balance adjusted by {} to {}",
+                liability.getId(),
+                delta,
+                liability.getCurrentBalance());
+    }
+
+    /**
+     * Guard for staged loans: when tranches exist, the current balance must not exceed the sum of
+     * drawn amounts of DRAWN tranches. Clamps the balance if it does. Full allocation is Task 7.
+     */
+    private void reconcileTranches(Liability liability) {
+        List<LiabilityTranche> tranches =
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(
+                        liability.getId(), liability.getUserId());
+        if (tranches.isEmpty()) {
+            return;
+        }
+        BigDecimal drawnSum = BigDecimal.ZERO;
+        for (LiabilityTranche tranche : tranches) {
+            if (tranche.getStatus() == TrancheStatus.DRAWN && tranche.getDrawnAmount() != null) {
+                drawnSum = drawnSum.add(tranche.getDrawnAmount());
+            }
+        }
+        BigDecimal balance = parseEncryptedAmount(liability.getCurrentBalance());
+        if (balance.compareTo(drawnSum) > 0) {
+            log.warn(
+                    "Clamping liability {} balance {} to drawn tranche sum {}",
+                    liability.getId(),
+                    balance,
+                    drawnSum);
+            liability.setCurrentBalance(drawnSum.toPlainString());
+        }
+    }
+
+    /** Parses an encrypted BigDecimal amount string (null/blank resolves to zero). */
+    private BigDecimal parseEncryptedAmount(String value) {
+        if (value == null || value.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        return new BigDecimal(value);
+    }
+
+    /**
+     * Increases a property's current value by the improvement amount and records a value history
+     * entry, mirroring RealEstateService.recordValueHistory.
+     */
+    private void applyCapitalImprovement(Long userId, Long realEstateId, BigDecimal amount) {
+        RealEstateProperty property =
+                realEstateRepository
+                        .findByIdAndUserId(realEstateId, userId)
+                        .orElseThrow(
+                                () ->
+                                        RealEstatePropertyNotFoundException.byIdAndUser(
+                                                realEstateId, userId));
+        BigDecimal current = property.getCurrentValueDecimal();
+        BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(amount);
+        property.setCurrentValue(updated.toPlainString());
+        RealEstateProperty savedProperty = realEstateRepository.save(property);
+        recordPropertyValueHistory(savedProperty, updated);
+        log.info(
+                "Capital improvement of {} applied to property {}: new value {}",
+                amount,
+                realEstateId,
+                updated);
+        // Asset balance sync is owned by Task 6 (RealEstateService.applyCapitalImprovement).
+    }
+
+    /** Reverses a capital improvement previously applied to a property. */
+    private void reverseCapitalImprovement(Long userId, Long realEstateId, BigDecimal amount) {
+        RealEstateProperty property =
+                realEstateRepository
+                        .findByIdAndUserId(realEstateId, userId)
+                        .orElseThrow(
+                                () ->
+                                        RealEstatePropertyNotFoundException.byIdAndUser(
+                                                realEstateId, userId));
+        BigDecimal current = property.getCurrentValueDecimal();
+        BigDecimal updated =
+                (current == null ? BigDecimal.ZERO : current).subtract(amount).max(BigDecimal.ZERO);
+        property.setCurrentValue(updated.toPlainString());
+        RealEstateProperty savedProperty = realEstateRepository.save(property);
+        recordPropertyValueHistory(savedProperty, updated);
+        log.info(
+                "Capital improvement of {} reversed on property {}: new value {}",
+                amount,
+                realEstateId,
+                updated);
+    }
+
+    /**
+     * Inserts a row into {@code real_estate_value_history} recording the property's value as of
+     * today (mirrors RealEstateService.recordValueHistory).
+     */
+    private void recordPropertyValueHistory(RealEstateProperty property, BigDecimal plainValue) {
+        try {
+            RealEstateValueHistory entry =
+                    RealEstateValueHistory.builder()
+                            .propertyId(property.getId())
+                            .userId(property.getUserId())
+                            .effectiveDate(LocalDate.now())
+                            .recordedValue(plainValue.toString())
+                            .currency(property.getCurrency())
+                            .currencyId(property.getCurrencyId())
+                            .build();
+            realEstateValueHistoryRepository.save(entry);
+            log.debug(
+                    "Recorded value history for property {}: {} {}",
+                    property.getId(),
+                    plainValue,
+                    property.getCurrency());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to record value history for property {}: {}",
+                    property.getId(),
                     e.getMessage());
         }
     }
