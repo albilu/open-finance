@@ -615,6 +615,7 @@
       "REPAYMENT": "Repayment",
       "CAPITAL_IMPROVEMENT": "Capitalized",
       "MAINTENANCE": "Maintenance"
-    }
+    },
+    "error": "Failed to load movements. Please try again."
   }
 }

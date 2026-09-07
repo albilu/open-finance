@@ -57,7 +57,6 @@ export function TrancheDrawdownsTab({ liability }: { liability: Liability }) {
         <div
           key={tranche.id}
           className="flex items-center justify-between px-4 py-3 bg-surface hover:bg-surface-elevated transition-colors"
-          data-testid={`tranche-row-${tranche.trancheNo}`}
         >
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-sm font-semibold text-text-primary font-mono">

@@ -273,7 +273,7 @@ function TotalCostHero({ liability }: { liability: Liability }) {
  * Requirement 3.2: Display linked transactions in a dedicated tab.
  */
 function LinkedPaymentsTab({ liability }: { liability: Liability }) {
-  const { t } = useTranslation('liabilities');
+  const { t, i18n } = useTranslation('liabilities');
   const { data: breakdown } = useLiabilityBreakdown(liability.id);
   const { data: transactions = [], isLoading, error } = useLiabilityTransactions(liability.id);
   const { data: tranches = [] } = useTranches(liability.id);
@@ -368,7 +368,8 @@ function LinkedPaymentsTab({ liability }: { liability: Liability }) {
                   )}
                 </div>
                 <div className="text-xs text-text-tertiary">
-                  {new Date(tx.date).toLocaleDateString('en-US', {
+                  {tx.accountName && <span>{tx.accountName} · </span>}
+                  {new Date(tx.date).toLocaleDateString(i18n.language, {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',

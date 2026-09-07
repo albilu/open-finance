@@ -615,6 +615,7 @@
       "REPAYMENT": "Remboursement",
       "CAPITAL_IMPROVEMENT": "Capitalisé",
       "MAINTENANCE": "Entretien"
-    }
+    },
+    "error": "Échec du chargement des mouvements. Veuillez réessayer."
   }
 }

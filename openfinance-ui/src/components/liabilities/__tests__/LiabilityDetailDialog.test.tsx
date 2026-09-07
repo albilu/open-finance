@@ -516,6 +516,34 @@ describe('LiabilityDetailDialog', () => {
       expect(screen.getByText('Repayment')).toBeInTheDocument();
       expect(screen.getByText('T1')).toBeInTheDocument();
     });
+
+    it('shows the account name on the date line of linked payment rows', () => {
+      mockUseLiabilityTransactions.mockReturnValue({
+        data: [
+          {
+            id: 'txn-acc',
+            date: '2023-01-01',
+            description: 'Mortgage Payment',
+            amount: 1500,
+            type: 'expense',
+            accountId: 'acc-1',
+            liabilityId: '1',
+            currency: 'EUR',
+            accountName: 'Checking',
+          },
+        ],
+        isLoading: false,
+        error: null,
+      });
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      act(() => {
+        screen.getByText('Linked Payments').click();
+      });
+
+      expect(screen.getByText(/Checking ·/)).toBeInTheDocument();
+    });
   });
 
   describe('Privacy Implementation - PrivateAmount Wrapping', () => {

@@ -178,4 +178,44 @@ describe('PropertyMovementsSection', () => {
 
     expect(screen.getByText(/no movements recorded yet/i)).toBeInTheDocument();
   });
+
+  it('renders the error banner when the costs query is rejected', () => {
+    mockUseTransactions.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Rejected'),
+    } as unknown as ReturnType<typeof useTransactionsModule.useTransactions>);
+
+    renderWithProviders(<PropertyMovementsSection property={mockProperty} />);
+
+    expect(screen.getByText(/failed to load movements/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no movements recorded yet/i)).not.toBeInTheDocument();
+  });
+
+  it('renders the error banner when the loan movements query is rejected', () => {
+    mockUseLiabilityTransactions.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Rejected'),
+    } as unknown as ReturnType<typeof useLiabilitiesModule.useLiabilityTransactions>);
+
+    renderWithProviders(<PropertyMovementsSection property={mockProperty} />);
+
+    expect(screen.getByText(/failed to load movements/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no movements recorded yet/i)).not.toBeInTheDocument();
+  });
+
+  it('renders the loading skeleton while the loan movements query is loading', () => {
+    mockUseLiabilityTransactions.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    } as unknown as ReturnType<typeof useLiabilitiesModule.useLiabilityTransactions>);
+
+    renderWithProviders(<PropertyMovementsSection property={mockProperty} />);
+
+    // Costs data is available but loan movements still load → skeleton, not rows
+    expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
+    expect(screen.queryByText('Kitchen renovation')).not.toBeInTheDocument();
+  });
 });

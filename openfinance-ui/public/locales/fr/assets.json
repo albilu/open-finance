@@ -183,6 +183,7 @@
     "movementTypes": {
       "CAPITAL_IMPROVEMENT": "Capitalisé",
       "MAINTENANCE": "Entretien"
-    }
+    },
+    "error": "Échec du chargement des coûts. Veuillez réessayer."
   }
 }

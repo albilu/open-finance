@@ -123,4 +123,17 @@ describe('AssetCostsSection', () => {
 
     expect(screen.getByText(/no costs recorded yet/i)).toBeInTheDocument();
   });
+
+  it('renders the error banner when the costs query is rejected', () => {
+    mockUseTransactions.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Rejected'),
+    } as unknown as ReturnType<typeof useTransactionsModule.useTransactions>);
+
+    renderWithProviders(<AssetCostsSection asset={mockAsset} />);
+
+    expect(screen.getByText(/failed to load costs/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no costs recorded yet/i)).not.toBeInTheDocument();
+  });
 });

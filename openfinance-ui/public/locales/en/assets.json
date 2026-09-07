@@ -183,6 +183,7 @@
     "movementTypes": {
       "CAPITAL_IMPROVEMENT": "Capitalized",
       "MAINTENANCE": "Maintenance"
-    }
+    },
+    "error": "Failed to load costs. Please try again."
   }
 }

@@ -8,13 +8,20 @@
  *    liability
  */
 import { useTranslation } from 'react-i18next';
-import { Hammer, Wrench, Landmark } from 'lucide-react';
+import { Hammer, Wrench, Landmark, AlertCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useLiabilityTransactions } from '@/hooks/useLiabilities';
 import type { RealEstateProperty } from '@/types/realEstate';
 import type { Transaction } from '@/types/transaction';
+
+/**
+ * Page size for the movements fetch: a property's improvement/maintenance history
+ * is bounded (dozens of rows), so 200 covers the practical lifetime without
+ * pagination UI.
+ */
+const MOVEMENTS_PAGE_SIZE = 200;
 
 /** Movement classifications shown in the Loan movements list. */
 const LOAN_MOVEMENT_TYPES = new Set(['REPAYMENT', 'DISBURSEMENT']);
@@ -28,6 +35,7 @@ function MovementRow({
   label: string;
   currency: string;
 }) {
+  const { i18n } = useTranslation('realEstate');
   return (
     <div className="flex items-center justify-between px-4 py-3 bg-surface hover:bg-surface-elevated transition-colors">
       <div className="flex items-center gap-3 min-w-0">
@@ -39,7 +47,7 @@ function MovementRow({
             </span>
           </div>
           <div className="text-xs text-text-tertiary">
-            {new Date(tx.date).toLocaleDateString('en-US', {
+            {new Date(tx.date).toLocaleDateString(i18n.language, {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
@@ -90,12 +98,23 @@ function MovementList({
 
 export function PropertyMovementsSection({ property }: { property: RealEstateProperty }) {
   const { t } = useTranslation('realEstate');
-  const { data: costsPage, isLoading } = useTransactions({
+  const {
+    data: costsPage,
+    isLoading: isLoadingCosts,
+    error: costsError,
+  } = useTransactions({
     realEstateId: property.id,
-    size: 200,
+    size: MOVEMENTS_PAGE_SIZE,
     sort: 'date,desc',
   });
-  const { data: loanTransactions = [] } = useLiabilityTransactions(property.mortgageId ?? null);
+  const {
+    data: loanTransactions = [],
+    isLoading: isLoadingLoans,
+    error: loansError,
+  } = useLiabilityTransactions(property.mortgageId ?? null);
+
+  const isLoading = isLoadingCosts || isLoadingLoans;
+  const error = costsError ?? loansError;
 
   const costs = costsPage?.content ?? [];
   const capitalized = costs.filter(tx => tx.movementType === 'CAPITAL_IMPROVEMENT');
@@ -105,10 +124,7 @@ export function PropertyMovementsSection({ property }: { property: RealEstatePro
   );
 
   const hasNoMovements =
-    !isLoading &&
-    capitalized.length === 0 &&
-    maintenance.length === 0 &&
-    loanMovements.length === 0;
+    capitalized.length === 0 && maintenance.length === 0 && loanMovements.length === 0;
 
   return (
     <div className="space-y-4">
@@ -118,6 +134,11 @@ export function PropertyMovementsSection({ property }: { property: RealEstatePro
           {[...Array(2)].map((_, i) => (
             <div key={i} className="h-12 bg-surface border border-border rounded-lg" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 p-4 bg-error/10 border border-error/20 rounded-lg text-error text-sm">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{t('movements.error')}</span>
         </div>
       ) : hasNoMovements ? (
         <p className="text-sm text-text-secondary">{t('movements.empty')}</p>

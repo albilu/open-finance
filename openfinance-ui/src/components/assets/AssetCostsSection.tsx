@@ -6,14 +6,22 @@
  * the assetId transaction filter.
  */
 import { useTranslation } from 'react-i18next';
-import { Hammer, Wrench } from 'lucide-react';
+import { Hammer, Wrench, AlertCircle } from 'lucide-react';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
 import { useTransactions } from '@/hooks/useTransactions';
 import type { Asset } from '@/types/asset';
 import type { Transaction } from '@/types/transaction';
 import { cn } from '@/lib/utils';
 
+/**
+ * Page size for the costs fetch: an asset's improvement/maintenance history is
+ * bounded (dozens of rows), so 200 covers the practical lifetime without
+ * pagination UI.
+ */
+const MOVEMENTS_PAGE_SIZE = 200;
+
 function CostRow({ tx, label, currency }: { tx: Transaction; label: string; currency: string }) {
+  const { i18n } = useTranslation('assets');
   return (
     <div className="flex items-center justify-between px-4 py-3 bg-background hover:bg-surface transition-colors">
       <div className="flex items-center gap-3 min-w-0">
@@ -25,7 +33,7 @@ function CostRow({ tx, label, currency }: { tx: Transaction; label: string; curr
             </span>
           </div>
           <div className="text-xs text-muted-foreground">
-            {new Date(tx.date).toLocaleDateString('en-US', {
+            {new Date(tx.date).toLocaleDateString(i18n.language, {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
@@ -42,9 +50,13 @@ function CostRow({ tx, label, currency }: { tx: Transaction; label: string; curr
 
 export function AssetCostsSection({ asset }: { asset: Asset }) {
   const { t } = useTranslation('assets');
-  const { data: costsPage, isLoading } = useTransactions({
+  const {
+    data: costsPage,
+    isLoading,
+    error,
+  } = useTransactions({
     assetId: asset.id,
-    size: 200,
+    size: MOVEMENTS_PAGE_SIZE,
     sort: 'date,desc',
   });
 
@@ -75,6 +87,11 @@ export function AssetCostsSection({ asset }: { asset: Asset }) {
           {[...Array(2)].map((_, i) => (
             <div key={i} className="h-12 bg-surface border border-border rounded-lg" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 p-4 bg-error/10 border border-error/20 rounded-lg text-error text-sm">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{t('costs.error')}</span>
         </div>
       ) : capitalized.length === 0 && maintenance.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('costs.empty')}</p>
