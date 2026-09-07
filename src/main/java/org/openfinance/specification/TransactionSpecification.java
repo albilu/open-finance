@@ -84,6 +84,18 @@ public class TransactionSpecification {
                         criteriaBuilder.equal(root.get("accountId"), criteria.getAccountId()));
             }
 
+            // Filter by linked real estate property
+            if (criteria.getRealEstateId() != null) {
+                predicates.add(
+                        criteriaBuilder.equal(
+                                root.get("realEstateId"), criteria.getRealEstateId()));
+            }
+
+            // Filter by linked asset
+            if (criteria.getAssetId() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("assetId"), criteria.getAssetId()));
+            }
+
             // Filter by category
             if (criteria.getCategoryId() != null) {
                 predicates.add(

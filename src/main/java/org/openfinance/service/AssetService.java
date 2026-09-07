@@ -1,6 +1,7 @@
 package org.openfinance.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import org.openfinance.entity.Asset;
 import org.openfinance.entity.AssetType;
 import org.openfinance.exception.AccountNotFoundException;
 import org.openfinance.exception.AssetNotFoundException;
+import org.openfinance.exception.InvalidAssetStateException;
 import org.openfinance.mapper.AssetMapper;
 import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.AssetRepository;
@@ -338,6 +340,88 @@ public class AssetService {
                 null);
 
         return assetUpdateResponse;
+    }
+
+    /**
+     * Applies a capitalized improvement to a physical asset's cost basis (spec §3.3).
+     *
+     * <p>Increases {@code currentPrice} by the improvement amount per owned unit (the full amount
+     * when {@code quantity} is 1, otherwise {@code amount / quantity} rounded to 2 decimals
+     * HALF_UP). Non-physical assets are rejected with {@link InvalidAssetStateException}.
+     *
+     * @param assetId the ID of the physical asset being improved
+     * @param userId the owner's ID
+     * @param amount the improvement amount in the asset's currency
+     * @param movementDate the movement date (used for net worth snapshot invalidation)
+     */
+    public void applyCapitalImprovement(
+            Long assetId, Long userId, BigDecimal amount, LocalDate movementDate) {
+        Asset asset = findPhysicalAsset(assetId, userId);
+        BigDecimal updated =
+                asset.getCurrentPrice().add(improvementPerUnit(amount, asset.getQuantity()));
+        asset.setCurrentPrice(updated);
+        asset.setLastUpdated(LocalDateTime.now());
+        assetRepository.save(asset);
+        invalidateSnapshotsFrom(userId, movementDate);
+        log.info(
+                "Capital improvement of {} applied to asset {}: new unit price {}",
+                amount,
+                assetId,
+                updated);
+    }
+
+    /**
+     * Reverses a previously applied capitalized improvement on a physical asset, restoring the
+     * prior cost basis (floored at zero).
+     *
+     * @param assetId the ID of the physical asset
+     * @param userId the owner's ID
+     * @param amount the original improvement amount
+     * @param movementDate the original movement date (used for net worth snapshot invalidation)
+     */
+    public void reverseCapitalImprovement(
+            Long assetId, Long userId, BigDecimal amount, LocalDate movementDate) {
+        Asset asset = findPhysicalAsset(assetId, userId);
+        BigDecimal updated =
+                asset.getCurrentPrice()
+                        .subtract(improvementPerUnit(amount, asset.getQuantity()))
+                        .max(BigDecimal.ZERO);
+        asset.setCurrentPrice(updated);
+        asset.setLastUpdated(LocalDateTime.now());
+        assetRepository.save(asset);
+        invalidateSnapshotsFrom(userId, movementDate);
+        log.info(
+                "Capital improvement of {} reversed on asset {}: new unit price {}",
+                amount,
+                assetId,
+                updated);
+    }
+
+    /**
+     * Loads an asset by ID and user, rejecting non-physical assets (spec §3.3: improvements track
+     * the cost basis of physical assets only).
+     */
+    private Asset findPhysicalAsset(Long assetId, Long userId) {
+        Asset asset =
+                assetRepository
+                        .findByIdAndUserId(assetId, userId)
+                        .orElseThrow(() -> AssetNotFoundException.byIdAndUser(assetId, userId));
+        if (!asset.isPhysical()) {
+            throw InvalidAssetStateException.improvementNotPhysical(
+                    assetId, String.valueOf(asset.getType()));
+        }
+        return asset;
+    }
+
+    /**
+     * Spreads an improvement amount over the owned units: the full amount when the quantity is 1,
+     * otherwise {@code amount / quantity} rounded to 2 decimals HALF_UP.
+     */
+    private BigDecimal improvementPerUnit(BigDecimal amount, BigDecimal quantity) {
+        if (quantity == null || quantity.compareTo(BigDecimal.ONE) == 0) {
+            return amount;
+        }
+        return amount.divide(quantity, 2, RoundingMode.HALF_UP);
     }
 
     /**

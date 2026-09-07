@@ -20,8 +20,6 @@ import org.openfinance.entity.CategoryType;
 import org.openfinance.entity.Liability;
 import org.openfinance.entity.LiabilityTranche;
 import org.openfinance.entity.MovementType;
-import org.openfinance.entity.RealEstateProperty;
-import org.openfinance.entity.RealEstateValueHistory;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
@@ -29,7 +27,6 @@ import org.openfinance.exception.AccountNotFoundException;
 import org.openfinance.exception.CategoryNotFoundException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.exception.LiabilityNotFoundException;
-import org.openfinance.exception.RealEstatePropertyNotFoundException;
 import org.openfinance.exception.TransactionNotFoundException;
 import org.openfinance.mapper.TransactionMapper;
 import org.openfinance.repository.AccountRepository;
@@ -39,8 +36,6 @@ import org.openfinance.repository.LiabilityRepository;
 import org.openfinance.repository.LiabilityTrancheRepository;
 import org.openfinance.repository.NetWorthRepository;
 import org.openfinance.repository.PayeeRepository;
-import org.openfinance.repository.RealEstateRepository;
-import org.openfinance.repository.RealEstateValueHistoryRepository;
 import org.openfinance.repository.TransactionRepository;
 import org.openfinance.repository.UserRepository;
 import org.openfinance.security.EncryptionService;
@@ -120,8 +115,8 @@ public class TransactionService {
     private final CurrencyConversionHelper currencyConversionHelper;
     private final LiabilityRepository liabilityRepository;
     private final LiabilityTrancheRepository liabilityTrancheRepository;
-    private final RealEstateRepository realEstateRepository;
-    private final RealEstateValueHistoryRepository realEstateValueHistoryRepository;
+    private final RealEstateService realEstateService;
+    private final AssetService assetService;
 
     /**
      * Creates a new transaction for the specified user.
@@ -942,6 +937,7 @@ public class TransactionService {
         // Capture old linked-instrument legs before the mapper overwrites them (Task 3)
         Long oldLiabilityId = transaction.getLiabilityId();
         Long oldRealEstateId = transaction.getRealEstateId();
+        Long oldAssetId = transaction.getAssetId();
         Long oldTrancheId = transaction.getTrancheId();
         MovementType oldMovementType = transaction.getMovementType();
         List<TransactionSplitResponse> oldSplits =
@@ -1051,9 +1047,11 @@ public class TransactionService {
                 userId,
                 oldLiabilityId,
                 oldRealEstateId,
+                oldAssetId,
                 oldTrancheId,
                 oldMovementType,
                 oldAmount,
+                oldDate,
                 oldSplits);
         applyLinkedMovements(userId, transaction, request);
 
@@ -1205,9 +1203,11 @@ public class TransactionService {
                     userId,
                     transaction.getLiabilityId(),
                     transaction.getRealEstateId(),
+                    transaction.getAssetId(),
                     transaction.getTrancheId(),
                     transaction.getMovementType(),
                     transaction.getAmount(),
+                    transaction.getDate(),
                     transaction.getLiabilityId() != null
                             ? transactionSplitService.getSplitsForTransaction(transactionId)
                             : List.of());
@@ -2246,10 +2246,14 @@ public class TransactionService {
 
         if (transaction.getRealEstateId() != null
                 && transaction.getMovementType() == MovementType.CAPITAL_IMPROVEMENT) {
-            applyCapitalImprovement(userId, transaction.getRealEstateId(), request.getAmount());
+            realEstateService.applyCapitalImprovement(
+                    transaction.getRealEstateId(), userId, request.getAmount(), request.getDate());
         }
-        // Asset balance sync is not handled here; it is owned by
-        // RealEstateService.applyCapitalImprovement.
+        if (transaction.getAssetId() != null
+                && transaction.getMovementType() == MovementType.CAPITAL_IMPROVEMENT) {
+            assetService.applyCapitalImprovement(
+                    transaction.getAssetId(), userId, request.getAmount(), request.getDate());
+        }
     }
 
     /**
@@ -2262,18 +2266,22 @@ public class TransactionService {
      * @param userId the owner's ID
      * @param liabilityId the old liability link (nullable)
      * @param realEstateId the old property link (nullable)
+     * @param assetId the old asset link (nullable)
      * @param trancheId the old tranche link (nullable)
      * @param movementType the old movement classification
      * @param amount the old transaction amount
+     * @param movementDate the old movement date
      * @param splits the old stored split lines (used to recover the principal leg)
      */
     private void reverseLinkedMovements(
             Long userId,
             Long liabilityId,
             Long realEstateId,
+            Long assetId,
             Long trancheId,
             MovementType movementType,
             BigDecimal amount,
+            LocalDate movementDate,
             List<TransactionSplitResponse> splits) {
         if (liabilityId != null) {
             Liability liability =
@@ -2297,7 +2305,11 @@ public class TransactionService {
         }
 
         if (realEstateId != null && movementType == MovementType.CAPITAL_IMPROVEMENT) {
-            reverseCapitalImprovement(userId, realEstateId, amount);
+            realEstateService.reverseCapitalImprovement(realEstateId, userId, amount, movementDate);
+        }
+
+        if (assetId != null && movementType == MovementType.CAPITAL_IMPROVEMENT) {
+            assetService.reverseCapitalImprovement(assetId, userId, amount, movementDate);
         }
     }
 
@@ -2421,80 +2433,5 @@ public class TransactionService {
             return BigDecimal.ZERO;
         }
         return new BigDecimal(value);
-    }
-
-    /**
-     * Increases a property's current value by the improvement amount and records a value history
-     * entry, mirroring RealEstateService.recordValueHistory.
-     */
-    private void applyCapitalImprovement(Long userId, Long realEstateId, BigDecimal amount) {
-        RealEstateProperty property =
-                realEstateRepository
-                        .findByIdAndUserId(realEstateId, userId)
-                        .orElseThrow(
-                                () ->
-                                        RealEstatePropertyNotFoundException.byIdAndUser(
-                                                realEstateId, userId));
-        BigDecimal current = property.getCurrentValueDecimal();
-        BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(amount);
-        property.setCurrentValue(updated.toPlainString());
-        RealEstateProperty savedProperty = realEstateRepository.save(property);
-        recordPropertyValueHistory(savedProperty, updated);
-        log.info(
-                "Capital improvement of {} applied to property {}: new value {}",
-                amount,
-                realEstateId,
-                updated);
-    }
-
-    /** Reverses a capital improvement previously applied to a property. */
-    private void reverseCapitalImprovement(Long userId, Long realEstateId, BigDecimal amount) {
-        RealEstateProperty property =
-                realEstateRepository
-                        .findByIdAndUserId(realEstateId, userId)
-                        .orElseThrow(
-                                () ->
-                                        RealEstatePropertyNotFoundException.byIdAndUser(
-                                                realEstateId, userId));
-        BigDecimal current = property.getCurrentValueDecimal();
-        BigDecimal updated =
-                (current == null ? BigDecimal.ZERO : current).subtract(amount).max(BigDecimal.ZERO);
-        property.setCurrentValue(updated.toPlainString());
-        RealEstateProperty savedProperty = realEstateRepository.save(property);
-        recordPropertyValueHistory(savedProperty, updated);
-        log.info(
-                "Capital improvement of {} reversed on property {}: new value {}",
-                amount,
-                realEstateId,
-                updated);
-    }
-
-    /**
-     * Inserts a row into {@code real_estate_value_history} recording the property's value as of
-     * today (mirrors RealEstateService.recordValueHistory).
-     */
-    private void recordPropertyValueHistory(RealEstateProperty property, BigDecimal plainValue) {
-        try {
-            RealEstateValueHistory entry =
-                    RealEstateValueHistory.builder()
-                            .propertyId(property.getId())
-                            .userId(property.getUserId())
-                            .effectiveDate(LocalDate.now())
-                            .recordedValue(plainValue.toPlainString())
-                            .currency(property.getCurrency())
-                            .currencyId(property.getCurrencyId())
-                            .build();
-            realEstateValueHistoryRepository.save(entry);
-            log.debug(
-                    "Recorded value history for property {}: {} {}",
-                    property.getId(),
-                    plainValue,
-                    property.getCurrency());
-        } catch (Exception e) {
-            log.error(
-                    "Failed to record value history for property {}: {}",
-                    property.getId(),
-                    e.getMessage());
-        }
     }
 }

@@ -498,6 +498,31 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles invalid asset state exceptions (operation not allowed for the asset's type/state).
+     *
+     * @param ex the exception
+     * @param request the web request
+     * @return HTTP 409 Conflict with error message
+     */
+    @ExceptionHandler(InvalidAssetStateException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidAssetState(
+            InvalidAssetStateException ex, WebRequest request) {
+
+        log.warn("Invalid asset state: {}", ex.getMessage());
+
+        ErrorResponse errorResponse =
+                ErrorResponse.builder()
+                        .timestamp(LocalDateTime.now())
+                        .status(HttpStatus.CONFLICT.value())
+                        .error(HttpStatus.CONFLICT.getReasonPhrase())
+                        .message(resolveMessage(ex))
+                        .path(getRequestPath(request))
+                        .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
+    /**
      * Handles budget not found exceptions.
      *
      * @param ex the exception

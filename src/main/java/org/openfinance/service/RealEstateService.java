@@ -1077,6 +1077,72 @@ public class RealEstateService {
         return toResponseWithDecryption(updatedProperty);
     }
 
+    /**
+     * Applies a capitalized improvement to a property (spec §3.3): increases the current value by
+     * the improvement amount, records a value history entry and invalidates net worth snapshots
+     * from the movement date onward.
+     *
+     * @param propertyId the ID of the property being improved
+     * @param userId the owner's ID
+     * @param amount the improvement amount in the property's currency
+     * @param movementDate the movement date (history effective date, snapshot invalidation start)
+     */
+    public void applyCapitalImprovement(
+            Long propertyId, Long userId, BigDecimal amount, LocalDate movementDate) {
+        RealEstateProperty property =
+                realEstateRepository
+                        .findByIdAndUserId(propertyId, userId)
+                        .orElseThrow(
+                                () ->
+                                        RealEstatePropertyNotFoundException.byIdAndUser(
+                                                propertyId, userId));
+        BigDecimal current = property.getCurrentValueDecimal();
+        BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(amount);
+        property.setCurrentValue(updated.toPlainString());
+        RealEstateProperty savedProperty = realEstateRepository.save(property);
+        recordValueHistory(savedProperty, updated, movementDate);
+        invalidateSnapshotsFrom(userId, movementDate);
+        log.info(
+                "Capital improvement of {} applied to property {}: new value {}",
+                amount,
+                propertyId,
+                updated);
+    }
+
+    /**
+     * Reverses a previously applied capitalized improvement on a property: decreases the current
+     * value by the improvement amount (floored at zero), records a value history entry and
+     * invalidates net worth snapshots from the movement date onward.
+     *
+     * @param propertyId the ID of the property
+     * @param userId the owner's ID
+     * @param amount the original improvement amount
+     * @param movementDate the original movement date (history effective date, snapshot invalidation
+     *     start)
+     */
+    public void reverseCapitalImprovement(
+            Long propertyId, Long userId, BigDecimal amount, LocalDate movementDate) {
+        RealEstateProperty property =
+                realEstateRepository
+                        .findByIdAndUserId(propertyId, userId)
+                        .orElseThrow(
+                                () ->
+                                        RealEstatePropertyNotFoundException.byIdAndUser(
+                                                propertyId, userId));
+        BigDecimal current = property.getCurrentValueDecimal();
+        BigDecimal updated =
+                (current == null ? BigDecimal.ZERO : current).subtract(amount).max(BigDecimal.ZERO);
+        property.setCurrentValue(updated.toPlainString());
+        RealEstateProperty savedProperty = realEstateRepository.save(property);
+        recordValueHistory(savedProperty, updated, movementDate);
+        invalidateSnapshotsFrom(userId, movementDate);
+        log.info(
+                "Capital improvement of {} reversed on property {}: new value {}",
+                amount,
+                propertyId,
+                updated);
+    }
+
     // ========== Private Helper Methods ==========
 
     /**
@@ -1084,12 +1150,21 @@ public class RealEstateService {
      * today.
      */
     private void recordValueHistory(RealEstateProperty property, BigDecimal plainValue) {
+        recordValueHistory(property, plainValue, LocalDate.now());
+    }
+
+    /**
+     * Inserts a row into {@code real_estate_value_history} recording the property's value as of
+     * {@code effectiveDate} (today when null).
+     */
+    private void recordValueHistory(
+            RealEstateProperty property, BigDecimal plainValue, LocalDate effectiveDate) {
         try {
             RealEstateValueHistory entry =
                     RealEstateValueHistory.builder()
                             .propertyId(property.getId())
                             .userId(property.getUserId())
-                            .effectiveDate(LocalDate.now())
+                            .effectiveDate(effectiveDate != null ? effectiveDate : LocalDate.now())
                             .recordedValue(plainValue.toString())
                             .currency(property.getCurrency())
                             .currencyId(property.getCurrencyId())

@@ -644,6 +644,8 @@ public class TransactionController {
      * @param isReconciled optional reconciliation status filter
      * @param noCategory when true, return only uncategorized transactions
      * @param noPayee when true, return only transactions without a payee
+     * @param realEstateId optional linked property ID filter
+     * @param assetId optional linked asset ID filter
      * @param pageable pagination and sorting parameters
      * @param encodedKey Base64-encoded encryption key from header
      * @param authentication Spring Security authentication object
@@ -666,6 +668,8 @@ public class TransactionController {
             @RequestParam(required = false) Boolean noCategory,
             @RequestParam(required = false) Boolean noPayee,
             @RequestParam(required = false) String payee,
+            @RequestParam(required = false) Long realEstateId,
+            @RequestParam(required = false) Long assetId,
             @RequestParam(required = false, defaultValue = "false") boolean keywordRegex,
             Pageable pageable,
             Authentication authentication) {
@@ -695,6 +699,8 @@ public class TransactionController {
                         .noCategory(noCategory)
                         .noPayee(noPayee)
                         .payee(payee)
+                        .realEstateId(realEstateId)
+                        .assetId(assetId)
                         .build();
 
         // Execute search with pagination

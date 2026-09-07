@@ -93,6 +93,8 @@ class TransactionLiabilitySyncTest {
     @Mock private LiabilityTrancheRepository liabilityTrancheRepository;
     @Mock private RealEstateRepository realEstateRepository;
     @Mock private RealEstateValueHistoryRepository realEstateValueHistoryRepository;
+    @Mock private org.openfinance.mapper.RealEstateMapper realEstateMapper;
+    @Mock private AssetService assetService;
 
     @InjectMocks private TransactionService transactionService;
 
@@ -101,11 +103,27 @@ class TransactionLiabilitySyncTest {
         when(userRepository.findById(any())).thenReturn(Optional.empty());
         org.openfinance.testutil.DefaultCurrencyProviderMocks.stub(
                 defaultCurrencyProvider, userRepository);
-        ReflectionTestUtils.setField(
-                transactionService,
-                "currencyConversionHelper",
+        CurrencyConversionHelper helper =
                 new CurrencyConversionHelper(
-                        userRepository, defaultCurrencyProvider, exchangeRateService));
+                        userRepository, defaultCurrencyProvider, exchangeRateService);
+        ReflectionTestUtils.setField(transactionService, "currencyConversionHelper", helper);
+        RealEstateService realEstateService =
+                new RealEstateService(
+                        realEstateRepository,
+                        realEstateValueHistoryRepository,
+                        liabilityRepository,
+                        currencyRepository,
+                        realEstateMapper,
+                        encryptionService,
+                        assetService,
+                        userRepository,
+                        exchangeRateService,
+                        netWorthRepository,
+                        operationHistoryService,
+                        searchTokenService,
+                        defaultCurrencyProvider,
+                        helper);
+        ReflectionTestUtils.setField(transactionService, "realEstateService", realEstateService);
     }
 
     // ---------- Helpers ----------

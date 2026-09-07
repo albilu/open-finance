@@ -148,6 +148,20 @@ public class TransactionSearchCriteria {
     private Boolean noPayee;
 
     /**
+     * Filter by linked real estate property ID.
+     *
+     * <p>If null, includes transactions linked to any (or no) property.
+     */
+    private Long realEstateId;
+
+    /**
+     * Filter by linked asset ID.
+     *
+     * <p>If null, includes transactions linked to any (or no) asset.
+     */
+    private Long assetId;
+
+    /**
      * Checks if any search criteria is provided.
      *
      * @return true if at least one filter is set, false if all fields are null
@@ -165,6 +179,8 @@ public class TransactionSearchCriteria {
                 || payee != null
                 || isReconciled != null
                 || Boolean.TRUE.equals(noCategory)
-                || Boolean.TRUE.equals(noPayee);
+                || Boolean.TRUE.equals(noPayee)
+                || realEstateId != null
+                || assetId != null;
     }
 }
