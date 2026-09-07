@@ -35,9 +35,9 @@ public class LiabilityTrancheResponse {
     private BigDecimal drawnAmount;
 
     /**
-     * Outstanding drawn principal of this tranche (drawn amount minus repaid principal). Repayment
-     * allocation across tranches lands in Task 7 (FIFO); until then this equals {@code drawnAmount}
-     * (zero when not yet drawn). Not persisted.
+     * Outstanding drawn principal of this tranche (drawn amount minus principal allocated by
+     * REPAYMENT transactions, capped at the drawn amount). Computed from the allocation ledger by
+     * {@code LiabilityTrancheService#remainingOf}; not persisted.
      */
     private BigDecimal remaining;
 

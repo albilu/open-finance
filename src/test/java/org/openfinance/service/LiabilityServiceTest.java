@@ -23,13 +23,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.openfinance.dto.AmortizationScheduleEntry;
 import org.openfinance.dto.LiabilityRequest;
 import org.openfinance.dto.LiabilityResponse;
+import org.openfinance.dto.LiabilityTrancheResponse;
 import org.openfinance.entity.Liability;
+import org.openfinance.entity.LiabilityTranche;
 import org.openfinance.entity.LiabilityType;
+import org.openfinance.entity.TrancheStatus;
+import org.openfinance.entity.Transaction;
 import org.openfinance.entity.User;
+import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.LiabilityNotFoundException;
 import org.openfinance.repository.CurrencyRepository;
 import org.openfinance.repository.LiabilityRepository;
+import org.openfinance.repository.LiabilityTrancheRepository;
 import org.openfinance.repository.RealEstateRepository;
+import org.openfinance.repository.TransactionRepository;
 import org.openfinance.repository.UserRepository;
 import org.openfinance.security.EncryptionService;
 
@@ -56,6 +63,12 @@ class LiabilityServiceTest {
     @Mock private SearchTokenService searchTokenService;
 
     @Mock private DefaultCurrencyProvider defaultCurrencyProvider;
+
+    @Mock private TransactionRepository transactionRepository;
+
+    @Mock private LiabilityTrancheRepository liabilityTrancheRepository;
+
+    @Mock private LiabilityTrancheService liabilityTrancheService;
 
     @InjectMocks private LiabilityService liabilityService;
 
@@ -320,6 +333,87 @@ class LiabilityServiceTest {
         // When/Then
         assertThatThrownBy(() -> liabilityService.updateLiability(liabilityId, testUserId, request))
                 .isInstanceOf(LiabilityNotFoundException.class);
+    }
+
+    // ============ Balance-lock guard (Task 7, spec §4) ============
+
+    @Test
+    void shouldRejectManualBalanceEdit_WhenLinkedTransactionsExist() {
+        // Given
+        Long liabilityId = 100L;
+        Liability existing = createLiabilityEntity(liabilityId, testUserId);
+        LiabilityRequest request = createValidRequest();
+        request.setCurrentBalance(new BigDecimal("240000.00")); // old balance is 250000.00
+
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(existing));
+        when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of(Transaction.builder().id(1L).userId(testUserId).build()));
+
+        // When/Then — the balance is owned by linked movements once they exist
+        assertThatThrownBy(() -> liabilityService.updateLiability(liabilityId, testUserId, request))
+                .isInstanceOf(InvalidLiabilityStateException.class)
+                .hasMessageContaining("linked");
+        verify(liabilityRepository, never()).save(any(Liability.class));
+    }
+
+    @Test
+    void shouldAllowUnchangedBalanceEdit_WhenLinkedTransactionsExist() {
+        // Given — same balance, other fields editable
+        Long liabilityId = 100L;
+        Liability existing = createLiabilityEntity(liabilityId, testUserId);
+        LiabilityRequest request = createValidRequest();
+        request.setName("Renamed Mortgage");
+        request.setCurrentBalance(new BigDecimal("250000.00")); // unchanged
+
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(existing));
+        // Lenient: the guard short-circuits on the unchanged balance before querying
+        org.mockito.Mockito.lenient()
+                .when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of(Transaction.builder().id(1L).userId(testUserId).build()));
+        when(liabilityRepository.save(any(Liability.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        LiabilityResponse response =
+                liabilityService.updateLiability(liabilityId, testUserId, request);
+
+        // Then
+        assertThat(response.getName()).isEqualTo("Renamed Mortgage");
+    }
+
+    // ============ Tranche remaining from allocation ledger (Task 7) ============
+
+    @Test
+    void shouldComputeTrancheRemainingFromAllocationLedger() {
+        // Given
+        Long liabilityId = 100L;
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(createLiabilityEntity(liabilityId, testUserId)));
+        LiabilityTranche drawn =
+                LiabilityTranche.builder()
+                        .id(401L)
+                        .liabilityId(liabilityId)
+                        .userId(testUserId)
+                        .trancheNo(1)
+                        .plannedAmount(new BigDecimal("10000.00"))
+                        .drawnAmount(new BigDecimal("10000.00"))
+                        .drawnDate(LocalDate.now().minusDays(5))
+                        .status(TrancheStatus.DRAWN)
+                        .currency("USD")
+                        .build();
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of(drawn));
+        when(liabilityTrancheService.remainingOf(drawn)).thenReturn(new BigDecimal("4000.00"));
+
+        // When
+        List<LiabilityTrancheResponse> tranches =
+                liabilityService.getTranches(testUserId, liabilityId);
+
+        // Then — remaining is drawn minus allocated principal, not the drawn amount
+        assertThat(tranches).hasSize(1);
+        assertThat(tranches.get(0).getRemaining()).isEqualByComparingTo("4000.00");
     }
 
     // ============ Delete Liability Tests ============

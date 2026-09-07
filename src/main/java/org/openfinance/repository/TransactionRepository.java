@@ -340,7 +340,7 @@ public interface TransactionRepository
     List<Transaction> findActiveByAccountId(@Param("accountId") Long accountId);
 
     /**
-     * Finds all active transactions linked to a specific liability for a user.
+     * Finds active transactions linked to a specific liability for a user.
      *
      * <p>Returns non-deleted transactions where the {@code liabilityId} matches the given liability
      * and the transaction belongs to the specified user.
@@ -357,6 +357,22 @@ public interface TransactionRepository
             "SELECT t FROM Transaction t WHERE t.liabilityId = :liabilityId AND t.userId = :userId AND t.isDeleted = false ORDER BY t.date DESC")
     List<Transaction> findByLiabilityIdAndUserId(
             @Param("liabilityId") Long liabilityId, @Param("userId") Long userId);
+
+    /**
+     * Finds active transactions linked to a specific liability tranche for a user.
+     *
+     * <p>Returns non-deleted transactions where {@code trancheId} matches the given tranche and the
+     * transaction belongs to the specified user, ordered by date ascending (FIFO order). Used to
+     * derive the principal allocated to a tranche by REPAYMENT movements.
+     *
+     * @param trancheId the tranche ID
+     * @param userId the user ID (for authorization / data isolation)
+     * @return list of linked transactions ordered by date ascending, empty list if none found
+     */
+    @Query(
+            "SELECT t FROM Transaction t WHERE t.trancheId = :trancheId AND t.userId = :userId AND t.isDeleted = false ORDER BY t.date ASC")
+    List<Transaction> findByTrancheIdAndUserId(
+            @Param("trancheId") Long trancheId, @Param("userId") Long userId);
 
     /**
      * Counts active transactions without a category for a user.

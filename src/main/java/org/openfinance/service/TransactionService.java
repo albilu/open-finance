@@ -18,7 +18,6 @@ import org.openfinance.entity.Account;
 import org.openfinance.entity.Category;
 import org.openfinance.entity.CategoryType;
 import org.openfinance.entity.Liability;
-import org.openfinance.entity.LiabilityTranche;
 import org.openfinance.entity.MovementType;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
@@ -115,6 +114,7 @@ public class TransactionService {
     private final CurrencyConversionHelper currencyConversionHelper;
     private final LiabilityRepository liabilityRepository;
     private final LiabilityTrancheRepository liabilityTrancheRepository;
+    private final LiabilityTrancheService liabilityTrancheService;
     private final RealEstateService realEstateService;
     private final AssetService assetService;
 
@@ -2242,6 +2242,15 @@ public class TransactionService {
                         userId, transaction.getTrancheId(), request.getAmount(), request.getDate());
             }
             adjustLiabilityBalance(liability, delta);
+
+            // Task 7: repayments allocate their principal leg to a tranche (explicit target or
+            // FIFO pick of the oldest DRAWN tranche with remaining principal). Called after the
+            // balance reduction so the allocator's reconcile re-derives the invariant with the
+            // newly assigned trancheId.
+            if (transaction.getMovementType() == MovementType.REPAYMENT) {
+                liabilityTrancheService.allocateRepayment(
+                        userId, liability, transaction, delta.negate());
+            }
         }
 
         if (transaction.getRealEstateId() != null
@@ -2384,47 +2393,21 @@ public class TransactionService {
 
     /**
      * Applies a signed delta to a liability's encrypted current balance, floored at zero, then
-     * guards the result against the drawn tranche sum.
+     * reconciles the staged-loan invariant (Task 7): when tranches exist, {@link
+     * LiabilityTrancheService#reconcile(Liability)} re-derives the balance as
+     * SUM(tranche.remaining).
      */
     private void adjustLiabilityBalance(Liability liability, BigDecimal delta) {
         BigDecimal updated =
                 parseEncryptedAmount(liability.getCurrentBalance()).add(delta).max(BigDecimal.ZERO);
         liability.setCurrentBalance(updated.toPlainString());
-        reconcileTranches(liability);
+        liabilityTrancheService.reconcile(liability);
         liabilityRepository.save(liability);
         log.info(
                 "Liability {} balance adjusted by {} to {}",
                 liability.getId(),
                 delta,
                 liability.getCurrentBalance());
-    }
-
-    /**
-     * Guard for staged loans: when tranches exist, the current balance must not exceed the sum of
-     * drawn amounts of DRAWN tranches. Clamps the balance if it does. Full allocation is Task 7.
-     */
-    private void reconcileTranches(Liability liability) {
-        List<LiabilityTranche> tranches =
-                liabilityTrancheRepository.findByLiabilityIdAndUserId(
-                        liability.getId(), liability.getUserId());
-        if (tranches.isEmpty()) {
-            return;
-        }
-        BigDecimal drawnSum = BigDecimal.ZERO;
-        for (LiabilityTranche tranche : tranches) {
-            if (tranche.getStatus() == TrancheStatus.DRAWN && tranche.getDrawnAmount() != null) {
-                drawnSum = drawnSum.add(tranche.getDrawnAmount());
-            }
-        }
-        BigDecimal balance = parseEncryptedAmount(liability.getCurrentBalance());
-        if (balance.compareTo(drawnSum) > 0) {
-            log.warn(
-                    "Clamping liability {} balance {} to drawn tranche sum {}",
-                    liability.getId(),
-                    balance,
-                    drawnSum);
-            liability.setCurrentBalance(drawnSum.toPlainString());
-        }
     }
 
     /** Parses an encrypted BigDecimal amount string (null/blank resolves to zero). */

@@ -115,6 +115,7 @@ public class LiabilityService {
     private final LiabilityTrancheRepository liabilityTrancheRepository;
     private final AccountRepository accountRepository;
     private final RealEstateValueHistoryRepository realEstateValueHistoryRepository;
+    private final LiabilityTrancheService liabilityTrancheService;
 
     // Constants for calculations
     private static final int MAX_AMORTIZATION_PERIODS = 360; // Max 30 years of monthly payments
@@ -303,6 +304,18 @@ public class LiabilityService {
 
         // Capture snapshot before update for history
         LiabilityResponse beforeSnapshot = toResponseWithDecryption(liability);
+
+        // Balance-lock guard (spec §4): once linked transactions exist, the balance is owned by
+        // those movements and the tranche reconciler — manual edits are rejected.
+        BigDecimal requestedBalance = request.getCurrentBalance();
+        BigDecimal existingBalance = decryptAmount(liability.getCurrentBalance());
+        if (requestedBalance != null
+                && (existingBalance == null || requestedBalance.compareTo(existingBalance) != 0)
+                && !transactionRepository
+                        .findByLiabilityIdAndUserId(liabilityId, userId)
+                        .isEmpty()) {
+            throw InvalidLiabilityStateException.liabilityBalanceLocked(liabilityId);
+        }
 
         // Capture the old start date before overwriting, for net worth invalidation
         LocalDate oldStartDate = liability.getStartDate();
@@ -1395,7 +1408,7 @@ public class LiabilityService {
         BigDecimal current = decryptAmount(liability.getCurrentBalance());
         BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(request.getAmount());
         liability.setCurrentBalance(updated.toPlainString());
-        reconcileTranches(liability);
+        liabilityTrancheService.reconcile(liability);
         liabilityRepository.save(liability);
 
         BigDecimal propertyValue = property.getCurrentValueDecimal();
@@ -1429,6 +1442,8 @@ public class LiabilityService {
 
     /**
      * Sums the drawn amounts of the liability's DRAWN tranches (null drawn amounts count as zero).
+     * Used by the disbursement fail-fast pre-check only; the invariant itself is owned by {@link
+     * LiabilityTrancheService#reconcile(Liability)}.
      */
     private BigDecimal sumDrawnAmounts(Long liabilityId, Long userId) {
         return liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
@@ -1436,34 +1451,6 @@ public class LiabilityService {
                 .map(LiabilityTranche::getDrawnAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    /**
-     * Guard for staged loans (spec §3.2): the current balance must not exceed the sum of drawn
-     * amounts of DRAWN tranches. Clamps the balance if it does.
-     */
-    private void reconcileTranches(Liability liability) {
-        List<LiabilityTranche> tranches =
-                liabilityTrancheRepository.findByLiabilityIdAndUserId(
-                        liability.getId(), liability.getUserId());
-        if (tranches.isEmpty()) {
-            return;
-        }
-        BigDecimal drawnSum = BigDecimal.ZERO;
-        for (LiabilityTranche tranche : tranches) {
-            if (tranche.getStatus() == TrancheStatus.DRAWN && tranche.getDrawnAmount() != null) {
-                drawnSum = drawnSum.add(tranche.getDrawnAmount());
-            }
-        }
-        BigDecimal balance = decryptAmount(liability.getCurrentBalance());
-        if (balance != null && balance.compareTo(drawnSum) > 0) {
-            log.warn(
-                    "Clamping liability {} balance {} to drawn tranche sum {}",
-                    liability.getId(),
-                    balance,
-                    drawnSum);
-            liability.setCurrentBalance(drawnSum.toPlainString());
-        }
     }
 
     /**
@@ -1712,9 +1699,9 @@ public class LiabilityService {
     }
 
     /**
-     * Maps a tranche to its response. {@code remaining} is the outstanding drawn principal; FIFO
-     * allocation of repayments to tranches lands in Task 7, so until then it equals {@code
-     * drawnAmount} (zero when not yet drawn).
+     * Maps a tranche to its response. {@code remaining} is the outstanding drawn principal from the
+     * allocation ledger (drawn amount minus allocated REPAYMENT principal), computed by {@link
+     * LiabilityTrancheService#remainingOf}.
      */
     private LiabilityTrancheResponse toTrancheResponse(LiabilityTranche tranche) {
         return LiabilityTrancheResponse.builder()
@@ -1723,10 +1710,7 @@ public class LiabilityService {
                 .trancheNo(tranche.getTrancheNo())
                 .plannedAmount(tranche.getPlannedAmount())
                 .drawnAmount(tranche.getDrawnAmount())
-                .remaining(
-                        tranche.getDrawnAmount() != null
-                                ? tranche.getDrawnAmount()
-                                : BigDecimal.ZERO)
+                .remaining(liabilityTrancheService.remainingOf(tranche))
                 .plannedDate(tranche.getPlannedDate())
                 .drawnDate(tranche.getDrawnDate())
                 .fee(tranche.getFee())

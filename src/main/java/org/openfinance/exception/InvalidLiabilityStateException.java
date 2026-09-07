@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  *   <li>A disbursement is attempted while the liability balance already exceeds the total drawn
  *       amount of its DRAWN tranches (invariant: currentBalance = SUM(tranche.remaining))
  *   <li>A disbursement amount exceeds the planned amount of the tranche being drawn
+ *   <li>The current balance is edited manually while linked transactions exist (the balance is
+ *       owned by those movements and the tranche reconciler)
  * </ul>
  *
  * <p>Requirement REQ-6.1: Liability Management - staged loan tranche invariants
@@ -68,6 +70,22 @@ public class InvalidLiabilityStateException extends RuntimeException
                         amount.toPlainString(), trancheId, plannedAmount.toPlainString()),
                 "error.liability.disbursement.overdraw",
                 new Object[] {amount.toPlainString(), trancheId, plannedAmount.toPlainString()});
+    }
+
+    /**
+     * Factory method for a manual balance edit attempted while linked transactions exist.
+     *
+     * @param liabilityId the liability whose balance is locked
+     * @return a new InvalidLiabilityStateException
+     */
+    public static InvalidLiabilityStateException liabilityBalanceLocked(Long liabilityId) {
+        return new InvalidLiabilityStateException(
+                String.format(
+                        "Cannot manually edit the balance of liability %d: it is driven by linked"
+                                + " transactions (edit or delete those instead)",
+                        liabilityId),
+                "error.liability.balance.locked",
+                new Object[] {liabilityId});
     }
 
     @Override

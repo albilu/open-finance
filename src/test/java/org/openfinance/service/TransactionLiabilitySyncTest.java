@@ -124,6 +124,16 @@ class TransactionLiabilitySyncTest {
                         defaultCurrencyProvider,
                         helper);
         ReflectionTestUtils.setField(transactionService, "realEstateService", realEstateService);
+
+        // Real tranche allocator/reconciler (Task 7): the clamp/invariant logic it owns must run
+        LiabilityTrancheService liabilityTrancheService =
+                new LiabilityTrancheService(
+                        liabilityRepository,
+                        liabilityTrancheRepository,
+                        transactionRepository,
+                        transactionSplitService);
+        ReflectionTestUtils.setField(
+                transactionService, "liabilityTrancheService", liabilityTrancheService);
     }
 
     // ---------- Helpers ----------
