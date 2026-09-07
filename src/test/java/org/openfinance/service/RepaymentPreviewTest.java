@@ -1,6 +1,7 @@
 package org.openfinance.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -18,6 +19,7 @@ import org.openfinance.entity.Liability;
 import org.openfinance.entity.LiabilityTranche;
 import org.openfinance.entity.LiabilityType;
 import org.openfinance.entity.TrancheStatus;
+import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.repository.LiabilityRepository;
 import org.openfinance.repository.LiabilityTrancheRepository;
 
@@ -264,5 +266,29 @@ class RepaymentPreviewTest {
 
         assertThat(preview.getTotal()).isEqualByComparingTo("1200.00");
         assertThat(preview.getPrincipal()).isEqualByComparingTo("981.25");
+    }
+
+    @Test
+    @DisplayName(
+            "FX preview with a missing exchange rate throws a domain exception instead of a 500")
+    void fxPreviewMissingRateThrowsDomainException() {
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liability("50000.00", "5.25", "50000.00", null)));
+        when(exchangeRateService.convert(new BigDecimal("1200.00"), "EUR", "USD"))
+                .thenThrow(
+                        new IllegalStateException(
+                                "No exchange rate available for EUR → USD on latest"));
+
+        assertThatThrownBy(
+                        () ->
+                                liabilityService.getRepaymentPreview(
+                                        USER_ID,
+                                        LIABILITY_ID,
+                                        new BigDecimal("1200.00"),
+                                        DATE,
+                                        "EUR"))
+                .isInstanceOf(InvalidTransactionException.class)
+                .hasMessageContaining("EUR")
+                .hasMessageContaining("USD");
     }
 }

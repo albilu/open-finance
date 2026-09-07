@@ -82,4 +82,13 @@ public class AmortizationScheduleEntry {
      * <p>Optional field. Represents total interest paid so far.
      */
     private BigDecimal cumulativeInterest;
+
+    /**
+     * Whether this entry belongs to an interest-only phase (Phase 1) of a two-phase schedule.
+     *
+     * <p>True while a DRAWN interest-only tranche window is active: the payment covers interest
+     * (plus monthly insurance when set) only, the principal portion is zero and the balance stays
+     * flat. False for normal amortizing (principal &amp; interest) rows.
+     */
+    private boolean interestOnlyPhase;
 }

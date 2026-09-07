@@ -909,9 +909,52 @@ public class LiabilityService {
                 interestRate.divide(
                         BigDecimal.valueOf(MONTHS_PER_YEAR * 100), SCALE, RoundingMode.HALF_UP);
 
-        // Check if payment covers interest (avoid infinite loop)
+        // Two-phase support (Task 9): a DRAWN interest-only tranche whose window is still open
+        // suppresses the principal during that period. Resolve the effective window once from the
+        // tranches (same predicate as getRepaymentPreview): open-ended when any qualifying tranche
+        // has no interestOnlyUntil, otherwise the latest interestOnlyUntil among them.
+        LocalDate interestOnlyUntil = null;
+        boolean openEndedInterestOnly = false;
+        for (LiabilityTranche tranche :
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId)) {
+            if (tranche.getStatus() == TrancheStatus.DRAWN && tranche.isInterestOnly()) {
+                if (tranche.getInterestOnlyUntil() == null) {
+                    openEndedInterestOnly = true;
+                } else if (interestOnlyUntil == null
+                        || tranche.getInterestOnlyUntil().isAfter(interestOnlyUntil)) {
+                    interestOnlyUntil = tranche.getInterestOnlyUntil();
+                }
+            }
+        }
+        LocalDate firstPaymentDate = LocalDate.now();
+        boolean startsInInterestOnlyWindow =
+                openEndedInterestOnly
+                        || (interestOnlyUntil != null
+                                && !firstPaymentDate.isAfter(interestOnlyUntil));
+
+        // Monthly insurance (principal × percentage / 1200), added to interest-only window
+        // payments when set — same formula as the repayment preview.
+        BigDecimal monthlyInsurance = BigDecimal.ZERO;
+        BigDecimal insurancePercentage = decryptAmount(liability.getInsurancePercentage());
+        BigDecimal principalAmount = decryptAmount(liability.getPrincipal());
+        if (insurancePercentage != null
+                && insurancePercentage.compareTo(BigDecimal.ZERO) > 0
+                && principalAmount != null
+                && principalAmount.compareTo(BigDecimal.ZERO) > 0) {
+            monthlyInsurance =
+                    principalAmount
+                            .multiply(insurancePercentage)
+                            .divide(
+                                    BigDecimal.valueOf(MONTHS_PER_YEAR * 100),
+                                    2,
+                                    RoundingMode.HALF_UP);
+        }
+
+        // Check if payment covers interest (avoid infinite loop). Inside an interest-only window
+        // the payment is the computed interest itself, so the check only applies once the schedule
+        // amortizes; the loop below stops at the window end when the payment cannot cover interest.
         BigDecimal firstMonthInterest = currentBalance.multiply(monthlyRate);
-        if (minimumPayment.compareTo(firstMonthInterest) <= 0) {
+        if (!startsInInterestOnlyWindow && minimumPayment.compareTo(firstMonthInterest) <= 0) {
             log.warn(
                     "Cannot calculate amortization schedule: minimum payment ({}) does not cover first month interest ({})",
                     minimumPayment,
@@ -922,7 +965,7 @@ public class LiabilityService {
         // Generate amortization schedule
         List<AmortizationScheduleEntry> schedule = new ArrayList<>();
         BigDecimal remainingBalance = currentBalance;
-        LocalDate currentDate = LocalDate.now();
+        LocalDate currentDate = firstPaymentDate;
         int paymentNumber = 1;
 
         BigDecimal cumulativePrincipal = BigDecimal.ZERO;
@@ -934,23 +977,48 @@ public class LiabilityService {
             BigDecimal interestPortion =
                     remainingBalance.multiply(monthlyRate).setScale(2, RoundingMode.HALF_UP);
 
-            // Calculate principal portion
-            BigDecimal principalPortion = minimumPayment.subtract(interestPortion);
+            // Interest-only window (Phase 1): payment = interest (+ monthly insurance), principal
+            // 0, balance flat. Otherwise (Phase 2) normal principal & interest rows.
+            boolean interestOnlyRow =
+                    openEndedInterestOnly
+                            || (interestOnlyUntil != null
+                                    && !currentDate.isAfter(interestOnlyUntil));
 
-            // Adjust for final payment (don't overpay)
-            if (principalPortion.compareTo(remainingBalance) > 0) {
-                principalPortion = remainingBalance;
-                remainingBalance = BigDecimal.ZERO;
+            BigDecimal principalPortion;
+            BigDecimal actualPayment;
+
+            if (interestOnlyRow) {
+                principalPortion = BigDecimal.ZERO;
+                actualPayment = interestPortion.add(monthlyInsurance);
             } else {
-                remainingBalance = remainingBalance.subtract(principalPortion);
+                // Calculate principal portion
+                principalPortion = minimumPayment.subtract(interestPortion);
+
+                if (principalPortion.compareTo(BigDecimal.ZERO) <= 0) {
+                    log.warn(
+                            "Stopping amortization schedule at payment {}: minimum payment ({}) does"
+                                    + " not cover interest ({})",
+                            paymentNumber,
+                            minimumPayment,
+                            interestPortion);
+                    break;
+                }
+
+                // Adjust for final payment (don't overpay)
+                if (principalPortion.compareTo(remainingBalance) > 0) {
+                    principalPortion = remainingBalance;
+                    remainingBalance = BigDecimal.ZERO;
+                } else {
+                    remainingBalance = remainingBalance.subtract(principalPortion);
+                }
+
+                // Actual payment amount for this period
+                actualPayment = principalPortion.add(interestPortion);
             }
 
             // Update cumulative totals
             cumulativePrincipal = cumulativePrincipal.add(principalPortion);
             cumulativeInterest = cumulativeInterest.add(interestPortion);
-
-            // Actual payment amount for this period
-            BigDecimal actualPayment = principalPortion.add(interestPortion);
 
             // Create schedule entry
             AmortizationScheduleEntry entry =
@@ -963,6 +1031,7 @@ public class LiabilityService {
                             .remainingBalance(remainingBalance.max(BigDecimal.ZERO))
                             .cumulativePrincipal(cumulativePrincipal)
                             .cumulativeInterest(cumulativeInterest)
+                            .interestOnlyPhase(interestOnlyRow)
                             .build();
 
             schedule.add(entry);
@@ -1803,10 +1872,22 @@ public class LiabilityService {
                 && !inputCurrency.isBlank()
                 && liability.getCurrency() != null
                 && !inputCurrency.equalsIgnoreCase(liability.getCurrency())) {
-            effectiveTotal =
-                    exchangeRateService
-                            .convert(total, inputCurrency.toUpperCase(), liability.getCurrency())
-                            .setScale(2, RoundingMode.HALF_UP);
+            try {
+                effectiveTotal =
+                        exchangeRateService
+                                .convert(
+                                        total, inputCurrency.toUpperCase(), liability.getCurrency())
+                                .setScale(2, RoundingMode.HALF_UP);
+            } catch (RuntimeException e) {
+                log.warn(
+                        "FX repayment preview for liability {} could not convert {} → {}: {}",
+                        liabilityId,
+                        inputCurrency,
+                        liability.getCurrency(),
+                        e.getMessage());
+                throw InvalidTransactionException.exchangeRateUnavailable(
+                        inputCurrency.toUpperCase(), liability.getCurrency());
+            }
             log.info(
                     "FX repayment preview: converted {} {} to {} {} for liability {}",
                     total,
@@ -1830,14 +1911,9 @@ public class LiabilityService {
                         .divide(BigDecimal.valueOf(MONTHS_PER_YEAR * 100), 2, RoundingMode.HALF_UP);
 
         boolean interestOnly =
-                liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
-                        .anyMatch(
-                                t ->
-                                        t.getStatus() == TrancheStatus.DRAWN
-                                                && t.isInterestOnly()
-                                                && (t.getInterestOnlyUntil() == null
-                                                        || !date.isAfter(
-                                                                t.getInterestOnlyUntil())));
+                isInterestOnlyWindowActive(
+                        liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId),
+                        date);
 
         BigDecimal principal =
                 interestOnly
@@ -1859,6 +1935,22 @@ public class LiabilityService {
     /** Null-safe BigDecimal accessor defaulting to zero. */
     private static BigDecimal orZero(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
+    }
+
+    /**
+     * Window predicate shared by the repayment preview and the amortization schedule: a DRAWN
+     * interest-only tranche whose window is open on the given date (no end date, or the date is not
+     * past {@code interestOnlyUntil}).
+     */
+    private static boolean isInterestOnlyWindowActive(
+            List<LiabilityTranche> tranches, LocalDate date) {
+        return tranches.stream()
+                .anyMatch(
+                        t ->
+                                t.getStatus() == TrancheStatus.DRAWN
+                                        && t.isInterestOnly()
+                                        && (t.getInterestOnlyUntil() == null
+                                                || !date.isAfter(t.getInterestOnlyUntil())));
     }
 
     // ===========================

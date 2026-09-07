@@ -667,6 +667,124 @@ class LiabilityServiceTest {
         assertThat(lastPayment.getRemainingBalance()).isEqualByComparingTo("0.00");
     }
 
+    // ============ Two-Phase Amortization Schedule Tests (interest-only tranches) ============
+
+    /** Builds a DRAWN interest-only tranche for the given liability. */
+    private LiabilityTranche drawnInterestOnlyTranche(
+            Long liabilityId, LocalDate interestOnlyUntil) {
+        return LiabilityTranche.builder()
+                .id(5L)
+                .userId(testUserId)
+                .liabilityId(liabilityId)
+                .trancheNo(1)
+                .plannedAmount(new BigDecimal("50000.00"))
+                .interestOnly(true)
+                .interestOnlyUntil(interestOnlyUntil)
+                .status(TrancheStatus.DRAWN)
+                .currency("USD")
+                .build();
+    }
+
+    @Test
+    void shouldCalculateTwoPhaseSchedule_WithInterestOnlyWindowFirst() {
+        // Given
+        Long liabilityId = 100L;
+        Liability liability = createLiabilityEntity(liabilityId, testUserId);
+        liability.setPrincipal("50000.00");
+        liability.setCurrentBalance("50000.00");
+        liability.setInterestRate("5.25"); // Monthly interest = 50000 × 5.25 / 1200 = 218.75
+        liability.setMinimumPayment("1200.00");
+
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(liability));
+        // Payments 1..6 fall on today..today+5mo, all within the window (<= today+5mo)
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(
+                        List.of(
+                                drawnInterestOnlyTranche(
+                                        liabilityId, LocalDate.now().plusMonths(5))));
+
+        // When
+        List<AmortizationScheduleEntry> schedule =
+                liabilityService.calculateAmortizationSchedule(liabilityId, testUserId);
+
+        // Then
+        assertThat(schedule).hasSizeGreaterThan(7);
+
+        // Phase 1 — interest-only: principal 0, payment = interest, balance flat
+        for (int i = 0; i < 6; i++) {
+            AmortizationScheduleEntry entry = schedule.get(i);
+            assertThat(entry.getPrincipalPortion()).isEqualByComparingTo("0.00");
+            assertThat(entry.getPaymentAmount()).isEqualByComparingTo("218.75");
+            assertThat(entry.getRemainingBalance()).isEqualByComparingTo("50000.00");
+            assertThat(entry.isInterestOnlyPhase()).isTrue();
+        }
+
+        // Phase 2 — amortizing: principal > 0 from payment 7 onward
+        for (int i = 6; i < schedule.size(); i++) {
+            assertThat(schedule.get(i).getPrincipalPortion()).isGreaterThan(BigDecimal.ZERO);
+            assertThat(schedule.get(i).isInterestOnlyPhase()).isFalse();
+        }
+        assertThat(schedule.get(6).getPaymentAmount()).isEqualByComparingTo("1200.00");
+    }
+
+    @Test
+    void shouldAddMonthlyInsurance_ToInterestOnlyWindowPaymentsOnly() {
+        // Given
+        Long liabilityId = 100L;
+        Liability liability = createLiabilityEntity(liabilityId, testUserId);
+        liability.setPrincipal("50000.00");
+        liability.setCurrentBalance("50000.00");
+        liability.setInterestRate("5.25");
+        liability.setMinimumPayment("1200.00");
+        liability.setInsurancePercentage("0.5"); // Monthly insurance = 50000 × 0.5 / 1200 = 20.83
+
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(liability));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(
+                        List.of(
+                                drawnInterestOnlyTranche(
+                                        liabilityId, LocalDate.now().plusMonths(5))));
+
+        // When
+        List<AmortizationScheduleEntry> schedule =
+                liabilityService.calculateAmortizationSchedule(liabilityId, testUserId);
+
+        // Then — window payments carry interest + insurance; phase 2 payments are plain P&I
+        assertThat(schedule.get(0).getPaymentAmount()).isEqualByComparingTo("239.58");
+        assertThat(schedule.get(5).getPaymentAmount()).isEqualByComparingTo("239.58");
+        assertThat(schedule.get(6).getPaymentAmount()).isEqualByComparingTo("1200.00");
+    }
+
+    @Test
+    void shouldStopScheduleAtWindowEnd_WhenPaymentCannotCoverInterestAfterwards() {
+        // Given
+        Long liabilityId = 100L;
+        Liability liability = createLiabilityEntity(liabilityId, testUserId);
+        liability.setPrincipal("50000.00");
+        liability.setCurrentBalance("50000.00");
+        liability.setInterestRate("5.25"); // Monthly interest = 218.75
+        liability.setMinimumPayment("100.00"); // Below the monthly interest
+
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(liability));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(
+                        List.of(
+                                drawnInterestOnlyTranche(
+                                        liabilityId, LocalDate.now().plusMonths(5))));
+
+        // When
+        List<AmortizationScheduleEntry> schedule =
+                liabilityService.calculateAmortizationSchedule(liabilityId, testUserId);
+
+        // Then — the schedule is not empty (the pre-check must not fire inside the window) and
+        // stops after the 6 interest-only rows since phase 2 cannot amortize.
+        assertThat(schedule).hasSize(6);
+        assertThat(schedule).allMatch(AmortizationScheduleEntry::isInterestOnlyPhase);
+    }
+
     // ============ Calculate Total Interest Tests ============
 
     @Test

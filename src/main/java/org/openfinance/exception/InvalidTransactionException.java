@@ -190,6 +190,23 @@ public class InvalidTransactionException extends RuntimeException implements Loc
                         movementCurrency, instrumentCurrency, instrumentType, instrumentId));
     }
 
+    /**
+     * Factory method for a missing exchange rate between two currencies (e.g. an FX repayment
+     * preview whose input currency cannot be converted).
+     *
+     * @param fromCurrency the source currency code
+     * @param toCurrency the target currency code
+     * @return a new InvalidTransactionException
+     */
+    public static InvalidTransactionException exchangeRateUnavailable(
+            String fromCurrency, String toCurrency) {
+        return new InvalidTransactionException(
+                String.format(
+                        "No exchange rate available to convert %s to %s — update exchange rates"
+                                + " and try again",
+                        fromCurrency, toCurrency));
+    }
+
     @Override
     public String getMessageKey() {
         return messageKey;
