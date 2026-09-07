@@ -1471,7 +1471,7 @@ public class LiabilityService {
      * @throws LiabilityNotFoundException if the liability does not belong to the user
      */
     @Transactional(readOnly = true)
-    public List<LiabilityTrancheResponse> getTranches(Long liabilityId, Long userId) {
+    public List<LiabilityTrancheResponse> getTranches(Long userId, Long liabilityId) {
         liabilityRepository
                 .findByIdAndUserId(liabilityId, userId)
                 .orElseThrow(() -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
@@ -1485,9 +1485,12 @@ public class LiabilityService {
      * Creates a planned tranche on a liability.
      *
      * <p>{@code trancheNo} defaults to max existing + 1; {@code currency} always comes from the
-     * liability (a provided value must match it).
+     * liability (a provided value must match it). A non-null {@code realEstateId} must reference a
+     * property owned by the user.
      *
      * @throws LiabilityNotFoundException if the liability does not belong to the user
+     * @throws RealEstatePropertyNotFoundException if a non-null {@code realEstateId} does not
+     *     reference a property owned by the user
      * @throws InvalidTransactionException on a duplicate tranche number or a currency mismatch
      */
     public LiabilityTrancheResponse createTranche(
@@ -1498,6 +1501,7 @@ public class LiabilityService {
                         .orElseThrow(
                                 () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
         validateTrancheCurrency(request, liability);
+        validateRealEstateOwnership(userId, request.getRealEstateId());
 
         Integer trancheNo =
                 request.getTrancheNo() != null
@@ -1539,10 +1543,16 @@ public class LiabilityService {
     /**
      * Updates a tranche.
      *
+     * <p>The update is partial: a {@code null} request field leaves the stored value unchanged and
+     * an empty string clears a String field ({@code notes}). {@code realEstateId} can only be set
+     * (never cleared) and must reference a property owned by the user.
+     *
      * <p>PLANNED/CANCELLED tranches accept planned-field updates and PLANNED&#8596;CANCELLED status
      * transitions. DRAWN tranches are immutable except for {@code realEstateId} and {@code notes}.
      *
      * @throws ResourceNotFoundException if the tranche does not belong to the user
+     * @throws RealEstatePropertyNotFoundException if a non-null {@code realEstateId} does not
+     *     reference a property owned by the user
      * @throws InvalidTransactionException when a DRAWN tranche's planned fields/status change, on
      *     an illegal status transition, or on a currency mismatch
      */
@@ -1563,6 +1573,7 @@ public class LiabilityService {
             throw InvalidTransactionException.currencyMismatch(
                     tranche.getCurrency(), request.getCurrency());
         }
+        validateRealEstateOwnership(userId, request.getRealEstateId());
 
         if (tranche.getStatus() == TrancheStatus.DRAWN) {
             updateDrawnTranche(tranche, request);
@@ -1578,14 +1589,32 @@ public class LiabilityService {
         return toTrancheResponse(saved);
     }
 
+    /**
+     * Applies the non-null planned fields of the request onto a PLANNED/CANCELLED tranche; {@code
+     * null} means "leave unchanged".
+     */
     private void updatePlannedTranche(LiabilityTranche tranche, LiabilityTrancheRequest request) {
-        tranche.setPlannedAmount(request.getPlannedAmount());
-        tranche.setPlannedDate(request.getPlannedDate());
-        tranche.setFee(request.getFee());
-        tranche.setInterestOnly(Boolean.TRUE.equals(request.getInterestOnly()));
-        tranche.setInterestOnlyUntil(request.getInterestOnlyUntil());
-        tranche.setRealEstateId(request.getRealEstateId());
-        tranche.setNotes(request.getNotes());
+        if (request.getPlannedAmount() != null) {
+            tranche.setPlannedAmount(request.getPlannedAmount());
+        }
+        if (request.getPlannedDate() != null) {
+            tranche.setPlannedDate(request.getPlannedDate());
+        }
+        if (request.getFee() != null) {
+            tranche.setFee(request.getFee());
+        }
+        if (request.getInterestOnly() != null) {
+            tranche.setInterestOnly(request.getInterestOnly());
+        }
+        if (request.getInterestOnlyUntil() != null) {
+            tranche.setInterestOnlyUntil(request.getInterestOnlyUntil());
+        }
+        if (request.getRealEstateId() != null) {
+            tranche.setRealEstateId(request.getRealEstateId());
+        }
+        if (request.getNotes() != null) {
+            tranche.setNotes(request.getNotes());
+        }
         if (request.getStatus() != null && request.getStatus() != tranche.getStatus()) {
             if (request.getStatus() != TrancheStatus.PLANNED
                     && request.getStatus() != TrancheStatus.CANCELLED) {
@@ -1599,15 +1628,27 @@ public class LiabilityService {
         }
     }
 
+    /**
+     * Applies the mutable subset ({@code realEstateId}, {@code notes}) onto a DRAWN tranche; {@code
+     * null} means "leave unchanged". Any non-null request value that would change a planned field
+     * or the status is rejected (DRAWN tranches are immutable).
+     */
     private void updateDrawnTranche(LiabilityTranche tranche, LiabilityTrancheRequest request) {
         boolean plannedFieldsChanged =
-                amountsDiffer(request.getPlannedAmount(), tranche.getPlannedAmount())
-                        || !Objects.equals(request.getPlannedDate(), tranche.getPlannedDate())
-                        || amountsDiffer(request.getFee(), tranche.getFee())
-                        || Boolean.TRUE.equals(request.getInterestOnly())
-                                != tranche.isInterestOnly()
-                        || !Objects.equals(
-                                request.getInterestOnlyUntil(), tranche.getInterestOnlyUntil());
+                (request.getPlannedAmount() != null
+                                && amountsDiffer(
+                                        request.getPlannedAmount(), tranche.getPlannedAmount()))
+                        || (request.getPlannedDate() != null
+                                && !Objects.equals(
+                                        request.getPlannedDate(), tranche.getPlannedDate()))
+                        || (request.getFee() != null
+                                && amountsDiffer(request.getFee(), tranche.getFee()))
+                        || (request.getInterestOnly() != null
+                                && request.getInterestOnly() != tranche.isInterestOnly())
+                        || (request.getInterestOnlyUntil() != null
+                                && !Objects.equals(
+                                        request.getInterestOnlyUntil(),
+                                        tranche.getInterestOnlyUntil()));
         if (plannedFieldsChanged
                 || (request.getStatus() != null && request.getStatus() != TrancheStatus.DRAWN)) {
             throw new InvalidTransactionException(
@@ -1615,8 +1656,30 @@ public class LiabilityService {
                             "Tranche %d is DRAWN and immutable except realEstateId and notes",
                             tranche.getId()));
         }
-        tranche.setRealEstateId(request.getRealEstateId());
-        tranche.setNotes(request.getNotes());
+        if (request.getRealEstateId() != null) {
+            tranche.setRealEstateId(request.getRealEstateId());
+        }
+        if (request.getNotes() != null) {
+            tranche.setNotes(request.getNotes());
+        }
+    }
+
+    /**
+     * Ensures a non-null {@code realEstateId} references a property owned by the user, mirroring
+     * the ownership check of the direct-disbursement route.
+     *
+     * @throws RealEstatePropertyNotFoundException if the property does not belong to the user
+     */
+    private void validateRealEstateOwnership(Long userId, Long realEstateId) {
+        if (realEstateId == null) {
+            return;
+        }
+        realEstateRepository
+                .findByIdAndUserId(realEstateId, userId)
+                .orElseThrow(
+                        () ->
+                                RealEstatePropertyNotFoundException.byIdAndUser(
+                                        realEstateId, userId));
     }
 
     /** Null-safe scale-insensitive comparison of two monetary amounts. */

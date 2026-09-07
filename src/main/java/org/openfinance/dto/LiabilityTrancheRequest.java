@@ -12,6 +12,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.openfinance.entity.TrancheStatus;
+import org.openfinance.validation.OnCreate;
 import org.openfinance.validation.ValidCurrency;
 
 /**
@@ -22,7 +23,8 @@ import org.openfinance.validation.ValidCurrency;
  *
  * <p>On creation, {@code trancheNo} is auto-assigned (max existing + 1) when absent and {@code
  * currency} always defaults to the liability's currency (a provided value must match it). {@code
- * status} is only honored on update and only for PLANNED&#8596;CANCELLED transitions.
+ * status} is only honored on update and only for PLANNED&#8596;CANCELLED transitions. On update a
+ * {@code null} field means "leave unchanged" (empty string clears a String field).
  */
 @Data
 @Builder
@@ -34,8 +36,8 @@ public class LiabilityTrancheRequest {
     @Min(value = 1, message = "{liabilityTranche.trancheNo.min}")
     private Integer trancheNo;
 
-    /** Planned drawdown amount. */
-    @NotNull(message = "{liabilityTranche.plannedAmount.required}")
+    /** Planned drawdown amount; required on create, optional on update (null = unchanged). */
+    @NotNull(groups = OnCreate.class, message = "{liabilityTranche.plannedAmount.required}")
     @DecimalMin(value = "0.01", message = "{liabilityTranche.plannedAmount.min}")
     @Digits(integer = 17, fraction = 2, message = "{liabilityTranche.plannedAmount.digits}")
     private BigDecimal plannedAmount;

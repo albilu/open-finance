@@ -781,7 +781,7 @@ public class LiabilityController {
         log.info("Retrieving tranches for liability: id={}", liabilityId);
         User user = (User) authentication.getPrincipal();
         List<LiabilityTrancheResponse> tranches =
-                liabilityService.getTranches(liabilityId, user.getId());
+                liabilityService.getTranches(user.getId(), liabilityId);
 
         log.info("Retrieved {} tranches for liability {}", tranches.size(), liabilityId);
 

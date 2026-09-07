@@ -1,15 +1,18 @@
 package org.openfinance.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.groups.Default;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.LiabilityTrancheRequest;
 import org.openfinance.dto.LiabilityTrancheResponse;
 import org.openfinance.entity.User;
 import org.openfinance.service.LiabilityService;
+import org.openfinance.validation.OnCreate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -71,7 +74,8 @@ public class LiabilityTrancheController {
     @PostMapping("/liabilities/{id}/tranches")
     public ResponseEntity<LiabilityTrancheResponse> createTranche(
             @PathVariable("id") Long liabilityId,
-            @Valid @RequestBody LiabilityTrancheRequest request,
+            @Validated({Default.class, OnCreate.class}) @RequestBody
+                    LiabilityTrancheRequest request,
             Authentication authentication) {
 
         log.info(
@@ -96,7 +100,9 @@ public class LiabilityTrancheController {
      * <p>PLANNED/CANCELLED tranches accept planned-field updates ({@code plannedAmount}, {@code
      * plannedDate}, {@code fee}, {@code interestOnly}, {@code interestOnlyUntil}, {@code notes},
      * {@code realEstateId}) and PLANNED&#8596;CANCELLED status transitions. DRAWN tranches are
-     * immutable except for {@code realEstateId} and {@code notes}.
+     * immutable except for {@code realEstateId} and {@code notes}. The update is partial: fields
+     * omitted (null) from the request are left unchanged; an empty string clears a String field
+     * ({@code notes}).
      *
      * <p><strong>Example Request:</strong>
      *

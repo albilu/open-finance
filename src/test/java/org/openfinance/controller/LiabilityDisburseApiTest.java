@@ -1,11 +1,13 @@
 package org.openfinance.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +28,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 /**
  * Integration tests for liability disbursement and tranche endpoints (Task 4).
@@ -58,10 +61,19 @@ class LiabilityDisburseApiTest {
     void setUp() throws Exception {
         databaseCleanupService.execute();
 
+        Session alice = registerAndLogin("alice");
+        token = alice.token();
+        encKey = alice.encKey();
+    }
+
+    /** Auth material for a registered-and-logged-in user. */
+    private record Session(String token, String encKey) {}
+
+    private Session registerAndLogin(String username) throws Exception {
         UserRegistrationRequest reg =
                 UserRegistrationRequest.builder()
-                        .username("alice")
-                        .email("alice@example.com")
+                        .username(username)
+                        .email(username + "@example.com")
                         .password("Password123!")
                         .masterPassword("Master123!")
                         .skipSeeding(true)
@@ -70,7 +82,7 @@ class LiabilityDisburseApiTest {
 
         LoginRequest login =
                 LoginRequest.builder()
-                        .username("alice")
+                        .username(username)
                         .password("Password123!")
                         .masterPassword("Master123!")
                         .build();
@@ -85,8 +97,9 @@ class LiabilityDisburseApiTest {
                         .getResponse()
                         .getContentAsString();
 
-        token = objectMapper.readTree(resp).get("token").asText();
-        encKey = objectMapper.readTree(resp).get("encryptionKey").asText();
+        return new Session(
+                objectMapper.readTree(resp).get("token").asText(),
+                objectMapper.readTree(resp).get("encryptionKey").asText());
     }
 
     // ---------- Helpers ----------
@@ -143,24 +156,44 @@ class LiabilityDisburseApiTest {
     }
 
     private Long createProperty(String currency) throws Exception {
-        Map<String, Object> body =
-                Map.of(
-                        "name",
-                        "Build Site",
-                        "propertyType",
-                        "RESIDENTIAL",
-                        "address",
-                        "1 Main St",
-                        "purchasePrice",
-                        new BigDecimal("100000.00"),
-                        "currentValue",
-                        new BigDecimal("100000.00"),
-                        "purchaseDate",
-                        LocalDate.now().minusMonths(2).toString(),
-                        "currency",
-                        currency);
-        String resp = performPost("/api/v1/real-estate", body);
+        String resp = performPost("/api/v1/real-estate", propertyBody(currency));
         return objectMapper.readTree(resp).get("id").asLong();
+    }
+
+    /** Creates a property owned by the given session's user (not alice). */
+    private Long createPropertyFor(Session session) throws Exception {
+        String resp =
+                mockMvc.perform(
+                                post("/api/v1/real-estate")
+                                        .header("Authorization", "Bearer " + session.token())
+                                        .header("X-Encryption-Session", session.encKey())
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                objectMapper.writeValueAsString(
+                                                        propertyBody("USD"))))
+                        .andExpect(status().isCreated())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        return objectMapper.readTree(resp).get("id").asLong();
+    }
+
+    private Map<String, Object> propertyBody(String currency) {
+        return Map.of(
+                "name",
+                "Build Site",
+                "propertyType",
+                "RESIDENTIAL",
+                "address",
+                "1 Main St",
+                "purchasePrice",
+                new BigDecimal("100000.00"),
+                "currentValue",
+                new BigDecimal("100000.00"),
+                "purchaseDate",
+                LocalDate.now().minusMonths(2).toString(),
+                "currency",
+                currency);
     }
 
     private Long createPlannedTranche(Long liabilityId, String plannedAmount) throws Exception {
@@ -184,10 +217,31 @@ class LiabilityDisburseApiTest {
     }
 
     private Map<String, Object> disbursementBody(BigDecimal amount) {
-        Map<String, Object> body = new java.util.HashMap<>();
+        Map<String, Object> body = new HashMap<>();
         body.put("amount", amount);
         body.put("date", LocalDate.now().toString());
         return body;
+    }
+
+    /** PATCHes as alice, expecting HTTP 200, and returns the response body. */
+    private String performPatch(String path, Object body) throws Exception {
+        return mockMvc.perform(
+                        patch(path)
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+    }
+
+    private ResultActions getTranches(Long liabilityId) throws Exception {
+        return mockMvc.perform(
+                get("/api/v1/liabilities/" + liabilityId + "/tranches")
+                        .header("Authorization", "Bearer " + token)
+                        .header("X-Encryption-Session", encKey));
     }
 
     // ---------- POST /{id}/disburse: to-account route ----------
@@ -366,8 +420,7 @@ class LiabilityDisburseApiTest {
                         .getResponse()
                         .getContentAsString();
         String persistedBalance = objectMapper.readTree(getResp).get("currentBalance").asText();
-        org.assertj.core.api.Assertions.assertThat(
-                        new BigDecimal(persistedBalance).compareTo(new BigDecimal("200000.00")))
+        assertThat(new BigDecimal(persistedBalance).compareTo(new BigDecimal("200000.00")))
                 .isZero();
         mockMvc.perform(
                         get("/api/v1/liabilities/" + liabilityId + "/tranches")
@@ -557,6 +610,118 @@ class LiabilityDisburseApiTest {
                 .andExpect(jsonPath("$.plannedAmount").value(50000.00));
     }
 
+    // ---------- PATCH null-safety ----------
+
+    @Test
+    @DisplayName("PATCH with {plannedAmount, status} preserves plannedDate/fee/notes")
+    void patchWithAmountAndStatusPreservesUnsetFields() throws Exception {
+        Long liabilityId = createStagedLiability();
+
+        Map<String, Object> create =
+                Map.of(
+                        "plannedAmount",
+                        new BigDecimal("50000.00"),
+                        "plannedDate",
+                        "2026-10-01",
+                        "fee",
+                        new BigDecimal("300.00"),
+                        "notes",
+                        "Groundworks",
+                        "currency",
+                        "USD");
+        String created = performPost("/api/v1/liabilities/" + liabilityId + "/tranches", create);
+        Long trancheId = objectMapper.readTree(created).get("id").asLong();
+
+        Map<String, Object> patch =
+                Map.of("plannedAmount", new BigDecimal("45000.00"), "status", "CANCELLED");
+        performPatch("/api/v1/tranches/" + trancheId, patch);
+
+        getTranches(liabilityId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].plannedAmount").value(45000.00))
+                .andExpect(jsonPath("$[0].status").value("CANCELLED"))
+                .andExpect(jsonPath("$[0].plannedDate").value("2026-10-01"))
+                .andExpect(jsonPath("$[0].fee").value(300.00))
+                .andExpect(jsonPath("$[0].notes").value("Groundworks"));
+    }
+
+    @Test
+    @DisplayName("Notes-only PATCH on a DRAWN tranche preserves the real estate link")
+    void notesOnlyPatchOnDrawnTranchePreservesRealEstateLink() throws Exception {
+        Long liabilityId = createStagedLiability();
+        Long propertyId = createProperty();
+
+        Map<String, Object> body = disbursementBody(new BigDecimal("30000.00"));
+        body.put("directRealEstateId", propertyId);
+        disburse(liabilityId, body);
+
+        String list =
+                getTranches(liabilityId)
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        Long trancheId = objectMapper.readTree(list).get(0).get("id").asLong();
+
+        Map<String, Object> patch = Map.of("notes", "Phase 1 complete");
+        performPatch("/api/v1/tranches/" + trancheId, patch);
+
+        getTranches(liabilityId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("DRAWN"))
+                .andExpect(jsonPath("$[0].notes").value("Phase 1 complete"))
+                .andExpect(jsonPath("$[0].realEstateId").value(propertyId))
+                .andExpect(jsonPath("$[0].plannedAmount").value(30000.00));
+    }
+
+    // ---------- realEstateId ownership ----------
+
+    @Test
+    @DisplayName("Creating a tranche linked to another user's property is rejected")
+    void createTrancheWithForeignPropertyIsRejected() throws Exception {
+        Long liabilityId = createStagedLiability();
+        Session bob = registerAndLogin("bob");
+        Long bobPropertyId = createPropertyFor(bob);
+
+        Map<String, Object> body =
+                Map.of("plannedAmount", new BigDecimal("50000.00"), "realEstateId", bobPropertyId);
+        mockMvc.perform(
+                        post("/api/v1/liabilities/" + liabilityId + "/tranches")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isNotFound());
+
+        // No cross-user link: no tranche was created
+        getTranches(liabilityId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("Linking a tranche to another user's property via PATCH is rejected")
+    void patchTrancheWithForeignPropertyIsRejected() throws Exception {
+        Long liabilityId = createStagedLiability();
+        Long trancheId = createPlannedTranche(liabilityId, "50000.00");
+        Session bob = registerAndLogin("bob");
+        Long bobPropertyId = createPropertyFor(bob);
+
+        Map<String, Object> patch = Map.of("realEstateId", bobPropertyId);
+        mockMvc.perform(
+                        patch("/api/v1/tranches/" + trancheId)
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(patch)))
+                .andExpect(status().isNotFound());
+
+        // The tranche is untouched: no real estate link
+        getTranches(liabilityId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].realEstateId").doesNotExist());
+    }
+
     // ---------- assertion helper ----------
 
     private void assertThatBalanceIs(Long liabilityId, String disburseResponse, String expected)
@@ -564,9 +729,7 @@ class LiabilityDisburseApiTest {
         // The response body itself must carry the bumped balance...
         String responseBalance =
                 objectMapper.readTree(disburseResponse).get("currentBalance").asText();
-        org.assertj.core.api.Assertions.assertThat(
-                        new BigDecimal(responseBalance).compareTo(new BigDecimal(expected)))
-                .isZero();
+        assertThat(new BigDecimal(responseBalance).compareTo(new BigDecimal(expected))).isZero();
 
         // ...and the persisted liability must agree (no double count)
         String getResp =
@@ -579,8 +742,6 @@ class LiabilityDisburseApiTest {
                         .getResponse()
                         .getContentAsString();
         String persistedBalance = objectMapper.readTree(getResp).get("currentBalance").asText();
-        org.assertj.core.api.Assertions.assertThat(
-                        new BigDecimal(persistedBalance).compareTo(new BigDecimal(expected)))
-                .isZero();
+        assertThat(new BigDecimal(persistedBalance).compareTo(new BigDecimal(expected))).isZero();
     }
 }

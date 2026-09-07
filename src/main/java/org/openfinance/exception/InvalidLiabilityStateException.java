@@ -25,17 +25,6 @@ public class InvalidLiabilityStateException extends RuntimeException
     private final String messageKey;
     private final Object[] messageArgs;
 
-    /**
-     * Constructs a new InvalidLiabilityStateException with a detail message.
-     *
-     * @param message the detail message explaining the contradictory state
-     */
-    public InvalidLiabilityStateException(String message) {
-        super(message);
-        this.messageKey = "error.liability.state.invalid";
-        this.messageArgs = new Object[] {message};
-    }
-
     private InvalidLiabilityStateException(
             String message, String messageKey, Object[] messageArgs) {
         super(message);
