@@ -34,6 +34,7 @@ import org.openfinance.entity.RealEstateValueHistory;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
+import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.mapper.TransactionMapper;
 import org.openfinance.repository.AccountRepository;
@@ -435,6 +436,26 @@ class TransactionLiabilitySyncTest {
 
     // ---------- DISBURSEMENT tranche lifecycle on delete/update ----------
 
+    @Test
+    @DisplayName(
+            "Creating a raw DISBURSEMENT fails fast when the balance exceeds the drawn tranches")
+    void rawDisbursementFailsFastWhenBalanceExceedsDrawnTranches() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("2000.00"), MovementType.DISBURSEMENT, "USD");
+        stubCreate(
+                request,
+                linkedEntity(null, new BigDecimal("2000.00"), MovementType.DISBURSEMENT, "USD"),
+                linkedEntity(TX_ID, new BigDecimal("2000.00"), MovementType.DISBURSEMENT, "USD"));
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("50000.00", "USD")));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(List.of(drawnTrancheFixture(new BigDecimal("40000.00"))));
+
+        assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
+                .isInstanceOf(InvalidLiabilityStateException.class)
+                .hasMessageContaining("exceeds");
+    }
+
     private Transaction disbursementEntity(BigDecimal amount) {
         Transaction tx = linkedEntity(TX_ID, amount, MovementType.DISBURSEMENT, "USD");
         tx.setType(TransactionType.INCOME);
@@ -457,9 +478,10 @@ class TransactionLiabilitySyncTest {
     }
 
     @Test
-    @DisplayName(
-            "Deleting a DISBURSEMENT tx reverts its tranche to PLANNED with drawn fields cleared")
+    @DisplayName("Deleting a DISBURSEMENT tx reverts its tranche to PLANNED and zeroes the balance")
     void deleteDisbursementTxRevertsTrancheToPlanned() {
+        // Shared mutable tranche so the reconcile sees the state persisted so far
+        LiabilityTranche tranche = drawnTrancheFixture(new BigDecimal("40000.00"));
         when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
                 .thenReturn(Optional.of(disbursementEntity(new BigDecimal("40000.00"))));
         when(transactionRepository.save(any(Transaction.class)))
@@ -472,7 +494,9 @@ class TransactionLiabilitySyncTest {
                 .thenReturn(Optional.of(liabilityFixture("40000.00", "USD")));
         when(liabilityRepository.save(any(Liability.class))).thenAnswer(inv -> inv.getArgument(0));
         when(liabilityTrancheRepository.findByIdAndUserId(TRANCHE_ID, USER_ID))
-                .thenReturn(Optional.of(drawnTrancheFixture(new BigDecimal("40000.00"))));
+                .thenReturn(Optional.of(tranche));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(List.of(tranche));
         when(liabilityTrancheRepository.save(any(LiabilityTranche.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -484,6 +508,13 @@ class TransactionLiabilitySyncTest {
         assertThat(trancheCaptor.getValue().getStatus()).isEqualTo(TrancheStatus.PLANNED);
         assertThat(trancheCaptor.getValue().getDrawnAmount()).isNull();
         assertThat(trancheCaptor.getValue().getDrawnDate()).isNull();
+
+        // The tranche must be reverted BEFORE the balance adjustment so the reconcile
+        // re-derives the balance without the drawdown: invariant kept, balance back to 0
+        ArgumentCaptor<Liability> liabilityCaptor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(liabilityCaptor.capture());
+        assertThat(new BigDecimal(liabilityCaptor.getValue().getCurrentBalance()))
+                .isEqualByComparingTo(new BigDecimal("0.00"));
     }
 
     @Test

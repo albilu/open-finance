@@ -375,6 +375,21 @@ public interface TransactionRepository
             @Param("trancheId") Long trancheId, @Param("userId") Long userId);
 
     /**
+     * Finds active transactions linked to any of the given liability tranches for a user.
+     *
+     * <p>Bulk variant of {@link #findByTrancheIdAndUserId} used by listing endpoints to avoid a
+     * per-tranche query when deriving each tranche's allocated principal.
+     *
+     * @param trancheIds the tranche IDs
+     * @param userId the user ID (for authorization / data isolation)
+     * @return list of linked transactions ordered by date ascending, empty list if none found
+     */
+    @Query(
+            "SELECT t FROM Transaction t WHERE t.trancheId IN :trancheIds AND t.userId = :userId AND t.isDeleted = false ORDER BY t.date ASC")
+    List<Transaction> findByTrancheIdInAndUserId(
+            @Param("trancheIds") List<Long> trancheIds, @Param("userId") Long userId);
+
+    /**
      * Counts active transactions without a category for a user.
      *
      * <p>Used for uncategorized transaction notifications.

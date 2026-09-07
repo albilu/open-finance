@@ -24,6 +24,7 @@ import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
 import org.openfinance.exception.AccountNotFoundException;
 import org.openfinance.exception.CategoryNotFoundException;
+import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.exception.LiabilityNotFoundException;
 import org.openfinance.exception.TransactionNotFoundException;
@@ -2231,6 +2232,23 @@ public class TransactionService {
                 delta = extractPrincipalLeg(request.getAmount(), request.getSplits()).negate();
             }
 
+            // Mirror LiabilityService.disburse's fail-fast: on a staged loan (tranches exist) the
+            // balance must never exceed what the DRAWN tranches account for — otherwise this
+            // movement would silently rely on untracked money that the reconciler would clamp
+            // away. Checked before any mutation so the flow rolls back untouched.
+            if (transaction.getMovementType() == MovementType.DISBURSEMENT
+                    && !liabilityTrancheRepository
+                            .findByLiabilityIdAndUserId(liability.getId(), userId)
+                            .isEmpty()) {
+                BigDecimal currentBalance = parseEncryptedAmount(liability.getCurrentBalance());
+                BigDecimal drawnSum =
+                        liabilityTrancheService.sumDrawnOfDrawn(liability.getId(), userId);
+                if (currentBalance.compareTo(drawnSum) > 0) {
+                    throw InvalidLiabilityStateException.balanceExceedsDrawnTranches(
+                            liability.getId(), currentBalance, drawnSum);
+                }
+            }
+
             // Mirror LiabilityService.disburse's contract: the tranche is (re-)marked DRAWN
             // BEFORE the balance change, so the mid-flow reconcile clamp inside
             // adjustLiabilityBalance already counts this drawdown. In the update flow
@@ -2270,7 +2288,12 @@ public class TransactionService {
      * replaced by an update.
      *
      * <p>For a DISBURSEMENT linked to a tranche, the tranche is reverted to PLANNED (drawnAmount
-     * and drawnDate cleared) so it is not stuck in DRAWN after its backing movement disappears.
+     * and drawnDate cleared) <em>before</em> the balance delta is applied: the reconciler inside
+     * {@link #adjustLiabilityBalance} re-derives the balance from the tranches, so it must already
+     * see the reverted state — reverting afterwards would leave the stale DRAWN sum as the balance
+     * with no drawn tranche backing it (invariant broken). In the update flow the new legs are
+     * applied right after, re-marking the tranche DRAWN so the final reconcile lands on the new
+     * amount.
      *
      * @param userId the owner's ID
      * @param liabilityId the old liability link (nullable)
@@ -2306,11 +2329,11 @@ public class TransactionService {
             } else {
                 delta = extractPrincipalLegFromStored(amount, splits);
             }
-            adjustLiabilityBalance(liability, delta);
 
             if (movementType == MovementType.DISBURSEMENT && trancheId != null) {
                 revertDisbursedTranche(userId, trancheId);
             }
+            adjustLiabilityBalance(liability, delta);
         }
 
         if (realEstateId != null && movementType == MovementType.CAPITAL_IMPROVEMENT) {

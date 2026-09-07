@@ -31,6 +31,7 @@ import org.openfinance.entity.MovementType;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
+import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.mapper.TransactionMapper;
 import org.openfinance.repository.AccountRepository;
@@ -384,5 +385,24 @@ class FifoAllocationTest {
                 .hasMessageContaining("999");
 
         assertThat(tx.getTrancheId()).isEqualTo(999L);
+    }
+
+    // ---------- (g) explicit target must be DRAWN ----------
+
+    @Test
+    @DisplayName("An explicit trancheId targeting a PLANNED tranche is rejected")
+    void explicitTargetMustBeDrawn() {
+        LiabilityTranche planned = tranche(T1_ID, 1, new BigDecimal("10000.00"), null);
+        planned.setStatus(TrancheStatus.PLANNED);
+        planned.setDrawnAmount(null);
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(List.of(planned));
+        TransactionRequest request = repaymentRequest(new BigDecimal("12000.00"));
+        request.setTrancheId(T1_ID);
+        stubCreate(request, repaymentEntity(null, new BigDecimal("12000.00"), T1_ID), "90000.00");
+
+        assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
+                .isInstanceOf(InvalidLiabilityStateException.class)
+                .hasMessageContaining("DRAWN");
     }
 }

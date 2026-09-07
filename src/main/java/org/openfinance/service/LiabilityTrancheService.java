@@ -2,7 +2,11 @@ package org.openfinance.service;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.TransactionSplitResponse;
@@ -11,6 +15,7 @@ import org.openfinance.entity.LiabilityTranche;
 import org.openfinance.entity.MovementType;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
+import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.repository.LiabilityRepository;
 import org.openfinance.repository.LiabilityTrancheRepository;
@@ -89,15 +94,18 @@ public class LiabilityTrancheService {
      * Allocates a repayment's principal leg to a tranche (spec §Tranches).
      *
      * <p>When the transaction already carries a {@code trancheId} (advanced picker) it is validated
-     * against the liability and honored; otherwise the FIFO pick assigns the oldest DRAWN tranche
-     * with remaining principal and persists the link on the transaction. Overpaying the target's
-     * remaining principal is clamped by the reconciler's per-tranche cap.
+     * against the liability (membership and DRAWN status) and honored; otherwise the FIFO pick
+     * assigns the oldest DRAWN tranche with remaining principal and persists the link on the
+     * transaction. Overpaying the target's remaining principal is clamped by the reconciler's
+     * per-tranche cap.
      *
      * @param userId the owner's ID
      * @param liability the liability being repaid
      * @param tx the REPAYMENT transaction (mutated in place when a tranche is assigned)
      * @param principalLeg the repayment's principal leg (may be zero for interest-only payments)
      * @throws InvalidTransactionException if an explicit trancheId does not belong to the liability
+     * @throws InvalidLiabilityStateException if an explicit trancheId targets a tranche that is not
+     *     DRAWN
      */
     public void allocateRepayment(
             Long userId, Liability liability, Transaction tx, BigDecimal principalLeg) {
@@ -123,6 +131,10 @@ public class LiabilityTrancheService {
                         String.format(
                                 "Tranche %d does not belong to liability %d",
                                 targetId, liability.getId()));
+            }
+            if (target.getStatus() != TrancheStatus.DRAWN) {
+                throw InvalidLiabilityStateException.repaymentTargetNotDrawn(
+                        target.getId(), target.getStatus());
             }
         } else {
             target = pickFifoTranche(tranches);
@@ -155,6 +167,10 @@ public class LiabilityTrancheService {
      * Reconciles the spec §3.2 invariant: {@code Liability.currentBalance = SUM(tranche.remaining)}
      * over the DRAWN tranches, floored at zero. Assigns the balance absolutely (no clamp); a no-op
      * for liabilities without tranches, where the applied deltas remain authoritative.
+     *
+     * <p>When the re-derived value differs from the stored balance a WARN is emitted: the stored
+     * balance was silently overridden, which signals untracked money (e.g. a disbursement without a
+     * tranche) that deserves observability.
      */
     public void reconcile(Liability liability) {
         List<LiabilityTranche> tranches =
@@ -169,7 +185,75 @@ public class LiabilityTrancheService {
                         .map(this::remainingOf)
                         .reduce(BigDecimal.ZERO, BigDecimal::add)
                         .max(BigDecimal.ZERO);
+        BigDecimal previous = parseBalanceOrNull(liability.getCurrentBalance());
         liability.setCurrentBalance(remainingSum.toPlainString());
+        if (previous != null && previous.compareTo(remainingSum) != 0) {
+            log.warn(
+                    "Reconciler changed liability {} balance from {} to {} (SUM of DRAWN tranche"
+                            + " remaining) — the stored balance contained untracked money",
+                    liability.getId(),
+                    previous.toPlainString(),
+                    remainingSum.toPlainString());
+        }
+    }
+
+    /**
+     * Sums the drawn amounts of a liability's DRAWN tranches (null drawn amounts count as zero).
+     * Single source for the disbursement fail-fast pre-check ({@code LiabilityService.disburse} and
+     * the raw transaction path); the invariant itself is owned by {@link #reconcile}.
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal sumDrawnOfDrawn(Long liabilityId, Long userId) {
+        return liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
+                .filter(t -> t.getStatus() == TrancheStatus.DRAWN)
+                .map(LiabilityTranche::getDrawnAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Bulk variant of {@link #remainingOf} for listing endpoints: fetches the tranches' REPAYMENT
+     * transactions in one query and their splits in one query, then derives each tranche's
+     * remaining principal — avoiding the per-tranche (and per-transaction) N+1 of calling {@code
+     * remainingOf} in a loop.
+     *
+     * @param userId the owner's ID (for authorization)
+     * @param tranches the tranches to derive remaining principal for
+     * @return remaining principal keyed by tranche ID; zero for tranches that are not DRAWN
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> remainingByTrancheId(
+            Long userId, List<LiabilityTranche> tranches) {
+        if (tranches.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> trancheIds =
+                tranches.stream().map(LiabilityTranche::getId).collect(Collectors.toList());
+        List<Transaction> txs =
+                transactionRepository.findByTrancheIdInAndUserId(trancheIds, userId);
+        Map<Long, List<TransactionSplitResponse>> splitsByTx =
+                txs.isEmpty()
+                        ? Map.of()
+                        : transactionSplitService.getSplitsForTransactions(
+                                txs.stream().map(Transaction::getId).collect(Collectors.toList()));
+
+        Map<Long, BigDecimal> allocatedByTranche = new HashMap<>();
+        for (Transaction tx : txs) {
+            if (tx.getMovementType() != MovementType.REPAYMENT) {
+                continue;
+            }
+            BigDecimal principal =
+                    principalLeg(tx.getAmount(), splitsByTx.getOrDefault(tx.getId(), List.of()));
+            allocatedByTranche.merge(tx.getTrancheId(), principal, BigDecimal::add);
+        }
+
+        Map<Long, BigDecimal> remainingByTranche = new HashMap<>();
+        for (LiabilityTranche tranche : tranches) {
+            BigDecimal allocated =
+                    allocatedByTranche.getOrDefault(tranche.getId(), BigDecimal.ZERO);
+            remainingByTranche.put(tranche.getId(), remainingOf(tranche, allocated));
+        }
+        return remainingByTranche;
     }
 
     /** Picks the FIFO target: the oldest DRAWN tranche with remaining principal. */
@@ -196,5 +280,27 @@ public class LiabilityTrancheService {
         }
         BigDecimal safeTotal = total != null ? total : BigDecimal.ZERO;
         return safeTotal.subtract(categorized).max(BigDecimal.ZERO);
+    }
+
+    /** Pre-computed-allocation variant of {@link #remainingOf(LiabilityTranche)}. */
+    private BigDecimal remainingOf(LiabilityTranche tranche, BigDecimal allocated) {
+        if (tranche.getStatus() != TrancheStatus.DRAWN || tranche.getDrawnAmount() == null) {
+            return BigDecimal.ZERO;
+        }
+        return tranche.getDrawnAmount()
+                .subtract(allocated.min(tranche.getDrawnAmount()))
+                .max(BigDecimal.ZERO);
+    }
+
+    /** Parses a plain balance string (null/blank/unparseable resolves to null). */
+    private BigDecimal parseBalanceOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

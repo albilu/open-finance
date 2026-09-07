@@ -306,14 +306,20 @@ public class LiabilityService {
         LiabilityResponse beforeSnapshot = toResponseWithDecryption(liability);
 
         // Balance-lock guard (spec §4): once linked transactions exist, the balance is owned by
-        // those movements and the tranche reconciler — manual edits are rejected.
+        // those movements and the tranche reconciler — manual edits are rejected. Tranches alone
+        // (direct-route loans, no transactions) also lock the balance: it is derived from the
+        // DRAWN tranches and a manual edit would break the spec §3.2 invariant.
         BigDecimal requestedBalance = request.getCurrentBalance();
         BigDecimal existingBalance = decryptAmount(liability.getCurrentBalance());
-        if (requestedBalance != null
-                && (existingBalance == null || requestedBalance.compareTo(existingBalance) != 0)
-                && !transactionRepository
-                        .findByLiabilityIdAndUserId(liabilityId, userId)
-                        .isEmpty()) {
+        boolean balanceChanged =
+                requestedBalance != null
+                        && (existingBalance == null
+                                || requestedBalance.compareTo(existingBalance) != 0);
+        if (balanceChanged
+                && (!transactionRepository.findByLiabilityIdAndUserId(liabilityId, userId).isEmpty()
+                        || !liabilityTrancheRepository
+                                .findByLiabilityIdAndUserId(liabilityId, userId)
+                                .isEmpty())) {
             throw InvalidLiabilityStateException.liabilityBalanceLocked(liabilityId);
         }
 
@@ -1275,7 +1281,7 @@ public class LiabilityService {
         // Fail fast on a contradictory state: the balance must never exceed what the DRAWN
         // tranches account for, otherwise this drawdown would silently rely on untracked money.
         BigDecimal currentBalance = decryptAmount(liability.getCurrentBalance());
-        BigDecimal drawnSum = sumDrawnAmounts(liability.getId(), userId);
+        BigDecimal drawnSum = liabilityTrancheService.sumDrawnOfDrawn(liability.getId(), userId);
         if (currentBalance != null && currentBalance.compareTo(drawnSum) > 0) {
             throw InvalidLiabilityStateException.balanceExceedsDrawnTranches(
                     liability.getId(), currentBalance, drawnSum);
@@ -1441,20 +1447,11 @@ public class LiabilityService {
     }
 
     /**
-     * Sums the drawn amounts of the liability's DRAWN tranches (null drawn amounts count as zero).
-     * Used by the disbursement fail-fast pre-check only; the invariant itself is owned by {@link
-     * LiabilityTrancheService#reconcile(Liability)}.
-     */
-    private BigDecimal sumDrawnAmounts(Long liabilityId, Long userId) {
-        return liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
-                .filter(t -> t.getStatus() == TrancheStatus.DRAWN)
-                .map(LiabilityTranche::getDrawnAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    /**
      * Lists the tranches of a liability ordered by {@code trancheNo}.
+     *
+     * <p>Remaining principal is derived in bulk (one query for the tranches' REPAYMENT
+     * transactions, one for their splits) instead of per-tranche, avoiding an N+1 on the listing
+     * endpoint.
      *
      * @throws LiabilityNotFoundException if the liability does not belong to the user
      */
@@ -1463,9 +1460,18 @@ public class LiabilityService {
         liabilityRepository
                 .findByIdAndUserId(liabilityId, userId)
                 .orElseThrow(() -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
-        return liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
-                .sorted(Comparator.comparing(LiabilityTranche::getTrancheNo))
-                .map(this::toTrancheResponse)
+        List<LiabilityTranche> tranches =
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
+                        .sorted(Comparator.comparing(LiabilityTranche::getTrancheNo))
+                        .collect(Collectors.toList());
+        Map<Long, BigDecimal> remaining =
+                liabilityTrancheService.remainingByTrancheId(userId, tranches);
+        return tranches.stream()
+                .map(
+                        tranche ->
+                                toTrancheResponse(
+                                        tranche,
+                                        remaining.getOrDefault(tranche.getId(), BigDecimal.ZERO)))
                 .collect(Collectors.toList());
     }
 
@@ -1699,18 +1705,26 @@ public class LiabilityService {
     }
 
     /**
-     * Maps a tranche to its response. {@code remaining} is the outstanding drawn principal from the
-     * allocation ledger (drawn amount minus allocated REPAYMENT principal), computed by {@link
-     * LiabilityTrancheService#remainingOf}.
+     * Maps a tranche to its response, deriving {@code remaining} from the allocation ledger via
+     * {@link LiabilityTrancheService#remainingOf}.
      */
     private LiabilityTrancheResponse toTrancheResponse(LiabilityTranche tranche) {
+        return toTrancheResponse(tranche, liabilityTrancheService.remainingOf(tranche));
+    }
+
+    /**
+     * Maps a tranche to its response with a pre-computed {@code remaining} (bulk derivation, see
+     * {@link LiabilityTrancheService#remainingByTrancheId}).
+     */
+    private LiabilityTrancheResponse toTrancheResponse(
+            LiabilityTranche tranche, BigDecimal remaining) {
         return LiabilityTrancheResponse.builder()
                 .id(tranche.getId())
                 .liabilityId(tranche.getLiabilityId())
                 .trancheNo(tranche.getTrancheNo())
                 .plannedAmount(tranche.getPlannedAmount())
                 .drawnAmount(tranche.getDrawnAmount())
-                .remaining(liabilityTrancheService.remainingOf(tranche))
+                .remaining(remaining)
                 .plannedDate(tranche.getPlannedDate())
                 .drawnDate(tranche.getDrawnDate())
                 .fee(tranche.getFee())

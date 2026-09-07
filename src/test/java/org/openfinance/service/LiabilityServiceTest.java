@@ -3,6 +3,7 @@ package org.openfinance.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -358,6 +359,41 @@ class LiabilityServiceTest {
     }
 
     @Test
+    void shouldRejectManualBalanceEdit_WhenDirectDisbursedTranchesExist() {
+        // Given — direct-route loan: one DRAWN tranche, no linked transactions
+        Long liabilityId = 100L;
+        Liability existing = createLiabilityEntity(liabilityId, testUserId);
+        existing.setCurrentBalance("40000.00");
+        LiabilityRequest request = createValidRequest();
+        request.setCurrentBalance(new BigDecimal("35000.00"));
+
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(existing));
+        when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of());
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(
+                        List.of(
+                                LiabilityTranche.builder()
+                                        .id(401L)
+                                        .liabilityId(liabilityId)
+                                        .userId(testUserId)
+                                        .trancheNo(1)
+                                        .plannedAmount(new BigDecimal("40000.00"))
+                                        .drawnAmount(new BigDecimal("40000.00"))
+                                        .drawnDate(LocalDate.now().minusDays(2))
+                                        .status(TrancheStatus.DRAWN)
+                                        .currency("USD")
+                                        .build()));
+
+        // When/Then — the balance is owned by the tranche reconciler once tranches exist
+        assertThatThrownBy(() -> liabilityService.updateLiability(liabilityId, testUserId, request))
+                .isInstanceOf(InvalidLiabilityStateException.class)
+                .hasMessageContaining("linked");
+        verify(liabilityRepository, never()).save(any(Liability.class));
+    }
+
+    @Test
     void shouldAllowUnchangedBalanceEdit_WhenLinkedTransactionsExist() {
         // Given — same balance, other fields editable
         Long liabilityId = 100L;
@@ -405,7 +441,8 @@ class LiabilityServiceTest {
                         .build();
         when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
                 .thenReturn(List.of(drawn));
-        when(liabilityTrancheService.remainingOf(drawn)).thenReturn(new BigDecimal("4000.00"));
+        when(liabilityTrancheService.remainingByTrancheId(eq(testUserId), anyList()))
+                .thenReturn(Map.of(401L, new BigDecimal("4000.00")));
 
         // When
         List<LiabilityTrancheResponse> tranches =

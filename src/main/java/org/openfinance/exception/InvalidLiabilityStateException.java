@@ -1,6 +1,7 @@
 package org.openfinance.exception;
 
 import java.math.BigDecimal;
+import org.openfinance.entity.TrancheStatus;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
@@ -14,8 +15,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  *   <li>A disbursement is attempted while the liability balance already exceeds the total drawn
  *       amount of its DRAWN tranches (invariant: currentBalance = SUM(tranche.remaining))
  *   <li>A disbursement amount exceeds the planned amount of the tranche being drawn
- *   <li>The current balance is edited manually while linked transactions exist (the balance is
- *       owned by those movements and the tranche reconciler)
+ *   <li>The current balance is edited manually while linked transactions or tranches exist (the
+ *       balance is owned by those movements and the tranche reconciler)
+ *   <li>A repayment explicitly targets a tranche that is not DRAWN
  * </ul>
  *
  * <p>Requirement REQ-6.1: Liability Management - staged loan tranche invariants
@@ -73,7 +75,26 @@ public class InvalidLiabilityStateException extends RuntimeException
     }
 
     /**
-     * Factory method for a manual balance edit attempted while linked transactions exist.
+     * Factory method for a repayment allocation explicitly targeting a tranche that is not DRAWN.
+     *
+     * @param trancheId the tranche ID that was targeted
+     * @param status the actual status of the tranche
+     * @return a new InvalidLiabilityStateException
+     */
+    public static InvalidLiabilityStateException repaymentTargetNotDrawn(
+            Long trancheId, TrancheStatus status) {
+        return new InvalidLiabilityStateException(
+                String.format(
+                        "Cannot allocate a repayment to tranche %d: it is not DRAWN (status: %s)"
+                                + " — disburse the tranche first",
+                        trancheId, status),
+                "error.liability.repayment.target.not.drawn",
+                new Object[] {trancheId, status});
+    }
+
+    /**
+     * Factory method for a manual balance edit attempted while linked transactions or tranches
+     * exist.
      *
      * @param liabilityId the liability whose balance is locked
      * @return a new InvalidLiabilityStateException
@@ -82,7 +103,8 @@ public class InvalidLiabilityStateException extends RuntimeException
         return new InvalidLiabilityStateException(
                 String.format(
                         "Cannot manually edit the balance of liability %d: it is driven by linked"
-                                + " transactions (edit or delete those instead)",
+                                + " transactions or disbursed tranches (edit or delete those"
+                                + " instead)",
                         liabilityId),
                 "error.liability.balance.locked",
                 new Object[] {liabilityId});
