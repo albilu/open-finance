@@ -96,6 +96,12 @@ public class TransactionSpecification {
                 predicates.add(criteriaBuilder.equal(root.get("assetId"), criteria.getAssetId()));
             }
 
+            // Filter by linked liability
+            if (criteria.getLiabilityId() != null) {
+                predicates.add(
+                        criteriaBuilder.equal(root.get("liabilityId"), criteria.getLiabilityId()));
+            }
+
             // Filter by category
             if (criteria.getCategoryId() != null) {
                 predicates.add(

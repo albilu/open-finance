@@ -13,6 +13,8 @@ import org.openfinance.entity.Account;
 import org.openfinance.entity.AccountType;
 import org.openfinance.entity.Asset;
 import org.openfinance.entity.AssetType;
+import org.openfinance.entity.Liability;
+import org.openfinance.entity.LiabilityType;
 import org.openfinance.entity.MovementType;
 import org.openfinance.entity.PropertyType;
 import org.openfinance.entity.RealEstateProperty;
@@ -21,6 +23,7 @@ import org.openfinance.entity.TransactionType;
 import org.openfinance.entity.User;
 import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.AssetRepository;
+import org.openfinance.repository.LiabilityRepository;
 import org.openfinance.repository.RealEstateRepository;
 import org.openfinance.repository.TransactionRepository;
 import org.openfinance.repository.UserRepository;
@@ -49,6 +52,8 @@ class TransactionSpecificationTest {
 
     @Autowired private AssetRepository assetRepository;
 
+    @Autowired private LiabilityRepository liabilityRepository;
+
     private Long userId;
 
     private Long accountId;
@@ -57,11 +62,14 @@ class TransactionSpecificationTest {
 
     private Long assetId;
 
+    private Long liabilityId;
+
     @BeforeEach
     void setUp() {
         transactionRepository.deleteAll();
         realEstateRepository.deleteAll();
         assetRepository.deleteAll();
+        liabilityRepository.deleteAll();
         accountRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -117,6 +125,18 @@ class TransactionSpecificationTest {
                                         .purchaseDate(LocalDate.now().minusYears(1))
                                         .build())
                         .getId();
+
+        Liability mortgage = new Liability();
+        mortgage.setUserId(userId);
+        mortgage.setName("Mortgage");
+        mortgage.setType(LiabilityType.MORTGAGE);
+        mortgage.setPrincipal("200000");
+        mortgage.setCurrentBalance("99200");
+        mortgage.setInterestRate("3.5");
+        mortgage.setMinimumPayment("1200");
+        mortgage.setCurrency("USD");
+        mortgage.setStartDate(LocalDate.now().minusYears(2));
+        liabilityId = liabilityRepository.save(mortgage).getId();
     }
 
     private Transaction linkedTx(Long realEstateId, Long linkedAssetId, MovementType movementType) {
@@ -168,5 +188,33 @@ class TransactionSpecificationTest {
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0).getAssetId()).isEqualTo(assetId);
+    }
+
+    @Test
+    @DisplayName("liabilityId filter returns only transactions linked to that liability")
+    void liabilityIdFilterReturnsOnlyLinkedTransactions() {
+        transactionRepository.save(
+                Transaction.builder()
+                        .userId(userId)
+                        .accountId(accountId)
+                        .type(TransactionType.EXPENSE)
+                        .amount(new BigDecimal("100.00"))
+                        .currency("USD")
+                        .date(LocalDate.now())
+                        .movementType(MovementType.REPAYMENT)
+                        .liabilityId(liabilityId)
+                        .isDeleted(false)
+                        .build());
+        transactionRepository.save(linkedTx(null, null, null));
+
+        TransactionSearchCriteria criteria =
+                TransactionSearchCriteria.builder().liabilityId(liabilityId).build();
+
+        List<Transaction> results =
+                transactionRepository.findAll(
+                        TransactionSpecification.buildSpecification(userId, criteria, null));
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getLiabilityId()).isEqualTo(liabilityId);
     }
 }

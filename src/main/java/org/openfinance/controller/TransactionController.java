@@ -646,6 +646,7 @@ public class TransactionController {
      * @param noPayee when true, return only transactions without a payee
      * @param realEstateId optional linked property ID filter
      * @param assetId optional linked asset ID filter
+     * @param liabilityId optional linked liability ID filter
      * @param pageable pagination and sorting parameters
      * @param encodedKey Base64-encoded encryption key from header
      * @param authentication Spring Security authentication object
@@ -670,6 +671,7 @@ public class TransactionController {
             @RequestParam(required = false) String payee,
             @RequestParam(required = false) Long realEstateId,
             @RequestParam(required = false) Long assetId,
+            @RequestParam(required = false) Long liabilityId,
             @RequestParam(required = false, defaultValue = "false") boolean keywordRegex,
             Pageable pageable,
             Authentication authentication) {
@@ -701,6 +703,7 @@ public class TransactionController {
                         .payee(payee)
                         .realEstateId(realEstateId)
                         .assetId(assetId)
+                        .liabilityId(liabilityId)
                         .build();
 
         // Execute search with pagination

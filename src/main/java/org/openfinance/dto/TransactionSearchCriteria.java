@@ -162,6 +162,13 @@ public class TransactionSearchCriteria {
     private Long assetId;
 
     /**
+     * Filter by linked liability ID.
+     *
+     * <p>If null, includes transactions linked to any (or no) liability.
+     */
+    private Long liabilityId;
+
+    /**
      * Checks if any search criteria is provided.
      *
      * @return true if at least one filter is set, false if all fields are null
@@ -181,6 +188,7 @@ public class TransactionSearchCriteria {
                 || Boolean.TRUE.equals(noCategory)
                 || Boolean.TRUE.equals(noPayee)
                 || realEstateId != null
-                || assetId != null;
+                || assetId != null
+                || liabilityId != null;
     }
 }
