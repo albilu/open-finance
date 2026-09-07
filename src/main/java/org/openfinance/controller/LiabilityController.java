@@ -2,6 +2,7 @@ package org.openfinance.controller;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -794,7 +795,12 @@ public class LiabilityController {
     @GetMapping("/{id}/repayment-preview")
     public ResponseEntity<RepaymentPreviewResponse> getRepaymentPreview(
             @PathVariable("id") Long liabilityId,
-            @RequestParam @DecimalMin(value = "0.01", message = "Total must be positive")
+            @RequestParam
+                    @DecimalMin(value = "0.01", message = "Total must be positive")
+                    @Digits(
+                            integer = 26,
+                            fraction = 2,
+                            message = "Total supports at most 2 decimal places")
                     BigDecimal total,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             Authentication authentication) {

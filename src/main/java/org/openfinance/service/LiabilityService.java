@@ -1748,10 +1748,10 @@ public class LiabilityService {
      * principal components.
      *
      * <p>Monthly interest = currentBalance × interestRate / 1200 and monthly insurance = principal
-     * × insurancePercentage / 1200, both rounded half-up to 2 decimals. When a tranche with {@code
-     * interestOnly=true} is active on the given date ({@code interestOnlyUntil} null or not before
-     * the date), the principal component is zero; otherwise principal = total − interest −
-     * insurance, floored at zero. Missing rate/insurance fields are treated as zero.
+     * × insurancePercentage / 1200, both rounded half-up to 2 decimals. When a {@code DRAWN}
+     * tranche with {@code interestOnly=true} is active on the given date ({@code interestOnlyUntil}
+     * null or not before the date), the principal component is zero; otherwise principal = total −
+     * interest − insurance, floored at zero. Missing rate/insurance fields are treated as zero.
      *
      * @param userId the ID of the user requesting the preview (for authorization)
      * @param liabilityId the ID of the liability being repaid
@@ -1763,18 +1763,6 @@ public class LiabilityService {
     @Transactional(readOnly = true)
     public RepaymentPreviewResponse getRepaymentPreview(
             Long userId, Long liabilityId, BigDecimal total, LocalDate date) {
-        if (liabilityId == null) {
-            throw new IllegalArgumentException("Liability ID cannot be null");
-        }
-        if (userId == null) {
-            throw new IllegalArgumentException("User ID cannot be null");
-        }
-        if (total == null) {
-            throw new IllegalArgumentException("Total cannot be null");
-        }
-        if (date == null) {
-            throw new IllegalArgumentException("Date cannot be null");
-        }
         log.debug(
                 "Previewing repayment for liability {}: userId={}, total={}, date={}",
                 liabilityId,
@@ -1805,7 +1793,8 @@ public class LiabilityService {
                 liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
                         .anyMatch(
                                 t ->
-                                        t.isInterestOnly()
+                                        t.getStatus() == TrancheStatus.DRAWN
+                                                && t.isInterestOnly()
                                                 && (t.getInterestOnlyUntil() == null
                                                         || !date.isAfter(
                                                                 t.getInterestOnlyUntil())));

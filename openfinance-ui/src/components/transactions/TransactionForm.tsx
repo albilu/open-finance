@@ -274,11 +274,25 @@ export function TransactionForm({
   const amountValue = watch('amount');
 
   // Repayment auto-split preview (Task 5): fetched when an EXPENSE is linked to a liability
-  // and amount/date are filled. Preview amounts are in the liability currency only (no FX).
+  // and amount/date are filled. Preview amounts are in the liability currency only (no FX),
+  // so the preview is suppressed while the input currency differs from the liability currency.
   const liabilityIdValue = selectedType === 'EXPENSE' ? watch('liabilityId') : undefined;
+  const selectedLiability = liabilities.find(l => l.id === liabilityIdValue);
+  const previewCurrencyMatches =
+    !selectedLiability?.currency || selectedLiability.currency === inputCurrency;
+
+  // Debounce the watched amount so rapid keystrokes fire a single preview request.
+  const [debouncedAmount, setDebouncedAmount] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedAmount(Number(amountValue) > 0 ? Number(amountValue) : 0);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [amountValue]);
+
   const { data: repaymentPreview } = useRepaymentPreview(
-    liabilityIdValue,
-    Number(amountValue) > 0 ? Number(amountValue) : 0,
+    previewCurrencyMatches ? liabilityIdValue : undefined,
+    debouncedAmount,
     watch('date')
   );
 
@@ -819,30 +833,35 @@ export function TransactionForm({
       )}
 
       {/* Repayment auto-split preview (Task 5) — read-only breakdown of the repayment total.
-          Auto-split payload wiring (splits array on submit) is deferred: CategorySeeder has no
-          Interest expense category, so the interest leg cannot be categorized yet (Task 9). */}
-      {selectedType === 'EXPENSE' && liabilityIdValue && repaymentPreview && (
-        <div
-          data-testid="repayment-preview"
-          className="rounded-lg border border-border bg-surface p-3 space-y-1.5"
-        >
-          <p className="text-sm font-medium text-text-primary">{t('form.repaymentPreviewTitle')}</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-text-secondary">
-            <span>{t('form.repaymentPreviewPrincipal')}</span>
-            <span className="text-right text-text-primary">
-              {(repaymentPreview.principal ?? 0).toFixed(2)}
-            </span>
-            <span>{t('form.repaymentPreviewInterest')}</span>
-            <span className="text-right text-text-primary">
-              {(repaymentPreview.interest ?? 0).toFixed(2)}
-            </span>
-            <span>{t('form.repaymentPreviewInsurance')}</span>
-            <span className="text-right text-text-primary">
-              {(repaymentPreview.insurance ?? 0).toFixed(2)}
-            </span>
+           Auto-split payload wiring (splits array on submit) is deferred: CategorySeeder has no
+           Interest expense category, so the interest leg cannot be categorized yet (Task 9). */}
+      {selectedType === 'EXPENSE' &&
+        liabilityIdValue &&
+        previewCurrencyMatches &&
+        repaymentPreview && (
+          <div
+            data-testid="repayment-preview"
+            className="rounded-lg border border-border bg-surface p-3 space-y-1.5"
+          >
+            <p className="text-sm font-medium text-text-primary">
+              {t('form.repaymentPreviewTitle')}
+            </p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-text-secondary">
+              <dt>{t('form.repaymentPreviewPrincipal')}</dt>
+              <dd className="text-right text-text-primary">
+                {(repaymentPreview.principal ?? 0).toFixed(2)}
+              </dd>
+              <dt>{t('form.repaymentPreviewInterest')}</dt>
+              <dd className="text-right text-text-primary">
+                {(repaymentPreview.interest ?? 0).toFixed(2)}
+              </dd>
+              <dt>{t('form.repaymentPreviewInsurance')}</dt>
+              <dd className="text-right text-text-primary">
+                {(repaymentPreview.insurance ?? 0).toFixed(2)}
+              </dd>
+            </dl>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Row 5: Description and Tags */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

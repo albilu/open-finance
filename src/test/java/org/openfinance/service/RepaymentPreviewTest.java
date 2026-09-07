@@ -64,6 +64,11 @@ class RepaymentPreviewTest {
     }
 
     private LiabilityTranche interestOnlyTranche(LocalDate interestOnlyUntil) {
+        return interestOnlyTranche(interestOnlyUntil, TrancheStatus.DRAWN);
+    }
+
+    private LiabilityTranche interestOnlyTranche(
+            LocalDate interestOnlyUntil, TrancheStatus status) {
         return LiabilityTranche.builder()
                 .id(5L)
                 .userId(USER_ID)
@@ -72,7 +77,7 @@ class RepaymentPreviewTest {
                 .plannedAmount(new BigDecimal("50000.00"))
                 .interestOnly(true)
                 .interestOnlyUntil(interestOnlyUntil)
-                .status(TrancheStatus.DRAWN)
+                .status(status)
                 .currency("USD")
                 .build();
     }
@@ -130,6 +135,52 @@ class RepaymentPreviewTest {
         assertThat(preview.getPrincipal()).isEqualByComparingTo("0.00");
         assertThat(preview.getInterest()).isEqualByComparingTo("218.75");
         assertThat(preview.getInsurance()).isEqualByComparingTo("20.83");
+    }
+
+    @Test
+    @DisplayName("Boundary: interestOnlyUntil == date still yields zero principal")
+    void interestOnlyUntilEqualToDateYieldsZeroPrincipal() {
+        givenLiability(
+                liability("50000.00", "5.25", "50000.00", "0.5"),
+                List.of(interestOnlyTranche(DATE)));
+
+        RepaymentPreviewResponse preview =
+                liabilityService.getRepaymentPreview(
+                        USER_ID, LIABILITY_ID, new BigDecimal("1200.00"), DATE);
+
+        assertThat(preview.getInterestOnly()).isTrue();
+        assertThat(preview.getPrincipal()).isEqualByComparingTo("0.00");
+        assertThat(preview.getInterest()).isEqualByComparingTo("218.75");
+    }
+
+    @Test
+    @DisplayName("PLANNED interest-only tranche does not suppress principal")
+    void plannedInterestOnlyTrancheIsIgnored() {
+        givenLiability(
+                liability("50000.00", "5.25", "50000.00", "0.5"),
+                List.of(interestOnlyTranche(DATE.plusMonths(6), TrancheStatus.PLANNED)));
+
+        RepaymentPreviewResponse preview =
+                liabilityService.getRepaymentPreview(
+                        USER_ID, LIABILITY_ID, new BigDecimal("1200.00"), DATE);
+
+        assertThat(preview.getInterestOnly()).isFalse();
+        assertThat(preview.getPrincipal()).isEqualByComparingTo("960.42");
+    }
+
+    @Test
+    @DisplayName("CANCELLED interest-only tranche does not suppress principal")
+    void cancelledInterestOnlyTrancheIsIgnored() {
+        givenLiability(
+                liability("50000.00", "5.25", "50000.00", "0.5"),
+                List.of(interestOnlyTranche(DATE.plusMonths(6), TrancheStatus.CANCELLED)));
+
+        RepaymentPreviewResponse preview =
+                liabilityService.getRepaymentPreview(
+                        USER_ID, LIABILITY_ID, new BigDecimal("1200.00"), DATE);
+
+        assertThat(preview.getInterestOnly()).isFalse();
+        assertThat(preview.getPrincipal()).isEqualByComparingTo("960.42");
     }
 
     @Test

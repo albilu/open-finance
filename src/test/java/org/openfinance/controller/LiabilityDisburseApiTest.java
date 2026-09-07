@@ -759,6 +759,34 @@ class LiabilityDisburseApiTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("Repayment preview with total = 0 is rejected with 400")
+    void repaymentPreviewRejectsZeroTotal() throws Exception {
+        Long liabilityId = createLiabilityWithBalance(new BigDecimal("50000.00"));
+
+        mockMvc.perform(
+                        get("/api/v1/liabilities/" + liabilityId + "/repayment-preview")
+                                .param("total", "0")
+                                .param("date", LocalDate.now().toString())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Repayment preview with more than 2 decimal places is rejected with 400")
+    void repaymentPreviewRejectsTooManyDecimals() throws Exception {
+        Long liabilityId = createLiabilityWithBalance(new BigDecimal("50000.00"));
+
+        mockMvc.perform(
+                        get("/api/v1/liabilities/" + liabilityId + "/repayment-preview")
+                                .param("total", "1200.999")
+                                .param("date", LocalDate.now().toString())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey))
+                .andExpect(status().isBadRequest());
+    }
+
     // ---------- assertion helper ----------
 
     private void assertThatBalanceIs(Long liabilityId, String disburseResponse, String expected)

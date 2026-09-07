@@ -8,7 +8,7 @@
  * Requirement REQ-CAT-2.4: Payee-to-category auto-fill in TransactionForm
  * Requirement REQ-CAT-2.5: Allow override of auto-filled category
  */
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react';
 import { vi, describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { TransactionForm, reconstructInitialSplits } from './TransactionForm';
 import * as usePayeesModule from '@/hooks/usePayees';
@@ -879,12 +879,7 @@ describe('TransactionForm', () => {
       });
     }
 
-    it('shows principal/interest/insurance preview rows when a liability is selected', async () => {
-      mockUseLiabilities.mockReturnValue({
-        data: [mortgageLiability],
-        isLoading: false,
-        isError: false,
-      } as any);
+    function mockPreviewData() {
       mockUseRepaymentPreview.mockReturnValue({
         data: {
           total: 1200,
@@ -896,6 +891,15 @@ describe('TransactionForm', () => {
         isLoading: false,
         isError: false,
       } as any);
+    }
+
+    it('shows principal/interest/insurance preview rows when a liability is selected', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockPreviewData();
 
       renderForm();
 
@@ -907,9 +911,18 @@ describe('TransactionForm', () => {
       await waitFor(() => {
         expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
       });
-      expect(screen.getByText('981.25')).toBeInTheDocument();
-      expect(screen.getByText('218.75')).toBeInTheDocument();
-      expect(screen.getByText('0.00')).toBeInTheDocument();
+      // Label-based assertions on the <dl>/<dt>/<dd> breakdown
+      const preview = screen.getByTestId('repayment-preview');
+      const rows = within(preview).getAllByText(/^(Principal|Interest|Insurance)$/);
+      expect(rows).toHaveLength(3);
+      rows.forEach(term => {
+        expect(term.tagName).toBe('DT');
+        // Each term label is paired with a <dd> value rendered right after it
+        expect(term.nextElementSibling?.tagName).toBe('DD');
+      });
+      expect(within(preview).getByText('981.25')).toBeInTheDocument();
+      expect(within(preview).getByText('218.75')).toBeInTheDocument();
+      expect(within(preview).getByText('0.00')).toBeInTheDocument();
     });
 
     it('does not show preview rows when no liability is selected', () => {
@@ -921,6 +934,88 @@ describe('TransactionForm', () => {
 
       renderForm();
 
+      expect(screen.queryByTestId('repayment-preview')).not.toBeInTheDocument();
+    });
+
+    it('debounces the amount before passing it to the preview hook', async () => {
+      vi.useFakeTimers();
+      try {
+        mockUseLiabilities.mockReturnValue({
+          data: [mortgageLiability],
+          isLoading: false,
+          isError: false,
+        } as any);
+        mockPreviewData();
+
+        renderForm();
+
+        await selectLiability('1');
+        await act(async () => {
+          fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        });
+
+        // The raw keystroke must not reach the hook immediately
+        expect(mockUseRepaymentPreview).not.toHaveBeenCalledWith(1, 1200, expect.anything());
+
+        await act(async () => {
+          vi.advanceTimersByTime(400);
+        });
+
+        // After the debounce window the hook receives the settled amount
+        expect(mockUseRepaymentPreview).toHaveBeenCalledWith(1, 1200, expect.anything());
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('hides the preview when the input currency differs from the liability currency', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockPreviewData();
+
+      renderForm();
+
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByTestId('currency-selector'), { target: { value: 'USD' } });
+      });
+
+      expect(screen.queryByTestId('repayment-preview')).not.toBeInTheDocument();
+    });
+
+    it('still renders and submits when the preview query fails', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseRepaymentPreview.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+      } as any);
+
+      const { onSubmit } = renderForm();
+
+      expect(screen.getByRole('button', { name: /create transaction/i })).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText(/type/i), { target: { value: 'EXPENSE' } });
+      fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '25' } });
+      fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      await act(async () => {
+        screen.getByTestId('account-selector').click();
+      });
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
       expect(screen.queryByTestId('repayment-preview')).not.toBeInTheDocument();
     });
   });

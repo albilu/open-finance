@@ -4,7 +4,7 @@
  *
  * Provides React Query hooks for liability CRUD operations
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import i18next from 'i18next';
 import { buildEncryptionHeaders } from '@/utils/encryption';
@@ -318,6 +318,9 @@ export function useRepaymentPreview(
       return response.data;
     },
     enabled: liabilityId != null && total > 0 && !!date,
+    // Keep the previous breakdown while a new amount settles, so the preview
+    // does not flicker (unmount) between keystrokes.
+    placeholderData: keepPreviousData,
   });
 }
 
