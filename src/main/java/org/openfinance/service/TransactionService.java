@@ -24,7 +24,6 @@ import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
 import org.openfinance.exception.AccountNotFoundException;
 import org.openfinance.exception.CategoryNotFoundException;
-import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.exception.LiabilityNotFoundException;
 import org.openfinance.exception.TransactionNotFoundException;
@@ -2240,13 +2239,7 @@ public class TransactionService {
                     && !liabilityTrancheRepository
                             .findByLiabilityIdAndUserId(liability.getId(), userId)
                             .isEmpty()) {
-                BigDecimal currentBalance = parseEncryptedAmount(liability.getCurrentBalance());
-                BigDecimal drawnSum =
-                        liabilityTrancheService.sumDrawnOfDrawn(liability.getId(), userId);
-                if (currentBalance.compareTo(drawnSum) > 0) {
-                    throw InvalidLiabilityStateException.balanceExceedsDrawnTranches(
-                            liability.getId(), currentBalance, drawnSum);
-                }
+                liabilityTrancheService.assertDisbursementAllowed(liability, userId);
             }
 
             // Mirror LiabilityService.disburse's contract: the tranche is (re-)marked DRAWN
@@ -2259,16 +2252,17 @@ public class TransactionService {
                 markTrancheDrawn(
                         userId, transaction.getTrancheId(), request.getAmount(), request.getDate());
             }
-            adjustLiabilityBalance(liability, delta);
 
             // Task 7: repayments allocate their principal leg to a tranche (explicit target or
-            // FIFO pick of the oldest DRAWN tranche with remaining principal). Called after the
-            // balance reduction so the allocator's reconcile re-derives the invariant with the
-            // newly assigned trancheId.
+            // FIFO pick of the oldest DRAWN tranche with remaining principal) BEFORE the balance
+            // change: the single reconcile inside adjustLiabilityBalance must already see the
+            // persisted trancheId link so the re-derived invariant counts this repayment —
+            // exactly one reconcile per write, WARN only on genuine drift.
             if (transaction.getMovementType() == MovementType.REPAYMENT) {
                 liabilityTrancheService.allocateRepayment(
                         userId, liability, transaction, delta.negate());
             }
+            adjustLiabilityBalance(liability, delta);
         }
 
         if (transaction.getRealEstateId() != null
@@ -2418,18 +2412,20 @@ public class TransactionService {
      * Applies a signed delta to a liability's encrypted current balance, floored at zero, then
      * reconciles the staged-loan invariant (Task 7): when tranches exist, {@link
      * LiabilityTrancheService#reconcile(Liability)} re-derives the balance as
-     * SUM(tranche.remaining).
+     * SUM(tranche.remaining). The reconciler may override the delta-applied intermediate, so the
+     * INFO log reports the final post-reconcile balance, never the intermediate.
      */
     private void adjustLiabilityBalance(Liability liability, BigDecimal delta) {
-        BigDecimal updated =
-                parseEncryptedAmount(liability.getCurrentBalance()).add(delta).max(BigDecimal.ZERO);
+        BigDecimal previous = parseEncryptedAmount(liability.getCurrentBalance());
+        BigDecimal updated = previous.add(delta).max(BigDecimal.ZERO);
         liability.setCurrentBalance(updated.toPlainString());
         liabilityTrancheService.reconcile(liability);
         liabilityRepository.save(liability);
         log.info(
-                "Liability {} balance adjusted by {} to {}",
+                "Liability {} balance adjusted by {} from {} to {} (final after reconcile)",
                 liability.getId(),
                 delta,
+                previous.toPlainString(),
                 liability.getCurrentBalance());
     }
 

@@ -129,10 +129,7 @@ class TransactionLiabilitySyncTest {
         // Real tranche allocator/reconciler (Task 7): the clamp/invariant logic it owns must run
         LiabilityTrancheService liabilityTrancheService =
                 new LiabilityTrancheService(
-                        liabilityRepository,
-                        liabilityTrancheRepository,
-                        transactionRepository,
-                        transactionSplitService);
+                        liabilityTrancheRepository, transactionRepository, transactionSplitService);
         ReflectionTestUtils.setField(
                 transactionService, "liabilityTrancheService", liabilityTrancheService);
     }

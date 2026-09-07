@@ -17,7 +17,6 @@ import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
-import org.openfinance.repository.LiabilityRepository;
 import org.openfinance.repository.LiabilityTrancheRepository;
 import org.openfinance.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -49,7 +48,6 @@ public class LiabilityTrancheService {
                             Comparator.nullsLast(Comparator.naturalOrder()))
                     .thenComparing(LiabilityTranche::getTrancheNo);
 
-    private final LiabilityRepository liabilityRepository;
     private final LiabilityTrancheRepository liabilityTrancheRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionSplitService transactionSplitService;
@@ -98,6 +96,11 @@ public class LiabilityTrancheService {
      * assigns the oldest DRAWN tranche with remaining principal and persists the link on the
      * transaction. Overpaying the target's remaining principal is clamped by the reconciler's
      * per-tranche cap.
+     *
+     * <p><strong>Reconcile ownership:</strong> this method only links the tranche; it does NOT
+     * reconcile or save the liability. Callers own the reconcile so that each write path runs
+     * exactly ONE {@link #reconcile(Liability)} after all its mutations — the WARN inside the
+     * reconciler then fires only on genuine drift, never on mid-flow intermediates.
      *
      * @param userId the owner's ID
      * @param liability the liability being repaid
@@ -159,8 +162,6 @@ public class LiabilityTrancheService {
                     remaining,
                     target.getId());
         }
-        reconcile(liability);
-        liabilityRepository.save(liability);
     }
 
     /**
@@ -199,8 +200,8 @@ public class LiabilityTrancheService {
 
     /**
      * Sums the drawn amounts of a liability's DRAWN tranches (null drawn amounts count as zero).
-     * Single source for the disbursement fail-fast pre-check ({@code LiabilityService.disburse} and
-     * the raw transaction path); the invariant itself is owned by {@link #reconcile}.
+     * Single source for the disbursement fail-fast pre-check ({@link #assertDisbursementAllowed});
+     * the invariant itself is owned by {@link #reconcile}.
      */
     @Transactional(readOnly = true)
     public BigDecimal sumDrawnOfDrawn(Long liabilityId, Long userId) {
@@ -209,6 +210,34 @@ public class LiabilityTrancheService {
                 .map(LiabilityTranche::getDrawnAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Shared fail-fast pre-check for the disbursement write paths ({@code
+     * LiabilityService.disburse} and the raw DISBURSEMENT transaction path): the stored balance
+     * must never exceed what the DRAWN tranches account for — otherwise the drawdown would silently
+     * rely on untracked money that the reconciler would clamp away. Checked before any mutation so
+     * the flow rolls back untouched.
+     *
+     * <p>The disbursement endpoint applies it unconditionally; the raw transaction path applies it
+     * to staged loans only (tranches exist), where an unstaged liability's manually-managed balance
+     * stays authoritative.
+     *
+     * @param liability the liability about to be drawn (loaded by the caller)
+     * @param userId the owner's ID
+     * @throws InvalidLiabilityStateException when the balance exceeds the total drawn amount of the
+     *     DRAWN tranches
+     */
+    public void assertDisbursementAllowed(Liability liability, Long userId) {
+        BigDecimal currentBalance = parseBalanceOrNull(liability.getCurrentBalance());
+        if (currentBalance == null) {
+            return;
+        }
+        BigDecimal drawnSum = sumDrawnOfDrawn(liability.getId(), userId);
+        if (currentBalance.compareTo(drawnSum) > 0) {
+            throw InvalidLiabilityStateException.balanceExceedsDrawnTranches(
+                    liability.getId(), currentBalance, drawnSum);
+        }
     }
 
     /**

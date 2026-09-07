@@ -3,6 +3,7 @@ package org.openfinance.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,10 +108,7 @@ class FifoAllocationTest {
 
         LiabilityTrancheService trancheService =
                 new LiabilityTrancheService(
-                        liabilityRepository,
-                        liabilityTrancheRepository,
-                        transactionRepository,
-                        transactionSplitService);
+                        liabilityTrancheRepository, transactionRepository, transactionSplitService);
         ReflectionTestUtils.setField(transactionService, "liabilityTrancheService", trancheService);
 
         txTable.clear();
@@ -404,5 +402,24 @@ class FifoAllocationTest {
         assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
                 .isInstanceOf(InvalidLiabilityStateException.class)
                 .hasMessageContaining("DRAWN");
+    }
+
+    // ---------- (h) single-pass reconcile: exactly one balance write per repayment ----------
+
+    @Test
+    @DisplayName(
+            "Healthy FIFO repayment create is a single-pass reconcile: exactly one liability save")
+    void healthyFifoRepaymentSavesLiabilityExactlyOnce() {
+        twoDrawnTranches();
+        TransactionRequest request = repaymentRequest(new BigDecimal("2000.00"));
+        stubCreate(request, repaymentEntity(null, new BigDecimal("2000.00"), null), "90000.00");
+
+        transactionService.createTransaction(USER_ID, request);
+
+        // One write = one reconcile: the allocator links the tranche first, then the single
+        // reconcile inside the balance adjustment lands on the final invariant directly —
+        // no intermediate re-derivations that would WARN about non-existent drift.
+        verify(liabilityRepository, times(1)).save(any(Liability.class));
+        assertThat(lastSavedLiabilityBalance()).isEqualTo("88000.00");
     }
 }

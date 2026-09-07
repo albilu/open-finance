@@ -306,20 +306,23 @@ public class LiabilityService {
         LiabilityResponse beforeSnapshot = toResponseWithDecryption(liability);
 
         // Balance-lock guard (spec §4): once linked transactions exist, the balance is owned by
-        // those movements and the tranche reconciler — manual edits are rejected. Tranches alone
-        // (direct-route loans, no transactions) also lock the balance: it is derived from the
-        // DRAWN tranches and a manual edit would break the spec §3.2 invariant.
+        // those movements and the tranche reconciler — manual edits are rejected. DRAWN tranches
+        // alone (direct-route loans, no transactions) also lock the balance: it is derived from
+        // the DRAWN tranches and a manual edit would break the spec §3.2 invariant. PLANNED-only
+        // tranches do not lock: nothing has been drawn yet, so the manual balance stays
+        // authoritative.
         BigDecimal requestedBalance = request.getCurrentBalance();
         BigDecimal existingBalance = decryptAmount(liability.getCurrentBalance());
         boolean balanceChanged =
                 requestedBalance != null
                         && (existingBalance == null
                                 || requestedBalance.compareTo(existingBalance) != 0);
-        if (balanceChanged
-                && (!transactionRepository.findByLiabilityIdAndUserId(liabilityId, userId).isEmpty()
-                        || !liabilityTrancheRepository
-                                .findByLiabilityIdAndUserId(liabilityId, userId)
-                                .isEmpty())) {
+        boolean hasLinkedTransactions =
+                !transactionRepository.findByLiabilityIdAndUserId(liabilityId, userId).isEmpty();
+        boolean hasDrawnTranches =
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
+                        .anyMatch(t -> t.getStatus() == TrancheStatus.DRAWN);
+        if (balanceChanged && (hasLinkedTransactions || hasDrawnTranches)) {
             throw InvalidLiabilityStateException.liabilityBalanceLocked(liabilityId);
         }
 
@@ -1278,14 +1281,10 @@ public class LiabilityService {
                         .orElseThrow(
                                 () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
 
-        // Fail fast on a contradictory state: the balance must never exceed what the DRAWN
-        // tranches account for, otherwise this drawdown would silently rely on untracked money.
-        BigDecimal currentBalance = decryptAmount(liability.getCurrentBalance());
-        BigDecimal drawnSum = liabilityTrancheService.sumDrawnOfDrawn(liability.getId(), userId);
-        if (currentBalance != null && currentBalance.compareTo(drawnSum) > 0) {
-            throw InvalidLiabilityStateException.balanceExceedsDrawnTranches(
-                    liability.getId(), currentBalance, drawnSum);
-        }
+        // Fail fast on a contradictory state (shared with the raw transaction path): the
+        // balance must never exceed what the DRAWN tranches account for, otherwise this
+        // drawdown would silently rely on untracked money.
+        liabilityTrancheService.assertDisbursementAllowed(liability, userId);
 
         LiabilityTranche tranche = resolveTrancheForDisbursement(userId, liability, request);
         if (request.getAmount().compareTo(tranche.getPlannedAmount()) > 0) {
@@ -1416,6 +1415,9 @@ public class LiabilityService {
         liability.setCurrentBalance(updated.toPlainString());
         liabilityTrancheService.reconcile(liability);
         liabilityRepository.save(liability);
+        // The reconciler may override the delta-applied intermediate, so log the final
+        // post-reconcile balance, never the intermediate.
+        String finalBalance = liability.getCurrentBalance();
 
         BigDecimal propertyValue = property.getCurrentValueDecimal();
         BigDecimal updatedValue =
@@ -1441,7 +1443,7 @@ public class LiabilityService {
                 request.getAmount(),
                 liability.getId(),
                 savedProperty.getId(),
-                updated,
+                finalBalance,
                 updatedValue,
                 updatedPurchase);
     }

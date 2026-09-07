@@ -394,6 +394,41 @@ class LiabilityServiceTest {
     }
 
     @Test
+    void shouldAllowManualBalanceEdit_WhenOnlyPlannedTranchesExist() {
+        // Given — staged loan with only PLANNED tranches: nothing drawn, no linked transactions
+        Long liabilityId = 100L;
+        Liability existing = createLiabilityEntity(liabilityId, testUserId);
+        LiabilityRequest request = createValidRequest();
+        request.setCurrentBalance(new BigDecimal("240000.00")); // old balance is 250000.00
+
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(existing));
+        when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of());
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(
+                        List.of(
+                                LiabilityTranche.builder()
+                                        .id(402L)
+                                        .liabilityId(liabilityId)
+                                        .userId(testUserId)
+                                        .trancheNo(1)
+                                        .plannedAmount(new BigDecimal("40000.00"))
+                                        .status(TrancheStatus.PLANNED)
+                                        .currency("USD")
+                                        .build()));
+        when(liabilityRepository.save(any(Liability.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When — no transactions and no DRAWN tranches: the manual balance stays authoritative
+        LiabilityResponse response =
+                liabilityService.updateLiability(liabilityId, testUserId, request);
+
+        // Then
+        assertThat(response.getCurrentBalance()).isEqualByComparingTo("240000.00");
+    }
+
+    @Test
     void shouldAllowUnchangedBalanceEdit_WhenLinkedTransactionsExist() {
         // Given — same balance, other fields editable
         Long liabilityId = 100L;
