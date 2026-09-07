@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.openfinance.entity.MovementType;
 import org.openfinance.entity.PaymentMethod;
 import org.openfinance.entity.TransactionType;
 
@@ -163,6 +164,18 @@ public class TransactionResponse {
      * <p>Requirement REQ-LIA-4: Transaction-liability linking
      */
     private Long liabilityId;
+
+    /** Optional ID of the liability tranche this transaction is associated with. */
+    private Long trancheId;
+
+    /** Optional ID of the real estate property this transaction is associated with. */
+    private Long realEstateId;
+
+    /** Optional ID of the asset this transaction is associated with. */
+    private Long assetId;
+
+    /** Classification of the financial movement (e.g. DISBURSEMENT, REPAYMENT). */
+    private MovementType movementType;
 
     /**
      * Flag indicating whether the transaction has been reconciled.

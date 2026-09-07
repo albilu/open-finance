@@ -1,0 +1,63 @@
+package org.openfinance.dto;
+
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.openfinance.validation.ValidCurrency;
+
+/**
+ * Data Transfer Object for creating or updating a liability tranche.
+ *
+ * <p>A tranche represents a single planned drawdown of a liability disbursed in stages (e.g. a
+ * construction loan or a mortgage released in stages).
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class LiabilityTrancheRequest {
+
+    /** Sequential number of the tranche within its liability. */
+    @NotNull(message = "{liabilityTranche.trancheNo.required}")
+    private Integer trancheNo;
+
+    /** Planned drawdown amount. */
+    @NotNull(message = "{liabilityTranche.plannedAmount.required}")
+    @DecimalMin(value = "0.01", message = "{liabilityTranche.plannedAmount.min}")
+    @Digits(integer = 17, fraction = 2, message = "{liabilityTranche.plannedAmount.digits}")
+    private BigDecimal plannedAmount;
+
+    /** Planned drawdown date. */
+    private LocalDate plannedDate;
+
+    /** Fee associated with this tranche. */
+    @DecimalMin(value = "0.00", message = "{liabilityTranche.fee.min}")
+    @Digits(integer = 17, fraction = 2, message = "{liabilityTranche.fee.digits}")
+    private BigDecimal fee;
+
+    /** Whether this tranche is interest-only. */
+    @Builder.Default private Boolean interestOnly = false;
+
+    /** End date of the interest-only period. */
+    private LocalDate interestOnlyUntil;
+
+    /** Optional ID of the real estate property this tranche is linked to. */
+    private Long realEstateId;
+
+    /** Optional notes about this tranche. */
+    @Size(max = 1000, message = "{liabilityTranche.notes.max}")
+    private String notes;
+
+    /** Currency code in ISO 4217 format (e.g., "USD", "EUR", "GBP"). */
+    @NotBlank(message = "{account.currency.required}")
+    @ValidCurrency
+    private String currency;
+}
