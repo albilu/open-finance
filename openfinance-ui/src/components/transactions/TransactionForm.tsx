@@ -27,6 +27,7 @@ import { SplitTransactionForm } from './SplitTransactionForm';
 import { usePopularTags } from '@/hooks/useTransactionTags';
 import { useActivePayees } from '@/hooks/usePayees';
 import { useLiabilities, useRepaymentPreview } from '@/hooks/useLiabilities';
+import type { RepaymentPreview } from '@/hooks/useLiabilities';
 import type {
   Transaction,
   TransactionRequest,
@@ -190,15 +191,288 @@ function findRepaymentCategoryId(
   nameKey: string,
   nameFallbacks: string[]
 ): number | undefined {
-  const byKey = categories.find(
-    c => c.type === 'EXPENSE' && c.nameKey === nameKey
-  );
+  const byKey = categories.find(c => c.type === 'EXPENSE' && c.nameKey === nameKey);
   if (byKey) return byKey.id;
   const lower = nameFallbacks.map(n => n.toLowerCase());
   const byName = categories.find(
     c => c.type === 'EXPENSE' && c.name && lower.includes(c.name.toLowerCase())
   );
   return byName?.id;
+}
+
+/** Stored conversion fields carried by the submit payload (undefined when no conversion). */
+interface ConversionTriple {
+  originalAmount?: number;
+  originalCurrency?: string;
+  conversionRate?: number;
+}
+
+/** Result of the repayment auto-split payload construction. */
+interface RepaymentAutoSplit {
+  splits?: TransactionSplitRequest[];
+  categoryId?: number;
+}
+
+/**
+ * Repayment auto-split payload (Task 9): builds the preview legs — interest/insurance
+ * categorized, the (uncategorized) principal leg absorbing the remainder so the split sum
+ * matches the parent amount exactly. A single surviving categorized row is returned as a
+ * parent-level category (no splits[]).
+ */
+function buildRepaymentAutoSplit(
+  preview: Pick<RepaymentPreview, 'interest' | 'insurance'>,
+  submitAmount: number,
+  liabToAccount: number,
+  categories: Category[],
+  decimals: number
+): RepaymentAutoSplit {
+  const interestLeg = roundToDecimals(multiply(preview.interest ?? 0, liabToAccount), decimals);
+  const insuranceLeg = roundToDecimals(multiply(preview.insurance ?? 0, liabToAccount), decimals);
+  const principalLeg = roundToDecimals(
+    Math.max(submitAmount - interestLeg - insuranceLeg, 0),
+    decimals
+  );
+  const interestCategoryId = findRepaymentCategoryId(categories, 'category.interest.expense', [
+    'interest',
+    'intérêts',
+    'interets',
+  ]);
+  const insuranceCategoryId = findRepaymentCategoryId(categories, 'category.insurance', [
+    'insurance',
+    'assurances',
+  ]);
+  const rows: TransactionSplitRequest[] = [];
+  let principalRow: TransactionSplitRequest | undefined;
+  if (principalLeg > 0) {
+    principalRow = { amount: principalLeg, categoryId: undefined, description: undefined };
+    rows.push(principalRow);
+  }
+  if (interestLeg > 0 && interestCategoryId != null) {
+    rows.push({ amount: interestLeg, categoryId: interestCategoryId, description: undefined });
+  }
+  if (insuranceLeg > 0 && insuranceCategoryId != null) {
+    rows.push({
+      amount: insuranceLeg,
+      categoryId: insuranceCategoryId,
+      description: undefined,
+    });
+  }
+
+  if (rows.length >= 2 && rows.some(r => r.categoryId != null)) {
+    // Clamp so Σsplits == submitAmount exactly: the principal leg absorbs the remainder when
+    // present, otherwise the largest categorized leg does (underpayment with principal 0).
+    const sumRows = roundToDecimals(
+      rows.reduce((acc, r) => acc + r.amount, 0),
+      decimals
+    );
+    const remainder = roundToDecimals(submitAmount - sumRows, decimals);
+    if (remainder !== 0) {
+      let absorbIndex = principalRow ? rows.indexOf(principalRow) : -1;
+      if (absorbIndex < 0) {
+        absorbIndex = rows.reduce(
+          (maxIdx, r, i) => (r.amount > rows[maxIdx].amount ? i : maxIdx),
+          0
+        );
+      }
+      rows[absorbIndex] = {
+        ...rows[absorbIndex],
+        amount: roundToDecimals(Math.max(rows[absorbIndex].amount + remainder, 0), decimals),
+      };
+    }
+    return { splits: rows };
+  }
+  if (rows.length === 1 && rows[0].categoryId != null) {
+    return { categoryId: rows[0].categoryId };
+  }
+  return {};
+}
+
+/**
+ * Liability FX override (Task 9): when the input is the ACCOUNT currency and the liability
+ * currency differs, the stored conversion triple must carry the LIABILITY view
+ * (originalAmount × rate ≈ amount) so the backend liability leg moves in the liability
+ * currency. When the input IS the liability currency the account-conversion triple already
+ * holds that view.
+ */
+function withLiabilityFxOverride(
+  submitAmount: number,
+  liabilityCurrency: string,
+  liabilityRate: number
+): ConversionTriple {
+  return {
+    originalAmount: roundToDecimals(multiply(submitAmount, liabilityRate), 2),
+    originalCurrency: liabilityCurrency,
+    conversionRate: roundToDecimals(1 / liabilityRate, 8),
+  };
+}
+
+interface SubmitGuardParams {
+  linkedLiability: boolean;
+  liabilityCurrency: string | undefined;
+  inputCurrency: string;
+  accountCurrency: string;
+  needsConversion: boolean;
+  rate: number | undefined;
+  needsLiabilityFx: boolean;
+  liabilityRate: number | undefined;
+}
+
+/** Inputs needed to build the submit payload from the live form state. */
+interface SubmitContext {
+  data: TransactionFormData;
+  splits: TransactionSplitRequest[];
+  splitMode: boolean;
+  tags: string[];
+  categories: Category[];
+  inputCurrency: string;
+  accountCurrency: string;
+  needsConversion: boolean;
+  rate?: number;
+  needsLiabilityFx: boolean;
+  liabilityCurrency?: string;
+  liabilityRate?: number;
+  applyRepaymentSplit: boolean;
+  repaymentPreview?: RepaymentPreview;
+  linkedLiability: boolean;
+}
+
+/**
+ * Builds the final {@link TransactionRequest}: converts the entered amount and any split
+ * amounts into the account currency, resolves the stored conversion triple (with the
+ * liability-FX override), applies the repayment auto-split legs when enabled and assembles
+ * the payload. Pure with respect to the passed context.
+ */
+function buildTransactionRequest(ctx: SubmitContext): TransactionRequest {
+  const {
+    data,
+    splits,
+    splitMode,
+    tags,
+    categories,
+    inputCurrency,
+    accountCurrency,
+    needsConversion,
+    rate,
+    needsLiabilityFx,
+    liabilityCurrency,
+    liabilityRate,
+    applyRepaymentSplit,
+    repaymentPreview,
+    linkedLiability,
+  } = ctx;
+  const decimals = getCurrencyDecimals(accountCurrency);
+  const convert = (value: number): number =>
+    needsConversion && rate ? roundToDecimals(multiply(value, rate), decimals) : Number(value);
+
+  const inSplit = splitMode && splits.length > 0;
+  const submitSplits = inSplit ? splits.map(s => ({ ...s, amount: convert(s.amount) })) : undefined;
+  // On the conversion path, set the parent to the sum of converted splits so they reconcile
+  // exactly with the parent (the backend requires an exact split sum). Otherwise keep today's
+  // behavior of submitting the (converted) entered amount.
+  const submitAmount =
+    needsConversion && rate && inSplit
+      ? sumToDecimals(
+          submitSplits!.map(s => s.amount),
+          decimals
+        )
+      : convert(data.amount);
+
+  // The user-entered (pre-conversion) total, in the input currency, persisted for edit
+  // restore — replaced by the liability view below on the liability-FX path.
+  let conversion: ConversionTriple =
+    needsConversion && rate
+      ? {
+          originalAmount: inSplit
+            ? sumToDecimals(
+                splits.map(s => Number(s.amount) || 0),
+                getCurrencyDecimals(inputCurrency)
+              )
+            : Number(data.amount),
+          originalCurrency: inputCurrency,
+          conversionRate: rate,
+        }
+      : {};
+  if (needsLiabilityFx && inputCurrency === accountCurrency && liabilityRate && liabilityCurrency) {
+    conversion = withLiabilityFxOverride(submitAmount, liabilityCurrency, liabilityRate);
+  }
+
+  // Repayment auto-split (Task 9): submit the preview legs when the toggle is on and the
+  // user did not enter manual splits.
+  let finalSplits = submitSplits;
+  let autoSplitCategoryId: number | undefined;
+  if (!inSplit && applyRepaymentSplit && repaymentPreview && linkedLiability) {
+    const liabToAccount =
+      needsLiabilityFx && conversion.conversionRate ? conversion.conversionRate : 1;
+    const autoSplit = buildRepaymentAutoSplit(
+      repaymentPreview,
+      submitAmount,
+      liabToAccount,
+      categories,
+      decimals
+    );
+    finalSplits = autoSplit.splits;
+    autoSplitCategoryId = autoSplit.categoryId;
+  }
+
+  return {
+    accountId: data.accountId,
+    toAccountId: data.toAccountId,
+    type: data.type,
+    amount: submitAmount,
+    // Always submit in the account's currency (backend requires currency === account currency
+    // for INCOME/EXPENSE). For TRANSFER this normalizes any stale input-currency selection
+    // back to the source account's currency; needsConversion is false for TRANSFER so the
+    // amount is unchanged.
+    currency: accountCurrency,
+    originalAmount: conversion.originalAmount,
+    originalCurrency: conversion.originalCurrency,
+    conversionRate: conversion.conversionRate,
+    // REQ-SPL-1.5: hide parent category when split mode is active; a lone auto-split
+    // categorized leg is applied at the parent level when the user picked no category
+    categoryId: finalSplits ? undefined : (data.categoryId ?? autoSplitCategoryId),
+    date: data.date,
+    description: data.description || '',
+    notes: data.notes || '',
+    payee: data.payee || undefined,
+    tags: tags.length > 0 ? tags : undefined,
+    paymentMethod: data.paymentMethod || undefined,
+    // Requirement 3.1: Only include liabilityId for EXPENSE transactions
+    liabilityId: data.type === 'EXPENSE' ? data.liabilityId : undefined,
+    // REQ-SPL-2.1, REQ-SPL-2.2: include splits when split mode is active
+    splits: finalSplits,
+  };
+}
+
+/** Returns the validation message key blocking the submit, or undefined when clear to send. */
+function submitGuardError({
+  linkedLiability,
+  liabilityCurrency,
+  inputCurrency,
+  accountCurrency,
+  needsConversion,
+  rate,
+  needsLiabilityFx,
+  liabilityRate,
+}: SubmitGuardParams): string | undefined {
+  // A linked liability's legs move in the liability currency, so the entered amount must be in
+  // the account currency or the liability currency — anything else has no coherent view.
+  if (
+    linkedLiability &&
+    liabilityCurrency &&
+    inputCurrency !== accountCurrency &&
+    inputCurrency !== liabilityCurrency
+  ) {
+    return 'form.validation.liabilityCurrencyUnsupported';
+  }
+  if (needsConversion && !rate) {
+    return 'form.validation.rateUnavailable';
+  }
+  // Liability FX: on the account-currency input path the account → liability rate is needed
+  // to store the liability view in the conversion fields.
+  if (needsLiabilityFx && inputCurrency === accountCurrency && !liabilityRate) {
+    return 'form.validation.rateUnavailable';
+  }
+  return undefined;
 }
 
 export function TransactionForm({
@@ -446,184 +720,46 @@ export function TransactionForm({
   }, [selectedAccountId, accounts, setValue]);
 
   const handleFormSubmit = (data: TransactionFormData) => {
-    // The backend requires transaction.currency === account.currency for INCOME/EXPENSE, so convert
-    // the entered amount (and any split amounts) into the account currency before submitting.
+    // The backend requires transaction.currency === account.currency for INCOME/EXPENSE, so
+    // convert the entered amount (and any split amounts) into the account currency first.
     const rate = needsConversion ? effectiveRate : undefined;
+    const liabilityRate =
+      needsLiabilityFx && inputCurrency === accountCurrency ? accountToLiabilityRate : undefined;
 
-    // A linked liability's legs move in the liability currency, so the entered amount must be in
-    // the account currency or the liability currency — anything else has no coherent view. This
-    // check precedes the rate checks below because no rate can make a third currency coherent.
-    if (
-      linkedLiability &&
-      liabilityCurrency &&
-      inputCurrency !== accountCurrency &&
-      inputCurrency !== liabilityCurrency
-    ) {
-      setError('currency', {
-        type: 'manual',
-        message: t('form.validation.liabilityCurrencyUnsupported'),
-      });
-      return;
-    }
-
-    // Block submit when a conversion is required but the rate is not available yet.
-    if (needsConversion && !rate) {
-      setError('currency', { type: 'manual', message: t('form.validation.rateUnavailable') });
-      return;
-    }
-
-    // Liability FX (Task 9): on the account-currency input path we need the account → liability
-    // rate to store the liability view in the conversion fields.
-    const liabilityRate = needsLiabilityFx && inputCurrency === accountCurrency ? accountToLiabilityRate : undefined;
-    if (needsLiabilityFx && inputCurrency === accountCurrency && !liabilityRate) {
-      setError('currency', { type: 'manual', message: t('form.validation.rateUnavailable') });
-      return;
-    }
-
-    const decimals = getCurrencyDecimals(accountCurrency);
-    const convert = (value: number): number =>
-      needsConversion && rate ? roundToDecimals(multiply(value, rate), decimals) : Number(value);
-
-    const inSplit = splitMode && splits.length > 0;
-    const submitSplits = inSplit
-      ? splits.map(s => ({ ...s, amount: convert(s.amount) }))
-      : undefined;
-    // On the conversion path, set the parent to the sum of converted splits so they reconcile
-    // exactly with the parent (the backend requires an exact split sum). Otherwise keep today's
-    // behavior of submitting the (converted) entered amount.
-    const submitAmount =
-      needsConversion && rate && inSplit
-        ? sumToDecimals(
-            submitSplits!.map(s => s.amount),
-            decimals
-          )
-        : convert(data.amount);
-
-    // The user-entered (pre-conversion) total, in the input currency, persisted for edit restore.
-    let originalAmountForSubmit: number | undefined =
-      needsConversion && rate
-        ? inSplit
-          ? sumToDecimals(
-              splits.map(s => Number(s.amount) || 0),
-              getCurrencyDecimals(inputCurrency)
-            )
-          : Number(data.amount)
-        : undefined;
-    let originalCurrencyForSubmit: string | undefined =
-      needsConversion && rate ? inputCurrency : undefined;
-    let conversionRateForSubmit: number | undefined = needsConversion && rate ? rate : undefined;
-
-    // Liability FX override: when the input is the ACCOUNT currency and the liability currency
-    // differs, the stored conversion triple must carry the LIABILITY view (originalAmount × rate ≈
-    // amount) so the backend liability leg moves in the liability currency. When the input IS the
-    // liability currency the account-conversion triple above already holds that view.
-    if (needsLiabilityFx && inputCurrency === accountCurrency && liabilityRate) {
-      originalAmountForSubmit = roundToDecimals(multiply(submitAmount, liabilityRate), 2);
-      originalCurrencyForSubmit = liabilityCurrency;
-      conversionRateForSubmit = roundToDecimals(1 / liabilityRate, 8);
-    }
-
-    // Repayment auto-split payload (Task 9): when the preview is loaded, the toggle is on and the
-    // user did not enter manual splits, submit the preview legs — interest/insurance categorized,
-    // the (uncategorized) principal leg absorbing the remainder so the split sum matches the
-    // parent amount exactly. A single surviving categorized row is submitted as a plain
-    // transaction (no splits[]) with its category applied at the parent level.
-    let finalSplits = submitSplits;
-    let autoSplitCategoryId: number | undefined;
-    if (!inSplit && applyRepaymentSplit && repaymentPreview && linkedLiability) {
-      const liabToAccount =
-        needsLiabilityFx && conversionRateForSubmit ? conversionRateForSubmit : 1;
-      const interestLeg = roundToDecimals(multiply(repaymentPreview.interest ?? 0, liabToAccount), decimals);
-      const insuranceLeg = roundToDecimals(
-        multiply(repaymentPreview.insurance ?? 0, liabToAccount),
-        decimals
-      );
-      const principalLeg = roundToDecimals(
-        Math.max(submitAmount - interestLeg - insuranceLeg, 0),
-        decimals
-      );
-      const interestCategoryId = findRepaymentCategoryId(categories, 'category.interest.expense', [
-        'interest',
-        'intérêts',
-        'interets',
-      ]);
-      const insuranceCategoryId = findRepaymentCategoryId(categories, 'category.insurance', [
-        'insurance',
-        'assurances',
-      ]);
-      const rows: TransactionSplitRequest[] = [];
-      let principalRow: TransactionSplitRequest | undefined;
-      if (principalLeg > 0) {
-        principalRow = { amount: principalLeg, categoryId: undefined, description: undefined };
-        rows.push(principalRow);
-      }
-      if (interestLeg > 0 && interestCategoryId != null) {
-        rows.push({ amount: interestLeg, categoryId: interestCategoryId, description: undefined });
-      }
-      if (insuranceLeg > 0 && insuranceCategoryId != null) {
-        rows.push({
-          amount: insuranceLeg,
-          categoryId: insuranceCategoryId,
-          description: undefined,
-        });
-      }
-
-      if (rows.length >= 2 && rows.some(r => r.categoryId != null)) {
-        // Clamp so Σsplits == submitAmount exactly: the principal leg absorbs the remainder when
-        // present, otherwise the largest categorized leg does (underpayment with principal 0).
-        const sumRows = roundToDecimals(
-          rows.reduce((acc, r) => acc + r.amount, 0),
-          decimals
-        );
-        const remainder = roundToDecimals(submitAmount - sumRows, decimals);
-        if (remainder !== 0) {
-          let absorbIndex = principalRow ? rows.indexOf(principalRow) : -1;
-          if (absorbIndex < 0) {
-            absorbIndex = rows.reduce(
-              (maxIdx, r, i) => (r.amount > rows[maxIdx].amount ? i : maxIdx),
-              0
-            );
-          }
-          rows[absorbIndex] = {
-            ...rows[absorbIndex],
-            amount: roundToDecimals(
-              Math.max(rows[absorbIndex].amount + remainder, 0),
-              decimals
-            ),
-          };
-        }
-        finalSplits = rows;
-      } else if (rows.length === 1 && rows[0].categoryId != null) {
-        autoSplitCategoryId = rows[0].categoryId;
-      }
-    }
-
-    onSubmit({
-      accountId: data.accountId,
-      toAccountId: data.toAccountId,
-      type: data.type,
-      amount: submitAmount,
-      // Always submit in the account's currency (backend requires currency === account currency for
-      // INCOME/EXPENSE). For TRANSFER this normalizes any stale input-currency selection back to the
-      // source account's currency; needsConversion is false for TRANSFER so the amount is unchanged.
-      currency: accountCurrency,
-      originalAmount: originalAmountForSubmit,
-      originalCurrency: originalCurrencyForSubmit,
-      conversionRate: conversionRateForSubmit,
-      // REQ-SPL-1.5: hide parent category when split mode is active; a lone auto-split
-      // categorized leg is applied at the parent level when the user picked no category
-      categoryId: finalSplits ? undefined : (data.categoryId ?? autoSplitCategoryId),
-      date: data.date,
-      description: data.description || '',
-      notes: data.notes || '',
-      payee: data.payee || undefined,
-      tags: tags.length > 0 ? tags : undefined,
-      paymentMethod: data.paymentMethod || undefined,
-      // Requirement 3.1: Only include liabilityId for EXPENSE transactions
-      liabilityId: data.type === 'EXPENSE' ? data.liabilityId : undefined,
-      // REQ-SPL-2.1, REQ-SPL-2.2: include splits when split mode is active
-      splits: finalSplits,
+    const guardKey = submitGuardError({
+      linkedLiability,
+      liabilityCurrency,
+      inputCurrency,
+      accountCurrency,
+      needsConversion,
+      rate,
+      needsLiabilityFx,
+      liabilityRate,
     });
+    if (guardKey) {
+      setError('currency', { type: 'manual', message: t(guardKey) });
+      return;
+    }
+
+    onSubmit(
+      buildTransactionRequest({
+        data,
+        splits,
+        splitMode,
+        tags,
+        categories,
+        inputCurrency,
+        accountCurrency,
+        needsConversion,
+        rate,
+        needsLiabilityFx,
+        liabilityCurrency,
+        liabilityRate,
+        applyRepaymentSplit,
+        repaymentPreview,
+        linkedLiability,
+      })
+    );
   };
 
   return (
@@ -1007,42 +1143,42 @@ export function TransactionForm({
         liabilityIdValue &&
         repaymentPreview &&
         liabilityPreviewTotal != null && (
-        <div
-          data-testid="repayment-preview"
-          className="rounded-lg border border-border bg-surface p-3 space-y-1.5"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-text-primary">
-              {t('form.repaymentPreviewTitle')}
-              {liabilityCurrency ? ` (${liabilityCurrency})` : ''}
-            </p>
-            <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                checked={applyRepaymentSplit}
-                onChange={e => setApplyRepaymentSplit(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-border bg-surface text-primary focus:ring-2 focus:ring-primary"
-                disabled={isLoading}
-              />
-              {t('form.repaymentApplySplit')}
-            </label>
+          <div
+            data-testid="repayment-preview"
+            className="rounded-lg border border-border bg-surface p-3 space-y-1.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-text-primary">
+                {t('form.repaymentPreviewTitle')}
+                {liabilityCurrency ? ` (${liabilityCurrency})` : ''}
+              </p>
+              <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={applyRepaymentSplit}
+                  onChange={e => setApplyRepaymentSplit(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-border bg-surface text-primary focus:ring-2 focus:ring-primary"
+                  disabled={isLoading}
+                />
+                {t('form.repaymentApplySplit')}
+              </label>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-text-secondary">
+              <dt>{t('form.repaymentPreviewPrincipal')}</dt>
+              <dd className="text-right text-text-primary">
+                {(repaymentPreview.principal ?? 0).toFixed(2)}
+              </dd>
+              <dt>{t('form.repaymentPreviewInterest')}</dt>
+              <dd className="text-right text-text-primary">
+                {(repaymentPreview.interest ?? 0).toFixed(2)}
+              </dd>
+              <dt>{t('form.repaymentPreviewInsurance')}</dt>
+              <dd className="text-right text-text-primary">
+                {(repaymentPreview.insurance ?? 0).toFixed(2)}
+              </dd>
+            </dl>
           </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-text-secondary">
-            <dt>{t('form.repaymentPreviewPrincipal')}</dt>
-            <dd className="text-right text-text-primary">
-              {(repaymentPreview.principal ?? 0).toFixed(2)}
-            </dd>
-            <dt>{t('form.repaymentPreviewInterest')}</dt>
-            <dd className="text-right text-text-primary">
-              {(repaymentPreview.interest ?? 0).toFixed(2)}
-            </dd>
-            <dt>{t('form.repaymentPreviewInsurance')}</dt>
-            <dd className="text-right text-text-primary">
-              {(repaymentPreview.insurance ?? 0).toFixed(2)}
-            </dd>
-          </dl>
-        </div>
-      )}
+        )}
 
       {/* Row 5: Description and Tags */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

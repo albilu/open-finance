@@ -159,6 +159,19 @@ describe('AmortizationSchedule', () => {
 
       expect(screen.getByText('$0.00')).toBeInTheDocument();
     });
+
+    it('hides the percent breakdown on zero-payment rows instead of rendering NaN%', () => {
+      const zeroPaymentSchedule: AmortizationScheduleType = {
+        ...mockSchedule,
+        payments: [{ ...mockSchedule.payments[0], paymentAmount: 0 }, mockSchedule.payments[1]],
+      };
+
+      renderWithProviders(<AmortizationSchedule schedule={zeroPaymentSchedule} />);
+
+      expect(screen.queryByText(/nan/i)).not.toBeInTheDocument();
+      // payment 2 principal % still shown (desktop table + mobile card)
+      expect(screen.getAllByText('80.1%')).toHaveLength(2);
+    });
   });
 
   describe('User Interactions', () => {

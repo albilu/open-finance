@@ -63,7 +63,9 @@ export function useCreateTranche() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['liabilities', variables.liabilityId, 'tranches'] });
+      queryClient.invalidateQueries({
+        queryKey: ['liabilities', variables.liabilityId, 'tranches'],
+      });
       queryClient.invalidateQueries({ queryKey: ['liabilities'] });
     },
   });

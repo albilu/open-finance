@@ -633,7 +633,8 @@
       "existing": "Prêt existant",
       "none": "Comptant (sans prêt)"
     },
-    "fundingSource": "Source de financement",
+"fundingLocked": "Financement verrouillé : le bien a déjà été créé avec son prêt associé. Réessayez l'achat ou annulez.",
+        "fundingSource": "Source de financement",
     "interestRate": "Taux d'intérêt (%)",
     "loanAmount": "Montant du prêt",
     "disbursedAmount": "Montant à débloquer maintenant",

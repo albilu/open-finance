@@ -1,7 +1,7 @@
 /**
  * AmortizationSchedule Component
  * Task 6.1.13: Display payment schedule table with filtering and export
- * 
+ *
  * Shows detailed breakdown of each payment: principal, interest, remaining balance
  */
 import { Fragment, useState } from 'react';
@@ -47,9 +47,8 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
   const showExpandButton = filterOption === 'all' && schedule.payments.length > 12;
 
   // Display only first 12 payments when collapsed in 'all' mode
-  const displayedPayments = showExpandButton && !isExpanded
-    ? filteredPayments.slice(0, 12)
-    : filteredPayments;
+  const displayedPayments =
+    showExpandButton && !isExpanded ? filteredPayments.slice(0, 12) : filteredPayments;
 
   // Two-phase schedules (interest-only tranches): group consecutive payments by phase and label
   // each group's first row. Computed from the FULL payment list so a truncated view still gets
@@ -91,14 +90,16 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
 
     const csvData = [
       headers.join(','),
-      ...filteredPayments.map(payment => [
-        payment.paymentNumber,
-        payment.paymentDate,
-        payment.paymentAmount.toFixed(2),
-        payment.principalPayment.toFixed(2),
-        payment.interestPayment.toFixed(2),
-        payment.remainingBalance.toFixed(2),
-      ].join(','))
+      ...filteredPayments.map(payment =>
+        [
+          payment.paymentNumber,
+          payment.paymentDate,
+          payment.paymentAmount.toFixed(2),
+          payment.principalPayment.toFixed(2),
+          payment.interestPayment.toFixed(2),
+          payment.remainingBalance.toFixed(2),
+        ].join(',')
+      ),
     ].join('\n');
 
     const blob = new Blob([csvData], { type: 'text/csv' });
@@ -136,7 +137,11 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
           <div>
             <div className="text-text-secondary mb-1">{t('amortization.monthlyPayment')}</div>
             <div className="font-semibold text-text-primary">
-              <ConvertedAmount amount={schedule.monthlyPayment} currency={schedule.currency} inline />
+              <ConvertedAmount
+                amount={schedule.monthlyPayment}
+                currency={schedule.currency}
+                inline
+              />
             </div>
           </div>
           <div>
@@ -148,7 +153,11 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
           <div>
             <div className="text-text-secondary mb-1">{t('amortization.totalInterest')}</div>
             <div className="font-semibold text-warning">
-              <ConvertedAmount amount={schedule.totalInterest} currency={schedule.currency} inline />
+              <ConvertedAmount
+                amount={schedule.totalInterest}
+                currency={schedule.currency}
+                inline
+              />
             </div>
           </div>
           <div>
@@ -159,12 +168,12 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
           </div>
           <div>
             <div className="text-text-secondary mb-1">{t('amortization.totalPayments')}</div>
-            <div className="font-semibold text-text-primary">
-              {schedule.payments.length}
-            </div>
+            <div className="font-semibold text-text-primary">{schedule.payments.length}</div>
           </div>
           <div>
-            <div className="text-text-secondary mb-1">{t('amortization.interestPrincipalRatio')}</div>
+            <div className="text-text-secondary mb-1">
+              {t('amortization.interestPrincipalRatio')}
+            </div>
             <div className="font-semibold text-text-primary">
               {((schedule.totalInterest / schedule.principal) * 100).toFixed(1)}%
             </div>
@@ -177,28 +186,31 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
         <div className="flex gap-2">
           <button
             onClick={() => setFilterOption('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterOption === 'all'
-              ? 'bg-primary text-white'
-              : 'bg-surface border border-border text-text-secondary hover:border-primary/50 hover:text-text-primary'
-              }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filterOption === 'all'
+                ? 'bg-primary text-white'
+                : 'bg-surface border border-border text-text-secondary hover:border-primary/50 hover:text-text-primary'
+            }`}
           >
             {t('amortization.filterAll')}
           </button>
           <button
             onClick={() => setFilterOption('12')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterOption === '12'
-              ? 'bg-primary text-white'
-              : 'bg-surface border border-border text-text-secondary hover:border-primary/50 hover:text-text-primary'
-              }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filterOption === '12'
+                ? 'bg-primary text-white'
+                : 'bg-surface border border-border text-text-secondary hover:border-primary/50 hover:text-text-primary'
+            }`}
           >
             {t('amortization.filter12')}
           </button>
           <button
             onClick={() => setFilterOption('24')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterOption === '24'
-              ? 'bg-primary text-white'
-              : 'bg-surface border border-border text-text-secondary hover:border-primary/50 hover:text-text-primary'
-              }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filterOption === '24'
+                ? 'bg-primary text-white'
+                : 'bg-surface border border-border text-text-secondary hover:border-primary/50 hover:text-text-primary'
+            }`}
           >
             {t('amortization.filter24')}
           </button>
@@ -242,8 +254,16 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
           </thead>
           <tbody>
             {displayedPayments.map((payment, index) => {
-              const principalPercent = (payment.principalPayment / payment.paymentAmount) * 100;
-              const interestPercent = (payment.interestPayment / payment.paymentAmount) * 100;
+              // Guard the percent division: a zero-payment row (fully-categorized payment)
+              // has no meaningful breakdown — hide the percents instead of rendering NaN%.
+              const principalPercent =
+                payment.paymentAmount > 0
+                  ? (payment.principalPayment / payment.paymentAmount) * 100
+                  : null;
+              const interestPercent =
+                payment.paymentAmount > 0
+                  ? (payment.interestPayment / payment.paymentAmount) * 100
+                  : null;
               const phaseLabel = phaseLabelFor(payment.paymentNumber);
 
               return (
@@ -259,8 +279,9 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
                     </tr>
                   )}
                   <tr
-                    className={`border-b border-border hover:bg-surface-elevated transition-colors ${index % 2 === 0 ? 'bg-surface' : 'bg-background'
-                      }`}
+                    className={`border-b border-border hover:bg-surface-elevated transition-colors ${
+                      index % 2 === 0 ? 'bg-surface' : 'bg-background'
+                    }`}
                   >
                     <td className="py-3 px-4 text-sm font-medium text-text-primary">
                       {payment.paymentNumber}
@@ -269,7 +290,7 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
                       {new Date(payment.paymentDate).toLocaleDateString(i18n.language, {
                         year: 'numeric',
                         month: 'short',
-                        day: 'numeric'
+                        day: 'numeric',
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm font-mono text-right text-text-primary">
@@ -288,7 +309,7 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
                         />
                       </div>
                       <div className="text-xs text-text-tertiary">
-                        {principalPercent.toFixed(1)}%
+                        {principalPercent != null && `${principalPercent.toFixed(1)}%`}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -300,7 +321,7 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
                         />
                       </div>
                       <div className="text-xs text-text-tertiary">
-                        {interestPercent.toFixed(1)}%
+                        {interestPercent != null && `${interestPercent.toFixed(1)}%`}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-sm font-mono text-right text-text-secondary">
@@ -344,9 +365,15 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
 
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
-        {displayedPayments.map((payment) => {
-          const principalPercent = (payment.principalPayment / payment.paymentAmount) * 100;
-          const interestPercent = (payment.interestPayment / payment.paymentAmount) * 100;
+        {displayedPayments.map(payment => {
+          const principalPercent =
+            payment.paymentAmount > 0
+              ? (payment.principalPayment / payment.paymentAmount) * 100
+              : null;
+          const interestPercent =
+            payment.paymentAmount > 0
+              ? (payment.interestPayment / payment.paymentAmount) * 100
+              : null;
           const phaseLabel = phaseLabelFor(payment.paymentNumber);
 
           return (
@@ -360,73 +387,82 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
                 </p>
               )}
               <div className="bg-surface border border-border rounded-lg p-4 space-y-3">
-              {/* Header */}
-              <div className="flex justify-between items-center pb-2 border-b border-border">
-                <div>
-                  <div className="text-sm font-medium text-text-primary">
-                    {t('amortization.paymentNumber', { number: payment.paymentNumber })}
+                {/* Header */}
+                <div className="flex justify-between items-center pb-2 border-b border-border">
+                  <div>
+                    <div className="text-sm font-medium text-text-primary">
+                      {t('amortization.paymentNumber', { number: payment.paymentNumber })}
+                    </div>
+                    <div className="text-xs text-text-secondary">
+                      {new Date(payment.paymentDate).toLocaleDateString(i18n.language, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </div>
                   </div>
-                  <div className="text-xs text-text-secondary">
-                    {new Date(payment.paymentDate).toLocaleDateString(i18n.language, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    })}
+                  <div className="text-right">
+                    <div className="text-sm font-mono font-medium text-text-primary">
+                      <ConvertedAmount
+                        amount={payment.paymentAmount}
+                        currency={schedule.currency}
+                        inline
+                      />
+                    </div>
+                    <div className="text-xs text-text-secondary">
+                      {t('amortization.totalPayment')}
+                    </div>{' '}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-mono font-medium text-text-primary">
-                    <ConvertedAmount
-                      amount={payment.paymentAmount}
-                      currency={schedule.currency}
-                      inline
-                    />
-                  </div>
-                   <div className="text-xs text-text-secondary">{t('amortization.totalPayment')}</div>                </div>
-              </div>
 
-              {/* Breakdown */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-text-secondary mb-1">{t('amortization.col.principal')}</div>
-                  <div className="text-sm font-mono text-success">
-                    <ConvertedAmount
-                      amount={payment.principalPayment}
-                      currency={schedule.currency}
-                      inline
-                    />
+                {/* Breakdown */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs text-text-secondary mb-1">
+                      {t('amortization.col.principal')}
+                    </div>
+                    <div className="text-sm font-mono text-success">
+                      <ConvertedAmount
+                        amount={payment.principalPayment}
+                        currency={schedule.currency}
+                        inline
+                      />
+                    </div>
+                    <div className="text-xs text-text-tertiary">
+                      {principalPercent != null && `${principalPercent.toFixed(1)}%`}
+                    </div>
                   </div>
-                  <div className="text-xs text-text-tertiary">
-                    {principalPercent.toFixed(1)}%
+                  <div>
+                    <div className="text-xs text-text-secondary mb-1">
+                      {t('amortization.col.interest')}
+                    </div>
+                    <div className="text-sm font-mono text-warning">
+                      <ConvertedAmount
+                        amount={payment.interestPayment}
+                        currency={schedule.currency}
+                        inline
+                      />
+                    </div>
+                    <div className="text-xs text-text-tertiary">
+                      {interestPercent != null && `${interestPercent.toFixed(1)}%`}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs text-text-secondary mb-1">{t('amortization.col.interest')}</div>
-                  <div className="text-sm font-mono text-warning">
-                    <ConvertedAmount
-                      amount={payment.interestPayment}
-                      currency={schedule.currency}
-                      inline
-                    />
-                  </div>
-                  <div className="text-xs text-text-tertiary">
-                    {interestPercent.toFixed(1)}%
-                  </div>
-                </div>
-              </div>
 
-              {/* Remaining Balance */}
-              <div className="pt-2 border-t border-border">
-                <div className="text-xs text-text-secondary mb-1">{t('amortization.remainingBalance')}</div>
-                <div className="text-sm font-mono text-text-primary">
-                  <ConvertedAmount
-                    amount={payment.remainingBalance}
-                    currency={schedule.currency}
-                    inline
-                  />
+                {/* Remaining Balance */}
+                <div className="pt-2 border-t border-border">
+                  <div className="text-xs text-text-secondary mb-1">
+                    {t('amortization.remainingBalance')}
+                  </div>
+                  <div className="text-sm font-mono text-text-primary">
+                    <ConvertedAmount
+                      amount={payment.remainingBalance}
+                      currency={schedule.currency}
+                      inline
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
             </Fragment>
           );
         })}

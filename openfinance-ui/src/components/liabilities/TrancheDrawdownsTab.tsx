@@ -13,7 +13,6 @@ import { useTranslation } from 'react-i18next';
 import { Layers, AlertCircle, Plus } from 'lucide-react';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { DateInput } from '@/components/ui/DateInput';
 import { NumberInput } from '@/components/ui/NumberInput';
 import { useTranches, useCreateTranche, getTrancheLabel } from '@/hooks/useTranches';
@@ -37,7 +36,9 @@ function AddTrancheForm({ liability, onDone }: { liability: Liability; onDone: (
   const [interestOnlyUntil, setInterestOnlyUntil] = useState('');
 
   const amount = Number(plannedAmount);
-  const valid = amount > 0 && (!interestOnly || !!interestOnlyUntil);
+  // The backend treats a missing interestOnlyUntil as an open-ended interest-only phase, so
+  // the end date is optional here too.
+  const valid = amount > 0;
 
   const submit = async () => {
     if (!valid) return;
@@ -59,7 +60,10 @@ function AddTrancheForm({ liability, onDone }: { liability: Liability; onDone: (
   };
 
   return (
-    <div className="p-4 mb-3 border border-border rounded-lg bg-surface space-y-3" data-testid="add-tranche-form">
+    <div
+      className="p-4 mb-3 border border-border rounded-lg bg-surface space-y-3"
+      data-testid="add-tranche-form"
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label htmlFor="tranche-planned-amount" className="block text-sm font-medium mb-1.5">
@@ -77,11 +81,7 @@ function AddTrancheForm({ liability, onDone }: { liability: Liability; onDone: (
           <label htmlFor="tranche-planned-date" className="block text-sm font-medium mb-1.5">
             {t('drawdowns.add.plannedDate')}
           </label>
-          <DateInput
-            id="tranche-planned-date"
-            value={plannedDate}
-            onChange={setPlannedDate}
-          />
+          <DateInput id="tranche-planned-date" value={plannedDate} onChange={setPlannedDate} />
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
@@ -93,7 +93,10 @@ function AddTrancheForm({ liability, onDone }: { liability: Liability; onDone: (
             onChange={e => setInterestOnly(e.target.checked)}
             className="h-4 w-4 rounded border-border bg-surface text-primary focus:ring-2 focus:ring-primary"
           />
-          <label htmlFor="tranche-interest-only" className="text-sm text-text-primary cursor-pointer">
+          <label
+            htmlFor="tranche-interest-only"
+            className="text-sm text-text-primary cursor-pointer"
+          >
             {t('drawdowns.add.interestOnly')}
           </label>
         </div>
@@ -118,7 +121,13 @@ function AddTrancheForm({ liability, onDone }: { liability: Liability; onDone: (
         <Button variant="ghost" type="button" onClick={onDone} disabled={createTranche.isPending}>
           {t('drawdowns.add.cancel')}
         </Button>
-        <Button variant="primary" type="button" disabled={!valid} isLoading={createTranche.isPending} onClick={submit}>
+        <Button
+          variant="primary"
+          type="button"
+          disabled={!valid}
+          isLoading={createTranche.isPending}
+          onClick={submit}
+        >
           {t('drawdowns.add.submit')}
         </Button>
       </div>
@@ -175,9 +184,7 @@ export function TrancheDrawdownsTab({ liability }: { liability: Liability }) {
 
   return (
     <div className="space-y-3">
-      {showAddForm && (
-        <AddTrancheForm liability={liability} onDone={() => setShowAddForm(false)} />
-      )}
+      {showAddForm && <AddTrancheForm liability={liability} onDone={() => setShowAddForm(false)} />}
       <div className="flex justify-end">{addButton}</div>
       <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
         {tranches.map(tranche => (

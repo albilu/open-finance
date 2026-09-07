@@ -173,6 +173,40 @@ describe('TrancheDrawdownsTab', () => {
     });
   });
 
+  it('creates an open-ended interest-only tranche without an end date (until is optional)', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockUseCreateTranche.mockReturnValue({
+      mutateAsync,
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add tranche/i }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/planned amount/i), {
+        target: { value: '40000' },
+      });
+      const interestOnly = screen.getByLabelText('Interest-only') as HTMLInputElement;
+      interestOnly.click();
+    });
+    await act(async () => {
+      screen.getByRole('button', { name: /^add$/i }).click();
+    });
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledWith({
+      liabilityId: 5,
+      request: expect.objectContaining({
+        plannedAmount: 40000,
+        interestOnly: true,
+        interestOnlyUntil: undefined,
+      }),
+    });
+  });
+
   it('creates a plain tranche without the interest-only fields', async () => {
     const mutateAsync = vi.fn().mockResolvedValue({});
     mockUseCreateTranche.mockReturnValue({

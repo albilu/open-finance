@@ -633,7 +633,8 @@
       "existing": "Existing mortgage",
       "none": "Cash (no loan)"
     },
-    "fundingSource": "Funding source",
+"fundingLocked": "Funding is locked: the property was already created with its mortgage link. Retry the purchase or cancel.",
+        "fundingSource": "Funding source",
     "interestRate": "Interest rate (%)",
     "loanAmount": "Loan amount",
     "disbursedAmount": "Amount to disburse now",

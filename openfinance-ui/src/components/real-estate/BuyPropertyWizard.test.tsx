@@ -266,7 +266,9 @@ describe('BuyPropertyWizard', () => {
     fireEvent.change(screen.getByLabelText(/funding source/i), { target: { value: 'existing' } });
     fireEvent.change(screen.getByTestId('wizard-mortgage'), { target: { value: '9' } });
     fireEvent.change(screen.getByLabelText(/disburse now/i), { target: { value: '240000' } });
-    fireEvent.change(screen.getByLabelText(/disbursement route/i), { target: { value: 'account' } });
+    fireEvent.change(screen.getByLabelText(/disbursement route/i), {
+      target: { value: 'account' },
+    });
     await act(async () => {
       screen.getByTestId('wizard-account').click();
     });
@@ -301,7 +303,9 @@ describe('BuyPropertyWizard', () => {
     await fillPropertyStep();
 
     fireEvent.change(screen.getByLabelText(/funding source/i), { target: { value: 'none' } });
-    fireEvent.change(screen.getByLabelText(/down payment amount/i), { target: { value: '300000' } });
+    fireEvent.change(screen.getByLabelText(/down payment amount/i), {
+      target: { value: '300000' },
+    });
     await act(async () => {
       screen.getByTestId('wizard-account').click();
     });
@@ -373,6 +377,96 @@ describe('BuyPropertyWizard', () => {
     });
   });
 
+  it('does not re-disburse when retrying after a down-payment failure', async () => {
+    const liabilityMutation = mockMutation();
+    const propertyMutation = mockMutation<{ id: number }>();
+    propertyMutation.mock.mutateAsync.mockResolvedValue({ id: 55 } as { id: number });
+    const disburseMutation = mockMutation();
+    const txMutation = mockMutation();
+    // First attempt fails on the down-payment transaction, retry succeeds
+    txMutation.mock.mutateAsync
+      .mockRejectedValueOnce(new Error('down-payment failed'))
+      .mockResolvedValue({ id: 88 });
+
+    mockUseCreateLiability.mockReturnValue(liabilityMutation.mock as any);
+    mockUseCreateProperty.mockReturnValue(propertyMutation.mock as any);
+    mockUseDisburse.mockReturnValue(disburseMutation.mock as any);
+    mockUseCreateTransaction.mockReturnValue(txMutation.mock as any);
+
+    const { onClose } = renderWizard();
+
+    await fillPropertyStep();
+
+    fireEvent.change(screen.getByLabelText(/funding source/i), { target: { value: 'new' } });
+    fireEvent.change(screen.getByLabelText(/mortgage name/i), { target: { value: 'Home loan' } });
+    fireEvent.change(screen.getByLabelText(/loan amount/i), { target: { value: '240000' } });
+    fireEvent.change(screen.getByLabelText(/down payment amount/i), { target: { value: '60000' } });
+    await act(async () => {
+      screen.getByTestId('wizard-account').click();
+    });
+    await act(async () => {
+      screen.getByRole('button', { name: /next/i }).click();
+    });
+
+    // First confirm: the down payment fails, the disbursement already succeeded
+    await act(async () => {
+      screen.getByRole('button', { name: /confirm/i }).click();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/down-payment failed/i);
+    });
+    expect(disburseMutation.mutateAsync).toHaveBeenCalledTimes(1);
+
+    // Retry: the completed disbursement must not be replayed
+    await act(async () => {
+      screen.getByRole('button', { name: /confirm/i }).click();
+    });
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
+    expect(liabilityMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(propertyMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(disburseMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(txMutation.mutateAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('locks the funding source after the property has been created', async () => {
+    const propertyMutation = mockMutation<{ id: number }>();
+    propertyMutation.mock.mutateAsync.mockResolvedValue({ id: 55 } as { id: number });
+    const disburseMutation = mockMutation();
+    disburseMutation.mock.mutateAsync.mockRejectedValue(new Error('disbursement failed'));
+    mockUseCreateProperty.mockReturnValue(propertyMutation.mock as any);
+    mockUseDisburse.mockReturnValue(disburseMutation.mock as any);
+
+    renderWizard();
+
+    await fillPropertyStep();
+
+    fireEvent.change(screen.getByLabelText(/funding source/i), { target: { value: 'new' } });
+    fireEvent.change(screen.getByLabelText(/mortgage name/i), { target: { value: 'Home loan' } });
+    fireEvent.change(screen.getByLabelText(/loan amount/i), { target: { value: '240000' } });
+    await act(async () => {
+      screen.getByRole('button', { name: /next/i }).click();
+    });
+
+    // First confirm fails at the disbursement: liability and property are already created
+    await act(async () => {
+      screen.getByRole('button', { name: /confirm/i }).click();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/disbursement failed/i);
+    });
+
+    // Back to the funding step: the property's mortgage link is fixed, so the
+    // funding source can no longer be switched
+    await act(async () => {
+      screen.getByRole('button', { name: /back/i }).click();
+    });
+
+    expect(screen.getByLabelText(/funding source/i)).toBeDisabled();
+    expect(screen.getByText(/locked/i)).toBeInTheDocument();
+  });
+
   it('blocks advancing to review when the account route has no account selected', async () => {
     renderWizard();
 
@@ -381,7 +475,9 @@ describe('BuyPropertyWizard', () => {
     fireEvent.change(screen.getByLabelText(/funding source/i), { target: { value: 'new' } });
     fireEvent.change(screen.getByLabelText(/mortgage name/i), { target: { value: 'Home loan' } });
     fireEvent.change(screen.getByLabelText(/loan amount/i), { target: { value: '240000' } });
-    fireEvent.change(screen.getByLabelText(/disbursement route/i), { target: { value: 'account' } });
+    fireEvent.change(screen.getByLabelText(/disbursement route/i), {
+      target: { value: 'account' },
+    });
 
     // No down payment account selected: Next is disabled and a validation message is shown
     const nextButton = screen.getByRole('button', { name: /next/i });

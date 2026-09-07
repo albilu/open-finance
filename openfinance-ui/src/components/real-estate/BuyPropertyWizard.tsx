@@ -12,73 +12,38 @@
  * (carrying mortgageId) → disburse → down-payment CAPITAL_IMPROVEMENT
  * transaction. A direct disbursement needs the property to exist, so the
  * disbursement always follows the property creation.
+ *
+ * Retry dedupe: resources created by a failed confirm attempt (liability,
+ * property, completed disbursement) are memoized in createdIds and reused, so
+ * a retry never duplicates them or re-disburses an already-disbursed loan.
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Building2, Home, Landmark, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { DateInput } from '@/components/ui/DateInput';
-import { NumberInput } from '@/components/ui/NumberInput';
-import { CurrencySelector } from '@/components/ui/CurrencySelector';
-import { AccountSelector } from '@/components/ui/AccountSelector';
-import { LiabilitySelector } from '@/components/ui/LiabilitySelector';
-import {
-  useLiabilities,
-  useCreateLiability,
-  useDisburseLiability,
-} from '@/hooks/useLiabilities';
+import { useLiabilities, useCreateLiability, useDisburseLiability } from '@/hooks/useLiabilities';
 import { useCreateProperty } from '@/hooks/useRealEstate';
 import { useCreateTransaction } from '@/hooks/useTransactions';
 import { useAuthContext } from '@/context/AuthContext';
 import { DEFAULT_CURRENCY } from '@/utils/currency';
 import { getToday } from '@/utils/date';
+import { PropertyStep } from './wizard/PropertyStep';
+import { FundingStep } from './wizard/FundingStep';
+import { ReviewStep } from './wizard/ReviewStep';
 import type { Account } from '@/types/account';
+import type { CreatedIdsState, FundingStepState, PropertyStepState } from './wizard/types';
 import type { RealEstatePropertyRequest } from '@/types/realEstate';
 import type { TransactionRequest } from '@/types/transaction';
 
-type FundingSource = 'new' | 'existing' | 'none';
-type DisbursementRoute = 'direct' | 'account';
-
-interface PropertyStepState {
-  name: string;
-  address: string;
-  propertyType: string;
-  purchasePrice: string;
-  purchaseDate: string;
-  currentValue: string;
-  currency: string;
-}
-
-interface FundingStepState {
-  source: FundingSource;
-  mortgageName: string;
-  loanAmount: string;
-  interestRate: string;
-  existingMortgageId?: number;
-  route: DisbursementRoute;
-  downPaymentAmount: string;
-  downPaymentAccountId?: number;
-}
-
-/** IDs of resources already created by a previous confirm attempt (retry dedupe). */
-interface CreatedIdsState {
-  liabilityId?: number;
-  propertyId?: number;
-}
-
-const PROPERTY_TYPE_OPTIONS = [
-  'RESIDENTIAL',
-  'COMMERCIAL',
-  'LAND',
-  'MIXED_USE',
-  'INDUSTRIAL',
-  'OTHER',
-];
-
 const STEP_ICONS = [Building2, Landmark, Wallet];
 
-export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; onClose: () => void }) {
+export function BuyPropertyWizard({
+  accounts,
+  onClose,
+}: {
+  accounts: Account[];
+  onClose: () => void;
+}) {
   const { t } = useTranslation('realEstate');
   const { baseCurrency } = useAuthContext();
   const today = getToday();
@@ -110,7 +75,7 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
   // created, a retry must reuse them instead of creating duplicates.
   const [createdIds, setCreatedIds] = useState<CreatedIdsState>({});
 
-  const { data: liabilities = [] } = useLiabilities();
+  useLiabilities();
   const createLiability = useCreateLiability();
   const createProperty = useCreateProperty();
   const createTransaction = useCreateTransaction();
@@ -149,75 +114,108 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
         ? fundingStepValid && !accountRouteMissingAccount
         : true;
 
+  // Once a confirm attempt has created the property, its mortgage link is fixed: switching
+  // the funding source on a retry would leave the property linked to the wrong liability.
+  const fundingLocked = createdIds.propertyId != null;
+
+  /** Resolves the mortgage to link (creating it on the 'new' path, reusing on retry). */
+  const ensureMortgageId = async (): Promise<number | undefined> => {
+    // Prefer the explicit selection on the 'existing' path; the created liability is only
+    // reused on the 'new' path (the funding source is locked once the property exists, so
+    // the two can no longer diverge between attempts).
+    let mortgageId: number | undefined =
+      funding.source === 'existing'
+        ? funding.existingMortgageId
+        : funding.source === 'new'
+          ? createdIds.liabilityId
+          : undefined;
+    if (funding.source === 'new' && mortgageId == null) {
+      const liability = await createLiability.mutateAsync({
+        name: funding.mortgageName.trim(),
+        type: 'MORTGAGE',
+        principal: funding.loanAmount,
+        currentBalance: '0',
+        interestRate: funding.interestRate ? Number(funding.interestRate) : undefined,
+        startDate: property.purchaseDate,
+        currency: property.currency,
+      });
+      mortgageId = liability.id;
+      setCreatedIds(prev => ({ ...prev, liabilityId: liability.id }));
+    }
+    return mortgageId;
+  };
+
+  /** Creates the property (carrying the mortgage link), reusing a previous attempt's ID. */
+  const ensurePropertyId = async (mortgageId: number | undefined): Promise<number> => {
+    if (createdIds.propertyId != null) {
+      return createdIds.propertyId;
+    }
+    const created = await createProperty.mutateAsync({
+      name: property.name.trim(),
+      address: property.address.trim(),
+      propertyType: property.propertyType as RealEstatePropertyRequest['propertyType'],
+      purchasePrice: property.purchasePrice,
+      purchaseDate: property.purchaseDate,
+      currentValue: property.currentValue,
+      currency: property.currency,
+      mortgageId: mortgageId ?? null,
+      rentalIncome: null,
+      notes: null,
+      documents: null,
+      latitude: null,
+      longitude: null,
+      isActive: true,
+    });
+    setCreatedIds(prev => ({ ...prev, propertyId: created.id }));
+    return created.id;
+  };
+
+  /** Disburses the loan — a disbursement that already completed is never replayed on retry. */
+  const disburseIfNeeded = async (mortgageId: number | undefined, propertyId: number) => {
+    if (mortgageId == null || loan <= 0 || createdIds.disbursedLiabilityId === mortgageId) {
+      return;
+    }
+    await disburse.mutateAsync({
+      liabilityId: mortgageId,
+      request: {
+        directRealEstateId: funding.route === 'direct' ? propertyId : undefined,
+        toAccountId: funding.route === 'account' ? funding.downPaymentAccountId : undefined,
+        amount: loan,
+        date: property.purchaseDate,
+      },
+    });
+    setCreatedIds(prev => ({ ...prev, disbursedLiabilityId: mortgageId }));
+  };
+
+  /** Records the optional down payment as a CAPITAL_IMPROVEMENT expense on the property. */
+  const createDownPayment = async (propertyId: number) => {
+    if (funding.downPaymentAccountId == null || down <= 0) {
+      return;
+    }
+    const account = accounts.find(a => a.id === funding.downPaymentAccountId);
+    const request: TransactionRequest = {
+      accountId: funding.downPaymentAccountId,
+      type: 'EXPENSE',
+      amount: down,
+      currency: account?.currency ?? property.currency,
+      date: property.purchaseDate,
+      description: t('wizard.downPaymentDescription', { name: property.name }),
+      movementType: 'CAPITAL_IMPROVEMENT',
+      realEstateId: propertyId,
+    };
+    await createTransaction.mutateAsync(request);
+  };
+
   const handleConfirm = async () => {
     setIsSubmitting(true);
     setError(null);
     try {
-      // Reuse resources from a previous attempt so a retry never duplicates them.
-      let mortgageId = funding.existingMortgageId ?? createdIds.liabilityId;
-      if (funding.source === 'new' && mortgageId == null) {
-        const liability = await createLiability.mutateAsync({
-          name: funding.mortgageName.trim(),
-          type: 'MORTGAGE',
-          principal: funding.loanAmount,
-          currentBalance: '0',
-          interestRate: funding.interestRate ? Number(funding.interestRate) : undefined,
-          startDate: property.purchaseDate,
-          currency: property.currency,
-        });
-        mortgageId = liability.id;
-        setCreatedIds(prev => ({ ...prev, liabilityId: liability.id }));
-      }
-
-      let propertyId = createdIds.propertyId;
-      if (propertyId == null) {
-        const created = await createProperty.mutateAsync({
-          name: property.name.trim(),
-          address: property.address.trim(),
-          propertyType: property.propertyType as RealEstatePropertyRequest['propertyType'],
-          purchasePrice: property.purchasePrice,
-          purchaseDate: property.purchaseDate,
-          currentValue: property.currentValue,
-          currency: property.currency,
-          mortgageId: mortgageId ?? null,
-          rentalIncome: null,
-          notes: null,
-          documents: null,
-          latitude: null,
-          longitude: null,
-          isActive: true,
-        });
-        propertyId = created.id;
-        setCreatedIds(prev => ({ ...prev, propertyId: created.id }));
-      }
-
-      if (mortgageId != null && loan > 0) {
-        await disburse.mutateAsync({
-          liabilityId: mortgageId,
-          request: {
-            directRealEstateId: funding.route === 'direct' ? propertyId : undefined,
-            toAccountId: funding.route === 'account' ? funding.downPaymentAccountId : undefined,
-            amount: loan,
-            date: property.purchaseDate,
-          },
-        });
-      }
-
-      if (funding.downPaymentAccountId != null && down > 0) {
-        const account = accounts.find(a => a.id === funding.downPaymentAccountId);
-        const request: TransactionRequest = {
-          accountId: funding.downPaymentAccountId,
-          type: 'EXPENSE',
-          amount: down,
-          currency: account?.currency ?? property.currency,
-          date: property.purchaseDate,
-          description: t('wizard.downPaymentDescription', { name: property.name }),
-          movementType: 'CAPITAL_IMPROVEMENT',
-          realEstateId: propertyId,
-        };
-        await createTransaction.mutateAsync(request);
-      }
-
+      // Sequence (documented decision): liability → property (mortgageId) → disburse →
+      // down-payment. Each step reuses what a previous failed attempt already created.
+      const mortgageId = await ensureMortgageId();
+      const propertyId = await ensurePropertyId(mortgageId);
+      await disburseIfNeeded(mortgageId, propertyId);
+      await createDownPayment(propertyId);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('wizard.error'));
@@ -252,248 +250,20 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
       </ol>
 
       {/* Step 1: property */}
-      {step === 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <label htmlFor="wizard-name" className="block text-sm font-medium mb-1.5">
-              {t('form.propertyName')} *
-            </label>
-            <Input
-              id="wizard-name"
-              value={property.name}
-              onChange={e => updateProperty({ name: e.target.value })}
-              placeholder={t('form.propertyNamePlaceholder')}
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label htmlFor="wizard-address" className="block text-sm font-medium mb-1.5">
-              {t('form.address')} *
-            </label>
-            <Input
-              id="wizard-address"
-              value={property.address}
-              onChange={e => updateProperty({ address: e.target.value })}
-              placeholder={t('form.addressPlaceholder')}
-            />
-          </div>
-          <div>
-            <label htmlFor="wizard-type" className="block text-sm font-medium mb-1.5">
-              {t('form.propertyType')} *
-            </label>
-            <select
-              id="wizard-type"
-              value={property.propertyType}
-              onChange={e => updateProperty({ propertyType: e.target.value })}
-              className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary"
-            >
-              {PROPERTY_TYPE_OPTIONS.map(type => (
-                <option key={type} value={type}>
-                  {t(`filters.${type.toLowerCase()}`) !== `filters.${type.toLowerCase()}`
-                    ? t(`filters.${type.toLowerCase()}`)
-                    : type}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="wizard-currency" className="block text-sm font-medium mb-1.5">
-              {t('form.currency')} *
-            </label>
-            <CurrencySelector
-              value={property.currency}
-              onValueChange={v => updateProperty({ currency: v })}
-              className="w-full"
-            />
-          </div>
-          <div>
-            <label htmlFor="wizard-price" className="block text-sm font-medium mb-1.5">
-              {t('form.purchasePrice')} *
-            </label>
-            <NumberInput
-              id="wizard-price"
-              value={property.purchasePrice}
-              onChange={v => updateProperty({ purchasePrice: v, currentValue: v })}
-              placeholder="0.00"
-              min="0.01"
-            />
-          </div>
-          <div>
-            <label htmlFor="wizard-date" className="block text-sm font-medium mb-1.5">
-              {t('form.purchaseDate')} *
-            </label>
-            <DateInput
-              id="wizard-date"
-              value={property.purchaseDate}
-              onChange={v => updateProperty({ purchaseDate: v ?? today })}
-              max={today}
-            />
-          </div>
-          <div>
-            <label htmlFor="wizard-value" className="block text-sm font-medium mb-1.5">
-              {t('form.currentValue')} *
-            </label>
-            <NumberInput
-              id="wizard-value"
-              value={property.currentValue}
-              onChange={v => updateProperty({ currentValue: v })}
-              placeholder="0.00"
-              min="0.01"
-            />
-          </div>
-        </div>
-      )}
+      {step === 0 && <PropertyStep property={property} onChange={updateProperty} today={today} />}
 
       {/* Step 2: funding */}
       {step === 1 && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="wizard-source" className="block text-sm font-medium mb-1.5">
-                {t('wizard.fundingSource')} *
-              </label>
-              <select
-                id="wizard-source"
-                value={funding.source}
-                onChange={e => updateFunding({ source: e.target.value as FundingSource })}
-                className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary"
-              >
-                <option value="new">{t('wizard.funding.new')}</option>
-                <option value="existing">{t('wizard.funding.existing')}</option>
-                <option value="none">{t('wizard.funding.none')}</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="wizard-route" className="block text-sm font-medium mb-1.5">
-                {t('wizard.disbursementRoute')}
-              </label>
-              <select
-                id="wizard-route"
-                value={funding.route}
-                onChange={e => updateFunding({ route: e.target.value as DisbursementRoute })}
-                disabled={funding.source === 'none'}
-                className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary disabled:opacity-50"
-              >
-                <option value="direct">{t('wizard.route.direct')}</option>
-                <option value="account">{t('wizard.route.account')}</option>
-              </select>
-            </div>
-          </div>
-
-          {funding.source !== 'none' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {funding.source === 'new' && (
-                <div>
-                  <label
-                    htmlFor="wizard-mortgage-name"
-                    className="block text-sm font-medium mb-1.5"
-                  >
-                    {t('wizard.mortgageName')} *
-                  </label>
-                  <Input
-                    id="wizard-mortgage-name"
-                    value={funding.mortgageName}
-                    onChange={e => updateFunding({ mortgageName: e.target.value })}
-                  />
-                </div>
-              )}
-              <div>
-                <label htmlFor="wizard-loan" className="block text-sm font-medium mb-1.5">
-                  {funding.source === 'new'
-                    ? `${t('wizard.loanAmount')} *`
-                    : t('wizard.disbursedAmount')}
-                </label>
-                <NumberInput
-                  id="wizard-loan"
-                  value={funding.loanAmount}
-                  onChange={v => updateFunding({ loanAmount: v })}
-                  placeholder="0.00"
-                  min="0.01"
-                />
-              </div>
-              {funding.source === 'new' && (
-                <div>
-                  <label htmlFor="wizard-rate" className="block text-sm font-medium mb-1.5">
-                    {t('wizard.interestRate')}
-                  </label>
-                  <NumberInput
-                    id="wizard-rate"
-                    value={funding.interestRate}
-                    onChange={v => updateFunding({ interestRate: v })}
-                    placeholder="3.5"
-                    min="0"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {funding.source === 'existing' && (
-            <div>
-              <label className="block text-sm font-medium mb-1.5">{t('wizard.existingMortgage')}</label>
-              <LiabilitySelector
-                value={funding.existingMortgageId}
-                onValueChange={v => updateFunding({ existingMortgageId: v })}
-                placeholder={t('form.selectMortgage')}
-                liabilityFilter={l => l.type === 'MORTGAGE'}
-              />
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">{t('wizard.downPaymentAccount')}</label>
-              {/* The backend improvement guard rejects a down-payment account whose currency
-                  differs from the property's — users simply pick a matching account here. */}
-              <AccountSelector
-                value={funding.downPaymentAccountId}
-                onValueChange={v => updateFunding({ downPaymentAccountId: v })}
-                placeholder={t('wizard.downPaymentAccount')}
-              />
-            </div>
-            <div>
-              <label htmlFor="wizard-down" className="block text-sm font-medium mb-1.5">
-                {t('wizard.downPaymentAmount')}
-              </label>
-              <NumberInput
-                id="wizard-down"
-                value={funding.downPaymentAmount}
-                onChange={v => updateFunding({ downPaymentAmount: v })}
-                placeholder="0.00"
-                min="0"
-              />
-            </div>
-          </div>
-
-          {accountRouteMissingAccount && (
-            <p role="alert" className="text-sm text-error">
-              {t('wizard.routeAccountRequired')}
-            </p>
-          )}
-        </div>
+        <FundingStep
+          funding={funding}
+          onChange={updateFunding}
+          locked={fundingLocked}
+          accountRouteMissingAccount={accountRouteMissingAccount}
+        />
       )}
 
       {/* Step 3: review */}
-      {step === 2 && (
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm border border-border rounded-lg p-4 bg-surface">
-          <dt className="text-text-secondary">{t('form.propertyName')}</dt>
-          <dd className="text-right text-text-primary">{property.name}</dd>
-          <dt className="text-text-secondary">{t('form.purchasePrice')}</dt>
-          <dd className="text-right text-text-primary font-mono">
-            {property.purchasePrice} {property.currency}
-          </dd>
-          <dt className="text-text-secondary">{t('wizard.fundingSource')}</dt>
-          <dd className="text-right text-text-primary">
-            {t(`wizard.funding.${funding.source}`)}
-            {funding.source !== 'none' && funding.loanAmount
-              ? ` — ${funding.loanAmount} ${property.currency}`
-              : ''}
-          </dd>
-          <dt className="text-text-secondary">{t('wizard.downPaymentAmount')}</dt>
-          <dd className="text-right text-text-primary font-mono">
-            {funding.downPaymentAmount || '0'} {property.currency}
-          </dd>
-        </dl>
-      )}
+      {step === 2 && <ReviewStep property={property} funding={funding} />}
 
       {error && (
         <p role="alert" className="text-sm text-error">

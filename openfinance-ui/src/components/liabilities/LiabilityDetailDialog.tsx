@@ -12,7 +12,7 @@
  *   - Amortization Schedule: full payment schedule table
  *   - Linked Payments: transactions linked to this liability
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CreditCard, RefreshCcw, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
@@ -25,6 +25,7 @@ import { TrancheDrawdownsTab } from '@/components/liabilities/TrancheDrawdownsTa
 import { AttachmentList, AttachmentUpload } from '@/components/attachments';
 import { AttachmentEntityType } from '@/types/attachment';
 import { multiply } from '@/utils/money';
+import { getToday } from '@/utils/date';
 import {
   useAmortizationSchedule,
   useLiabilityBreakdown,
@@ -425,7 +426,10 @@ export function LiabilityDetailDialog({
   const { data: scheduleTranches = [] } = useTranches(
     activeTab === 'schedule' && hasSchedule ? liability.id : null
   );
-  const today = new Date().toISOString().split('T')[0];
+  // Local-timezone today (getToday), derived once per render batch — the UTC-based
+  // toISOString().split('T')[0] would shift the interest-only window check by a day for
+  // users west of UTC in the evening (and east of UTC in the early morning).
+  const today = useMemo(() => getToday(), []);
   const activeInterestOnlyTranche = scheduleTranches.find(
     tr =>
       tr.status === 'DRAWN' &&
