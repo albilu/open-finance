@@ -19,6 +19,7 @@ import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.repository.LiabilityTrancheRepository;
 import org.openfinance.repository.TransactionRepository;
+import org.openfinance.util.PrincipalLegs;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -296,7 +297,8 @@ public class LiabilityTrancheService {
 
     /**
      * Computes a movement's principal leg from stored splits: the total minus the sum of split
-     * amounts carrying a categoryId, floored at zero.
+     * amounts carrying a categoryId, floored at zero. The arithmetic itself lives in {@link
+     * PrincipalLegs} — the single shared source.
      */
     private BigDecimal principalLeg(BigDecimal total, List<TransactionSplitResponse> splits) {
         BigDecimal categorized = BigDecimal.ZERO;
@@ -307,8 +309,7 @@ public class LiabilityTrancheService {
                 }
             }
         }
-        BigDecimal safeTotal = total != null ? total : BigDecimal.ZERO;
-        return safeTotal.subtract(categorized).max(BigDecimal.ZERO);
+        return PrincipalLegs.of(total, categorized);
     }
 
     /** Pre-computed-allocation variant of {@link #remainingOf(LiabilityTranche)}. */

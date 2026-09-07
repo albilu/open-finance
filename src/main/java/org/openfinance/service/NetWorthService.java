@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.openfinance.entity.Account;
 import org.openfinance.entity.Asset;
 import org.openfinance.entity.Liability;
+import org.openfinance.entity.MovementType;
 import org.openfinance.entity.NetWorth;
 import org.openfinance.entity.RealEstateProperty;
 import org.openfinance.entity.RealEstateValueHistory;
@@ -28,6 +29,7 @@ import org.openfinance.repository.NetWorthRepository;
 import org.openfinance.repository.RealEstateValueHistoryRepository;
 import org.openfinance.repository.TransactionRepository;
 import org.openfinance.repository.TransactionSplitRepository;
+import org.openfinance.util.PrincipalLegs;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -753,20 +755,20 @@ public class NetWorthService {
                 realEstateValueHistoryRepository.findByUserId(userId).stream()
                         .collect(Collectors.groupingBy(RealEstateValueHistory::getPropertyId));
 
-        // Pre-group liability-linked payment transactions by liability ID
-        // Payments are EXPENSE transactions with a non-null liabilityId.
-        // Their amounts are always positive; each payment reduces the outstanding
-        // balance.
-        Map<Long, List<Transaction>> paymentsByLiability =
+        // Pre-group liability-linked movement transactions by liability ID. REPAYMENT movements
+        // (and legacy payments without a movementType) reduce the outstanding balance by their
+        // principal leg; DISBURSEMENT movements increase it by their full amount.
+        Map<Long, List<Transaction>> movementsByLiability =
                 allTransactions.stream()
                         .filter(t -> t.getLiabilityId() != null)
                         .collect(Collectors.groupingBy(Transaction::getLiabilityId));
 
-        // Split lines of the liability-linked payments, grouped by transaction ID. Only the
-        // principal leg of a payment (total − categorized splits) reduced the balance, so the
+        // Split lines of the liability-linked movements, grouped by transaction ID. Only the
+        // principal leg of a repayment (total − categorized splits) reduced the balance, so the
         // historical reconstruction below must reverse exactly that leg — reversing the full
-        // payment total would inflate historical debt with interest/insurance legs.
-        Map<Long, List<TransactionSplit>> splitsByTransaction = loadSplitsFor(paymentsByLiability);
+        // payment total would inflate historical debt with interest/insurance legs. The principal
+        // leg arithmetic lives in PrincipalLegs, the single shared source.
+        Map<Long, List<TransactionSplit>> splitsByTransaction = loadSplitsFor(movementsByLiability);
 
         int savedCount = 0;
         LocalDate current = startDate.withDayOfMonth(1);
@@ -895,8 +897,10 @@ public class NetWorthService {
                     }
 
                     // Liabilities: reconstruct outstanding balance at targetDate by reversing
-                    // repayment payments that occurred AFTER targetDate (since those payments
-                    // reduced the balance after our target point in time).
+                    // liability-linked movements that occurred AFTER targetDate — repayments
+                    // reduced the balance after our target point in time (add the principal leg
+                    // back), while disbursements raised it (subtract the full drawdown, which was
+                    // not yet in the balance at targetDate).
                     for (Liability liability : liabilities) {
                         if (liability.getStartDate() != null
                                 && liability.getStartDate().isAfter(targetDate)) {
@@ -907,7 +911,7 @@ public class NetWorthService {
                                     computeHistoricalLiabilityBalance(
                                             liability,
                                             targetDate,
-                                            paymentsByLiability,
+                                            movementsByLiability,
                                             splitsByTransaction);
                             BigDecimal converted =
                                     convertToBaseCurrency(
@@ -965,24 +969,30 @@ public class NetWorthService {
     /**
      * Computes the outstanding liability balance at a given historical date.
      *
-     * <p>Starts from the current (latest) balance and adds back the <em>principal leg</em> of all
-     * repayment payments that were made AFTER the target date (because only the principal leg
-     * reduced the balance, so reversing exactly that leg restores the earlier outstanding balance).
-     * The principal leg mirrors {@code TransactionService.extractPrincipalLegFromStored}: the
-     * payment total minus the sum of split amounts that carry a {@code categoryId} (interest /
-     * insurance legs), floored at zero. A plain repayment without splits is entirely principal; a
-     * fully categorized (interest-only) payment has no principal leg.
+     * <p>Starts from the current (latest) balance and reverses the liability-linked movements made
+     * after the target date, partitioned by movement type:
+     *
+     * <ul>
+     *   <li>{@code REPAYMENT} (and legacy payments without a movementType): add back the
+     *       <em>principal leg</em> — only that leg reduced the balance, so reversing exactly it
+     *       restores the earlier outstanding balance. The leg is {@code total − categorized
+     *       splits}, computed by {@link PrincipalLegs} — the single shared source also used by the
+     *       write path.
+     *   <li>{@code DISBURSEMENT}: subtract the <em>full amount</em> — the drawdown was not yet in
+     *       the balance at the target date, so an outstanding current balance that includes it must
+     *       be deflated for earlier snapshots.
+     * </ul>
      *
      * @param liability the liability entity (must have currentBalance decryptable)
      * @param targetDate the historical date to reconstruct the balance for
-     * @param paymentsByLiability map of liabilityId to list of linked payment transactions
-     * @param splitsByTransaction map of transactionId to stored split lines for those payments
+     * @param movementsByLiability map of liabilityId to list of linked movement transactions
+     * @param splitsByTransaction map of transactionId to stored split lines for those movements
      * @return the reconstructed outstanding balance at targetDate
      */
     private BigDecimal computeHistoricalLiabilityBalance(
             Liability liability,
             LocalDate targetDate,
-            Map<Long, List<Transaction>> paymentsByLiability,
+            Map<Long, List<Transaction>> movementsByLiability,
             Map<Long, List<TransactionSplit>> splitsByTransaction) {
         String balanceStr = liability.getCurrentBalance();
         if (balanceStr == null || balanceStr.isBlank()) {
@@ -990,22 +1000,25 @@ public class NetWorthService {
         }
         BigDecimal currentBalance = new BigDecimal(balanceStr);
 
-        // Payments after targetDate reduced the balance â€” add them back to restore
-        // earlier balance
-        List<Transaction> paymentsAfter =
-                paymentsByLiability.getOrDefault(liability.getId(), List.of()).stream()
+        // Movements after targetDate changed the balance — reverse them to restore the earlier
+        // balance. Repayments reduced it (add the principal leg back); disbursements raised it
+        // (subtract the full drawdown that was not yet outstanding).
+        List<Transaction> movementsAfter =
+                movementsByLiability.getOrDefault(liability.getId(), List.of()).stream()
                         .filter(t -> t.getDate() != null && t.getDate().isAfter(targetDate))
                         .collect(Collectors.toList());
 
-        BigDecimal reversed =
-                paymentsAfter.stream()
-                        .map(
-                                t ->
-                                        principalLeg(
-                                                t,
-                                                splitsByTransaction.getOrDefault(
-                                                        t.getId(), List.of())))
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal reversed = BigDecimal.ZERO;
+        for (Transaction t : movementsAfter) {
+            if (t.getMovementType() == MovementType.DISBURSEMENT) {
+                reversed = reversed.subtract(t.getAmount());
+            } else {
+                reversed =
+                        reversed.add(
+                                principalLeg(
+                                        t, splitsByTransaction.getOrDefault(t.getId(), List.of())));
+            }
+        }
 
         BigDecimal historical = currentBalance.add(reversed);
         // Balance cannot exceed original principal (guard against data anomalies)
@@ -1023,27 +1036,27 @@ public class NetWorthService {
     }
 
     /**
-     * Returns the stored split lines of the given liability-linked payments, grouped by transaction
-     * ID. Skips the repository call entirely when there are no linked payments.
+     * Returns the stored split lines of the given liability-linked movements, grouped by
+     * transaction ID. Skips the repository call entirely when there are no linked movements.
      */
     private Map<Long, List<TransactionSplit>> loadSplitsFor(
-            Map<Long, List<Transaction>> paymentsByLiability) {
-        List<Long> paymentIds =
-                paymentsByLiability.values().stream()
+            Map<Long, List<Transaction>> movementsByLiability) {
+        List<Long> movementIds =
+                movementsByLiability.values().stream()
                         .flatMap(List::stream)
                         .map(Transaction::getId)
                         .collect(Collectors.toList());
-        if (paymentIds.isEmpty()) {
+        if (movementIds.isEmpty()) {
             return Map.of();
         }
-        return transactionSplitRepository.findByTransactionIdIn(paymentIds).stream()
+        return transactionSplitRepository.findByTransactionIdIn(movementIds).stream()
                 .collect(Collectors.groupingBy(TransactionSplit::getTransactionId));
     }
 
     /**
-     * Principal leg of a stored payment: the total minus the sum of split amounts that carry a
-     * {@code categoryId}, floored at zero. Mirrors the Task 3 semantics of {@code
-     * TransactionService.extractPrincipalLegFromStored}.
+     * Principal leg of a stored repayment: the total minus the sum of split amounts that carry a
+     * {@code categoryId}, floored at zero. The arithmetic itself lives in {@link PrincipalLegs} —
+     * the single shared source.
      */
     private BigDecimal principalLeg(Transaction payment, List<TransactionSplit> splits) {
         BigDecimal categorized =
@@ -1051,7 +1064,7 @@ public class NetWorthService {
                         .filter(split -> split.getCategoryId() != null)
                         .map(TransactionSplit::getAmount)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return payment.getAmount().subtract(categorized).max(BigDecimal.ZERO);
+        return PrincipalLegs.of(payment.getAmount(), categorized);
     }
 
     /**

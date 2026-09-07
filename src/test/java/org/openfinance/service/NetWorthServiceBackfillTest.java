@@ -21,7 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.openfinance.entity.Account;
 import org.openfinance.entity.Liability;
+import org.openfinance.entity.MovementType;
 import org.openfinance.entity.NetWorth;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionSplit;
@@ -41,15 +43,14 @@ import org.openfinance.testutil.DefaultCurrencyProviderMocks;
 /**
  * Unit tests for the liability-reversal logic of {@link NetWorthService#backfillNetWorthHistory}.
  *
- * <p>Historical liability balances are reconstructed by reversing repayment payments made after
- * each target date. Since Task 6 a repayment can carry categorized splits (interest / insurance
- * legs); only the <em>principal leg</em> (total − categorized splits) reduced the outstanding
- * balance, so only that leg may be added back. Reversing the full payment total would inflate
- * historical debt.
+ * <p>Historical liability balances are reconstructed by reversing liability-linked movements made
+ * after each target date. REPAYMENT movements add back their <em>principal leg</em> (total −
+ * categorized splits — only that leg reduced the outstanding balance); DISBURSEMENT movements are
+ * subtracted in full (the drawdown was not yet in the balance at the target date).
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-@DisplayName("NetWorthService backfill — principal-only liability reversal")
+@DisplayName("NetWorthService backfill — disbursement-aware liability reversal")
 class NetWorthServiceBackfillTest {
 
     @Mock private NetWorthRepository netWorthRepository;
@@ -94,6 +95,25 @@ class NetWorthServiceBackfillTest {
         return liability;
     }
 
+    /**
+     * Overrides the empty-account default so zero-liability snapshots are still persisted (the
+     * backfill skips snapshots whose assets AND liabilities are both zero).
+     */
+    private void stubAccountWithBalance(BigDecimal balance) {
+        Account account =
+                Account.builder()
+                        .id(1L)
+                        .userId(USER_ID)
+                        .balance(balance)
+                        .currency("USD")
+                        .openingDate(LocalDate.of(2025, 1, 1))
+                        .build();
+        when(accountRepository.findByUserIdAndIsActive(USER_ID, true)).thenReturn(List.of(account));
+    }
+
+    /**
+     * Legacy repayment without an explicit movementType (pre-migration data) — still a repayment.
+     */
     private Transaction repayment(Long id, BigDecimal amount, LocalDate date) {
         return Transaction.builder()
                 .id(id)
@@ -107,6 +127,20 @@ class NetWorthServiceBackfillTest {
                 .build();
     }
 
+    private Transaction disbursement(Long id, BigDecimal amount, LocalDate date) {
+        return Transaction.builder()
+                .id(id)
+                .userId(USER_ID)
+                .accountId(1L)
+                .type(TransactionType.EXPENSE)
+                .amount(amount)
+                .currency("USD")
+                .date(date)
+                .liabilityId(10L)
+                .movementType(MovementType.DISBURSEMENT)
+                .build();
+    }
+
     private TransactionSplit split(long transactionId, Long categoryId, BigDecimal amount) {
         return TransactionSplit.builder()
                 .transactionId(transactionId)
@@ -116,9 +150,13 @@ class NetWorthServiceBackfillTest {
     }
 
     private List<NetWorth> runBackfill(List<Transaction> transactions) {
+        return runBackfill(transactions, mortgage());
+    }
+
+    private List<NetWorth> runBackfill(List<Transaction> transactions, Liability liability) {
         when(transactionRepository.findByUserId(USER_ID)).thenReturn(transactions);
         when(liabilityRepository.findByUserIdOrderByCreatedAtDesc(USER_ID))
-                .thenReturn(List.of(mortgage()));
+                .thenReturn(List.of(liability));
 
         netWorthService.backfillNetWorthHistory(
                 USER_ID, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 3, 10), "USD", false);
@@ -188,5 +226,77 @@ class NetWorthServiceBackfillTest {
         // 300 − 300 categorized = 0 principal leg → historical balance equals current balance.
         assertThat(snapshots.get(0).getTotalLiabilities()).isEqualByComparingTo("99200");
         assertThat(snapshots.get(1).getTotalLiabilities()).isEqualByComparingTo("99200");
+    }
+
+    @Test
+    @DisplayName("disbursement after target is subtracted in full (staged loan: 0 before drawdown)")
+    void backfillSubtractsPostTargetDisbursement() {
+        // Staged loan: balance was 0 at T0, then tranche T1 (50k) was drawn on 2026-02-15.
+        // A positive-balance account keeps zero-liability snapshots from being skipped, so the
+        // staged history (0 before the drawdown) stays observable.
+        stubAccountWithBalance(new BigDecimal("1000"));
+        Liability staged = mortgage();
+        staged.setCurrentBalance("50000");
+        when(transactionSplitRepository.findByTransactionIdIn(anyList())).thenReturn(List.of());
+
+        List<NetWorth> snapshots =
+                runBackfill(
+                        List.of(
+                                disbursement(
+                                        200L, new BigDecimal("50000"), LocalDate.of(2026, 2, 15))),
+                        staged);
+
+        assertThat(snapshots).hasSize(3);
+        // Before the drawdown the outstanding balance was 0 — NOT the current 50k.
+        assertThat(snapshots.get(0).getTotalLiabilities()).isEqualByComparingTo("0");
+        assertThat(snapshots.get(1).getTotalLiabilities()).isEqualByComparingTo("0");
+        // After the drawdown the balance is simply the current balance.
+        assertThat(snapshots.get(2).getTotalLiabilities()).isEqualByComparingTo("50000");
+    }
+
+    @Test
+    @DisplayName("disbursement and repayment both after target net out correctly")
+    void backfillNetsPostTargetDisbursementAndRepayment() {
+        // Drawdown 50k on 2026-02-15, then a plain repayment 1200 on 2026-02-20.
+        stubAccountWithBalance(new BigDecimal("1000"));
+        Liability staged = mortgage();
+        staged.setCurrentBalance("48800");
+        when(transactionSplitRepository.findByTransactionIdIn(anyList())).thenReturn(List.of());
+
+        List<NetWorth> snapshots =
+                runBackfill(
+                        List.of(
+                                disbursement(
+                                        200L, new BigDecimal("50000"), LocalDate.of(2026, 2, 15)),
+                                repayment(100L, new BigDecimal("1200"), LocalDate.of(2026, 2, 20))),
+                        staged);
+
+        assertThat(snapshots).hasSize(3);
+        // At T0: 48800 − 50000 drawdown + 1200 repayment principal = 0.
+        assertThat(snapshots.get(0).getTotalLiabilities()).isEqualByComparingTo("0");
+        assertThat(snapshots.get(1).getTotalLiabilities()).isEqualByComparingTo("0");
+        assertThat(snapshots.get(2).getTotalLiabilities()).isEqualByComparingTo("48800");
+    }
+
+    @Test
+    @DisplayName("disbursement before target is kept; only the later repayment is reversed")
+    void backfillKeepsPreTargetDisbursementAndReversesPostTargetRepayment() {
+        // Drawdown 100k on 2025-12-01 (before all targets), plain repayment 1200 on 2026-02-15.
+        when(transactionSplitRepository.findByTransactionIdIn(anyList())).thenReturn(List.of());
+
+        List<NetWorth> snapshots =
+                runBackfill(
+                        List.of(
+                                disbursement(
+                                        200L, new BigDecimal("100000"), LocalDate.of(2025, 12, 1)),
+                                repayment(
+                                        100L, new BigDecimal("1200"), LocalDate.of(2026, 2, 15))));
+
+        assertThat(snapshots).hasSize(3);
+        // The drawdown predates the targets → must stay in the balance; the repayment after the
+        // targets adds back its full principal.
+        assertThat(snapshots.get(0).getTotalLiabilities()).isEqualByComparingTo("100400");
+        assertThat(snapshots.get(1).getTotalLiabilities()).isEqualByComparingTo("100400");
+        assertThat(snapshots.get(2).getTotalLiabilities()).isEqualByComparingTo("99200");
     }
 }

@@ -38,6 +38,7 @@ import org.openfinance.repository.PayeeRepository;
 import org.openfinance.repository.TransactionRepository;
 import org.openfinance.repository.UserRepository;
 import org.openfinance.security.EncryptionService;
+import org.openfinance.util.PrincipalLegs;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.context.MessageSource;
@@ -2380,7 +2381,8 @@ public class TransactionService {
 
     /**
      * Computes the principal leg of a movement from request splits: the total minus the sum of
-     * split amounts that carry a categoryId, floored at zero.
+     * split amounts that carry a categoryId, floored at zero. The arithmetic itself lives in {@link
+     * PrincipalLegs} — the single shared source.
      */
     private BigDecimal extractPrincipalLeg(BigDecimal total, List<TransactionSplitRequest> splits) {
         BigDecimal categorized = BigDecimal.ZERO;
@@ -2391,7 +2393,7 @@ public class TransactionService {
                 }
             }
         }
-        return total.subtract(categorized).max(BigDecimal.ZERO);
+        return PrincipalLegs.of(total, categorized);
     }
 
     /** Stored-split variant of {@link #extractPrincipalLeg(BigDecimal, List)}. */
@@ -2405,7 +2407,7 @@ public class TransactionService {
                 }
             }
         }
-        return total.subtract(categorized).max(BigDecimal.ZERO);
+        return PrincipalLegs.of(total, categorized);
     }
 
     /**
