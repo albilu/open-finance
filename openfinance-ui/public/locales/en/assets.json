@@ -70,11 +70,11 @@
       "attachments": "Attachments",
       "gallery": "Gallery"
     },
-"gallery": {
+    "gallery": {
       "empty": "No images yet. Upload images in the Attachments tab.",
       "hint": "Manage images in the Attachments tab."
     },
-        "metrics": {
+    "metrics": {
       "currentValue": "Current Value",
       "costBasis": "Cost Basis",
       "gainLoss": "Gain/Loss"
@@ -174,5 +174,15 @@
     "FURNITURE": "Furniture",
     "REAL_ESTATE": "Real Estate",
     "OTHER": "Other"
+  },
+  "costs": {
+    "title": "Costs",
+    "capitalized": "Capitalized",
+    "maintenance": "Maintenance",
+    "empty": "No costs recorded yet.",
+    "movementTypes": {
+      "CAPITAL_IMPROVEMENT": "Capitalized",
+      "MAINTENANCE": "Maintenance"
+    }
   }
 }

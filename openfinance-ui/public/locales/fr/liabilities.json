@@ -174,5 +174,33 @@
     "annualInsuranceRate": "Taux d'assurance annuel ({{rate}}%)",
     "oneTimeFee": "Frais uniques",
     "institution": "Établissement"
+  },
+  "drawdowns": {
+    "tab": "Tirages",
+    "title": "Tirages planifiés",
+    "tranche": "Tranche",
+    "status": {
+      "PLANNED": "Planifiée",
+      "DRAWN": "Tirée",
+      "CANCELLED": "Annulée"
+    },
+    "planned": "Prévu",
+    "drawn": "Tiré",
+    "remaining": "Restant",
+    "linkedProperty": "Bien #{{id}}",
+    "interestOnly": "Intérêts seuls",
+    "empty": "Ce passif n’a aucune tranche de tirage planifiée pour le moment.",
+    "loading": "Chargement des tirages…",
+    "error": "Échec du chargement des tirages. Veuillez réessayer."
+  },
+  "movementTypes": {
+    "DISBURSEMENT": "Déblocage",
+    "REPAYMENT": "Remboursement",
+    "INTEREST": "Intérêts",
+    "INSURANCE": "Assurance",
+    "FEE": "Frais",
+    "CAPITAL_IMPROVEMENT": "Capitalisé",
+    "MAINTENANCE": "Entretien",
+    "REVALUATION": "Réévaluation"
   }
 }

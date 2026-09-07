@@ -1,13 +1,30 @@
 /**
  * AssetDetailModal Component
  * Task 5.4.4: Create AssetDetailModal component
- * 
+ *
  * Modal displaying detailed asset information with historical price chart
  */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, TrendingUp, TrendingDown, Edit, Trash2, Calendar, DollarSign, Hash } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  X,
+  TrendingUp,
+  TrendingDown,
+  Edit,
+  Trash2,
+  Calendar,
+  DollarSign,
+  Hash,
+} from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import type { Asset } from '@/types/asset';
 import { useHistoricalPrices } from '@/hooks/useMarketData';
 import { formatPercentage, getGainLossColor } from '@/utils/portfolio';
@@ -28,6 +45,7 @@ import { cn } from '@/lib/utils';
 import { AttachmentList, AttachmentUpload } from '@/components/attachments';
 import { AttachmentEntityType } from '@/types/attachment';
 import { AssetGallery } from './AssetGallery';
+import { AssetCostsSection } from './AssetCostsSection';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
 import { getAssetTypeName } from '@/hooks/useAssets';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -41,7 +59,11 @@ interface AssetDetailModalProps {
 
 export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDetailModalProps) {
   const { format: formatCurrency } = useFormatCurrency();
-  const { convert: convertChart, secondaryCurrency: secCurrencyChart, secondaryExchangeRate: secExRateChart } = useSecondaryConversion(
+  const {
+    convert: convertChart,
+    secondaryCurrency: secCurrencyChart,
+    secondaryExchangeRate: secExRateChart,
+  } = useSecondaryConversion(
     asset.isConverted && asset.baseCurrency ? asset.baseCurrency : asset.currency
   );
   const { t: tc } = useTranslation('common');
@@ -112,20 +134,22 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
   const chartCurrency = isConverted && asset.baseCurrency ? asset.baseCurrency : asset.currency;
 
   // Transform historical data for chart
-  const chartData = historicalData?.map(item => ({
-    date: new Date(item.date).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }),
-    price: isConverted && asset.exchangeRate ? multiply(item.close, asset.exchangeRate) : item.close,
-  })) || [];
+  const chartData =
+    historicalData?.map(item => ({
+      date: new Date(item.date).toLocaleDateString(i18n.language, {
+        month: 'short',
+        day: 'numeric',
+      }),
+      price:
+        isConverted && asset.exchangeRate ? multiply(item.close, asset.exchangeRate) : item.close,
+    })) || [];
 
   const hasHistoricalData = asset.symbol && historicalData && historicalData.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="relative bg-surface border border-border rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto m-4">
@@ -133,9 +157,7 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
         <div className="sticky top-0 z-10 bg-surface px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-foreground">{asset.name}</h2>
-            {asset.symbol && (
-              <p className="text-sm text-muted-foreground">{asset.symbol}</p>
-            )}
+            {asset.symbol && <p className="text-sm text-muted-foreground">{asset.symbol}</p>}
           </div>
           <button
             onClick={onClose}
@@ -197,7 +219,9 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                     <div className="bg-background border border-border rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">{t('detail.metrics.currentValue')}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {t('detail.metrics.currentValue')}
+                        </span>
                       </div>
                       <p className="text-2xl font-bold text-foreground">
                         {/* REQ-2.2: Display current value with base-currency conversion when available */}
@@ -213,11 +237,20 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                         />
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {asset.quantity} × <ConvertedAmount
-                          amount={isConverted && asset.exchangeRate ? multiply(asset.currentPrice, asset.exchangeRate) : asset.currentPrice}
+                        {asset.quantity} ×{' '}
+                        <ConvertedAmount
+                          amount={
+                            isConverted && asset.exchangeRate
+                              ? multiply(asset.currentPrice, asset.exchangeRate)
+                              : asset.currentPrice
+                          }
                           currency={chartCurrency}
                           isConverted={false}
-                          secondaryAmount={convertChart(isConverted && asset.exchangeRate ? multiply(asset.currentPrice, asset.exchangeRate) : asset.currentPrice)}
+                          secondaryAmount={convertChart(
+                            isConverted && asset.exchangeRate
+                              ? multiply(asset.currentPrice, asset.exchangeRate)
+                              : asset.currentPrice
+                          )}
                           secondaryCurrency={secCurrencyChart}
                           secondaryExchangeRate={secExRateChart}
                           inline
@@ -228,25 +261,40 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                     <div className="bg-background border border-border rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">{t('detail.metrics.costBasis')}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {t('detail.metrics.costBasis')}
+                        </span>
                       </div>
                       <p className="text-2xl font-bold text-foreground">
                         {/* Cost basis converted to base currency using same rate as totalValue */}
                         <ConvertedAmount
                           amount={asset.totalCost}
                           currency={asset.currency}
-                          convertedAmount={asset.isConverted && asset.exchangeRate ? multiply(asset.totalCost, asset.exchangeRate) : undefined}
+                          convertedAmount={
+                            asset.isConverted && asset.exchangeRate
+                              ? multiply(asset.totalCost, asset.exchangeRate)
+                              : undefined
+                          }
                           baseCurrency={asset.baseCurrency}
                           exchangeRate={asset.exchangeRate}
                           isConverted={asset.isConverted}
                         />
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {asset.quantity} × <ConvertedAmount
-                          amount={isConverted && asset.exchangeRate ? multiply(asset.purchasePrice, asset.exchangeRate) : asset.purchasePrice}
+                        {asset.quantity} ×{' '}
+                        <ConvertedAmount
+                          amount={
+                            isConverted && asset.exchangeRate
+                              ? multiply(asset.purchasePrice, asset.exchangeRate)
+                              : asset.purchasePrice
+                          }
                           currency={chartCurrency}
                           isConverted={false}
-                          secondaryAmount={convertChart(isConverted && asset.exchangeRate ? multiply(asset.purchasePrice, asset.exchangeRate) : asset.purchasePrice)}
+                          secondaryAmount={convertChart(
+                            isConverted && asset.exchangeRate
+                              ? multiply(asset.purchasePrice, asset.exchangeRate)
+                              : asset.purchasePrice
+                          )}
                           secondaryCurrency={secCurrencyChart}
                           secondaryExchangeRate={secExRateChart}
                           inline
@@ -261,14 +309,20 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                         ) : (
                           <TrendingDown className="h-4 w-4 text-red-600" />
                         )}
-                        <span className="text-sm text-muted-foreground">{t('detail.metrics.gainLoss')}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {t('detail.metrics.gainLoss')}
+                        </span>
                       </div>
                       <p className={`text-2xl font-bold ${getGainLossColor(asset.unrealizedGain)}`}>
                         {/* Gain/Loss converted to base currency using same rate */}
                         <ConvertedAmount
                           amount={asset.unrealizedGain}
                           currency={asset.currency}
-                          convertedAmount={asset.isConverted && asset.exchangeRate ? multiply(asset.unrealizedGain, asset.exchangeRate) : undefined}
+                          convertedAmount={
+                            asset.isConverted && asset.exchangeRate
+                              ? multiply(asset.unrealizedGain, asset.exchangeRate)
+                              : undefined
+                          }
                           baseCurrency={asset.baseCurrency}
                           exchangeRate={asset.exchangeRate}
                           isConverted={asset.isConverted}
@@ -284,16 +338,19 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                   {asset.symbol && (
                     <div className="bg-background border border-border rounded-lg p-6">
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-foreground">{t('detail.sections.priceHistory')}</h3>
+                        <h3 className="text-lg font-semibold text-foreground">
+                          {t('detail.sections.priceHistory')}
+                        </h3>
                         <div className="flex gap-2">
-                          {(['1M', '3M', '6M', '1Y'] as const).map((range) => (
+                          {(['1M', '3M', '6M', '1Y'] as const).map(range => (
                             <button
                               key={range}
                               onClick={() => setTimeRange(range)}
-                              className={`px-3 py-1 rounded text-sm transition-colors ${timeRange === range
-                                ? 'bg-primary text-background font-medium'
-                                : 'bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-elevated'
-                                }`}
+                              className={`px-3 py-1 rounded text-sm transition-colors ${
+                                timeRange === range
+                                  ? 'bg-primary text-background font-medium'
+                                  : 'bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-elevated'
+                              }`}
                             >
                               {range}
                             </button>
@@ -301,9 +358,7 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                         </div>
                       </div>
 
-                      {isLoadingHistory && (
-                        <LoadingSkeleton className="h-64" />
-                      )}
+                      {isLoadingHistory && <LoadingSkeleton className="h-64" />}
 
                       {!isLoadingHistory && hasHistoricalData && (
                         <ResponsiveContainer width="100%" height={300} minWidth={0}>
@@ -317,7 +372,9 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                             <YAxis
                               stroke="#888"
                               tick={{ fill: '#888', fontSize: 12 }}
-                              tickFormatter={(value) => `${getCurrencySymbol(chartCurrency)}${value.toFixed(0)}`}
+                              tickFormatter={value =>
+                                `${getCurrencySymbol(chartCurrency)}${value.toFixed(0)}`
+                              }
                             />
                             <Tooltip
                               contentStyle={{
@@ -326,7 +383,10 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                                 borderRadius: '8px',
                                 color: '#fff',
                               }}
-                              formatter={(value: number | undefined) => [value != null ? formatCurrency(value, chartCurrency) : 'N/A', 'Price']}
+                              formatter={(value: number | undefined) => [
+                                value != null ? formatCurrency(value, chartCurrency) : 'N/A',
+                                'Price',
+                              ]}
                             />
                             <Line
                               type="monotone"
@@ -354,20 +414,26 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
 
                   {/* Asset Details */}
                   <div className="bg-background border border-border rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-foreground mb-4">{t('detail.sections.assetDetails')}</h3>
+                    <h3 className="text-lg font-semibold text-foreground mb-4">
+                      {t('detail.sections.assetDetails')}
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="flex items-start gap-3">
                         <Hash className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="text-sm text-muted-foreground">{t('detail.fields.type')}</p>
-                          <p className="text-sm font-medium text-foreground">{getAssetTypeName(asset.type)}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {getAssetTypeName(asset.type)}
+                          </p>
                         </div>
                       </div>
 
                       <div className="flex items-start gap-3">
                         <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
-                          <p className="text-sm text-muted-foreground">{t('detail.fields.purchaseDate')}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {t('detail.fields.purchaseDate')}
+                          </p>
                           <p className="text-sm font-medium text-foreground">
                             {new Date(asset.purchaseDate).toLocaleDateString(i18n.language, {
                               month: 'long',
@@ -375,7 +441,9 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                               year: 'numeric',
                             })}
                           </p>
-                          <p className="text-xs text-muted-foreground">{t('detail.fields.daysHeld', { count: asset.holdingDays })}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t('detail.fields.daysHeld', { count: asset.holdingDays })}
+                          </p>
                         </div>
                       </div>
 
@@ -383,8 +451,12 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                         <div className="flex items-start gap-3">
                           <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
                           <div>
-                            <p className="text-sm text-muted-foreground">{t('detail.fields.account')}</p>
-                            <p className="text-sm font-medium text-foreground">{asset.accountName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {t('detail.fields.account')}
+                            </p>
+                            <p className="text-sm font-medium text-foreground">
+                              {asset.accountName}
+                            </p>
                           </div>
                         </div>
                       )}
@@ -392,7 +464,9 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
                       <div className="flex items-start gap-3">
                         <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
-                          <p className="text-sm text-muted-foreground">{t('detail.fields.lastUpdated')}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {t('detail.fields.lastUpdated')}
+                          </p>
                           <LastUpdatedIndicator lastUpdated={asset.lastUpdated} size="sm" />
                         </div>
                       </div>
@@ -400,11 +474,16 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
 
                     {asset.notes && (
                       <div className="mt-4 pt-4 border-t border-border">
-                        <p className="text-sm text-muted-foreground mb-2">{t('detail.fields.notes')}</p>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {t('detail.fields.notes')}
+                        </p>
                         <p className="text-sm text-foreground">{asset.notes}</p>
                       </div>
                     )}
                   </div>
+
+                  {/* Asset Costs (Task 8): capitalized improvements vs maintenance */}
+                  <AssetCostsSection asset={asset} />
                 </>
               )}
 
@@ -414,14 +493,8 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
               {/* Attachments Tab */}
               {activeTab === 'attachments' && (
                 <div className="space-y-4">
-                  <AttachmentList
-                    entityType={AttachmentEntityType.ASSET}
-                    entityId={asset.id}
-                  />
-                  <AttachmentUpload
-                    entityType={AttachmentEntityType.ASSET}
-                    entityId={asset.id}
-                  />
+                  <AttachmentList entityType={AttachmentEntityType.ASSET} entityId={asset.id} />
+                  <AttachmentUpload entityType={AttachmentEntityType.ASSET} entityId={asset.id} />
                 </div>
               )}
             </div>

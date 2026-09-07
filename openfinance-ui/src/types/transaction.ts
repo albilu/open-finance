@@ -2,10 +2,21 @@
  * Transaction-related types
  */
 
-export type TransactionType =
-  | 'INCOME'
-  | 'EXPENSE'
-  | 'TRANSFER';
+export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER';
+
+/**
+ * Classification of a financial movement linked to a liability, asset or
+ * real estate property (mirrors the backend MovementType enum).
+ */
+export type MovementType =
+  | 'DISBURSEMENT'
+  | 'REPAYMENT'
+  | 'INTEREST'
+  | 'INSURANCE'
+  | 'FEE'
+  | 'CAPITAL_IMPROVEMENT'
+  | 'MAINTENANCE'
+  | 'REVALUATION';
 
 /**
  * Payment method used for a transaction
@@ -103,6 +114,14 @@ export interface Transaction {
   updatedAt?: string;
   // Requirement 3.1: Optional link to a liability for loan payment tracking
   liabilityId?: number;
+  // Classification of the financial movement (disbursement, repayment, costs…)
+  movementType?: MovementType;
+  // Optional ID of the liability tranche this movement is allocated to
+  trancheId?: number;
+  // Optional ID of the real estate property this movement is linked to
+  realEstateId?: number;
+  // Optional ID of the asset this movement is linked to
+  assetId?: number;
   // Original (pre-conversion) values — set only when the transaction was entered in a currency
   // different from its account currency. Used by the edit form to restore what the user typed.
   /** Pre-conversion amount in originalCurrency (e.g. 100) */
@@ -204,4 +223,10 @@ export interface TransactionFilters {
   page?: number;
   size?: number;
   sort?: string; // e.g., "date,desc" or "amount,asc"
+  /** Only transactions linked to this real estate property */
+  realEstateId?: number;
+  /** Only transactions linked to this asset */
+  assetId?: number;
+  /** Only transactions linked to this liability (repayments, disbursements…) */
+  liabilityId?: number;
 }

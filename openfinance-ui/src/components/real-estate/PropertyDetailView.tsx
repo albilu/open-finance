@@ -1,7 +1,7 @@
 /**
  * PropertyDetailView Component
  * Task 9.1.11: Create PropertyDetailView component
- * 
+ *
  * Detailed view of a property with tabs for Overview, Equity, and ROI analysis
  */
 import { useState } from 'react';
@@ -10,13 +10,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingSkeleton } from '@/components/LoadingComponents';
-import { Home, Building2, Mountain, Building, Factory, MapPin, TrendingUp, DollarSign, Calendar, MapPinIcon } from 'lucide-react';
+import {
+  Home,
+  Building2,
+  Mountain,
+  Building,
+  Factory,
+  MapPin,
+  TrendingUp,
+  DollarSign,
+  Calendar,
+  MapPinIcon,
+} from 'lucide-react';
 import { useProperty, usePropertyEquity, usePropertyROI } from '@/hooks/useRealEstate';
 import { PrivateAmount } from '@/components/ui/PrivateAmount';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
-import { PropertyType, getPropertyTypeName, getPropertyTypeBadgeColor, formatAppreciation, calculatePropertyAge } from '@/types/realEstate';
+import {
+  PropertyType,
+  getPropertyTypeName,
+  getPropertyTypeBadgeColor,
+  formatAppreciation,
+  calculatePropertyAge,
+} from '@/types/realEstate';
 import { AttachmentList, AttachmentUpload } from '@/components/attachments';
 import { PropertyGallery } from './PropertyGallery';
+import { PropertyMovementsSection } from './PropertyMovementsSection';
 import { AttachmentEntityType } from '@/types/attachment';
 import { multiply } from '@/utils/money';
 import { cn } from '@/lib/utils';
@@ -45,7 +63,11 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
   const { t } = useTranslation('realEstate');
   const [activeTab, setActiveTab] = useState<TabType>('overview');
 
-  const { data: property, isLoading: loadingProperty, error: propertyError } = useProperty(propertyId);
+  const {
+    data: property,
+    isLoading: loadingProperty,
+    error: propertyError,
+  } = useProperty(propertyId);
   const { data: equity, isLoading: loadingEquity } = usePropertyEquity(propertyId);
   const { data: roi, isLoading: loadingROI } = usePropertyROI(propertyId);
 
@@ -59,7 +81,9 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
           <div className="p-4 bg-error/10 border border-error/20 rounded-lg text-error">
             {t('propertyDetail.loadError')}
           </div>
-          <Button variant="ghost" onClick={onClose}>{t('propertyDetail.close')}</Button>
+          <Button variant="ghost" onClick={onClose}>
+            {t('propertyDetail.close')}
+          </Button>
         </DialogContent>
       </Dialog>
     );
@@ -89,10 +113,12 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                     <div className="flex-1 min-w-0">
                       <DialogTitle className="text-2xl mb-2">{property.name}</DialogTitle>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className={cn(
-                          'inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border',
-                          getPropertyTypeBadgeColor(property.propertyType)
-                        )}>
+                        <div
+                          className={cn(
+                            'inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border',
+                            getPropertyTypeBadgeColor(property.propertyType)
+                          )}
+                        >
                           {getPropertyTypeName(property.propertyType)}
                         </div>
                         {!property.isActive && (
@@ -103,7 +129,6 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                       </div>
                     </div>
                   </div>
-
                 </div>
               </DialogHeader>
 
@@ -181,18 +206,18 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                           <p className="text-sm text-text-secondary">{t('form.currentValue')}</p>
                         </div>
                         <p className="text-2xl font-bold text-text-primary">
-                           {/* REQ-2.4: Show converted base-currency value when available */}
-                           <ConvertedAmount
-                             amount={property.currentValue}
-                             currency={property.currency}
-                             convertedAmount={property.valueInBaseCurrency}
-                             baseCurrency={property.baseCurrency}
-                             exchangeRate={property.exchangeRate}
-                             isConverted={property.isConverted}
-                             secondaryAmount={property.valueInSecondaryCurrency}
-                             secondaryCurrency={property.secondaryCurrency}
-                           />
-                         </p>
+                          {/* REQ-2.4: Show converted base-currency value when available */}
+                          <ConvertedAmount
+                            amount={property.currentValue}
+                            currency={property.currency}
+                            convertedAmount={property.valueInBaseCurrency}
+                            baseCurrency={property.baseCurrency}
+                            exchangeRate={property.exchangeRate}
+                            isConverted={property.isConverted}
+                            secondaryAmount={property.valueInSecondaryCurrency}
+                            secondaryCurrency={property.secondaryCurrency}
+                          />
+                        </p>
                       </Card>
 
                       <Card className="p-4">
@@ -200,39 +225,62 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                           <TrendingUp className="h-4 w-4 text-text-secondary" />
                           <p className="text-sm text-text-secondary">{t('card.appreciation')}</p>
                         </div>
-                        {property.appreciation !== undefined && property.appreciationPercentage !== undefined ? (
-                          <p className={cn('text-2xl font-bold', formatAppreciation(property.appreciation, property.appreciationPercentage, property.currency).color)}>
+                        {property.appreciation !== undefined &&
+                        property.appreciationPercentage !== undefined ? (
+                          <p
+                            className={cn(
+                              'text-2xl font-bold',
+                              formatAppreciation(
+                                property.appreciation,
+                                property.appreciationPercentage,
+                                property.currency
+                              ).color
+                            )}
+                          >
                             {property.appreciation >= 0 ? '+' : '-'}
                             <ConvertedAmount
                               amount={Math.abs(property.appreciation)}
                               currency={property.currency}
-                              convertedAmount={property.exchangeRate != null ? multiply(Math.abs(property.appreciation), property.exchangeRate) : undefined}
+                              convertedAmount={
+                                property.exchangeRate != null
+                                  ? multiply(Math.abs(property.appreciation), property.exchangeRate)
+                                  : undefined
+                              }
                               baseCurrency={property.baseCurrency}
                               exchangeRate={property.exchangeRate}
                               isConverted={property.isConverted}
                               inline
-                            />
-                            {' '}({property.appreciation >= 0 ? '+' : ''}{property.appreciationPercentage.toFixed(2)}%)
+                            />{' '}
+                            ({property.appreciation >= 0 ? '+' : ''}
+                            {property.appreciationPercentage.toFixed(2)}%)
                           </p>
                         ) : (
-                          <p className="text-2xl font-bold text-text-muted">{t('propertyDetail.na')}</p>
+                          <p className="text-2xl font-bold text-text-muted">
+                            {t('propertyDetail.na')}
+                          </p>
                         )}
                       </Card>
 
                       <Card className="p-4">
                         <div className="flex items-center gap-2 mb-1">
                           <Calendar className="h-4 w-4 text-text-secondary" />
-                          <p className="text-sm text-text-secondary">{t('propertyDetail.propertyAgeLabel')}</p>
+                          <p className="text-sm text-text-secondary">
+                            {t('propertyDetail.propertyAgeLabel')}
+                          </p>
                         </div>
                         <p className="text-2xl font-bold text-text-primary">
-                          {t('propertyDetail.propertyAge', { years: calculatePropertyAge(property.purchaseDate) })}
+                          {t('propertyDetail.propertyAge', {
+                            years: calculatePropertyAge(property.purchaseDate),
+                          })}
                         </p>
                       </Card>
                     </div>
 
                     {/* Property Details */}
                     <Card className="p-6">
-                      <h3 className="text-lg font-semibold text-text-primary mb-4">{t('propertyDetail.title')}</h3>
+                      <h3 className="text-lg font-semibold text-text-primary mb-4">
+                        {t('propertyDetail.title')}
+                      </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <p className="text-sm text-text-secondary mb-1">{t('form.address')}</p>
@@ -240,29 +288,37 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                         </div>
 
                         <div>
-                          <p className="text-sm text-text-secondary mb-1">{t('form.purchaseDate')}</p>
+                          <p className="text-sm text-text-secondary mb-1">
+                            {t('form.purchaseDate')}
+                          </p>
                           <p className="text-text-primary">
                             {new Date(property.purchaseDate).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'long',
-                              day: 'numeric'
+                              day: 'numeric',
                             })}
                           </p>
                         </div>
 
-                         <div>
-                            <p className="text-sm text-text-secondary mb-1">{t('form.purchasePrice')}</p>
-                           <p className="text-text-primary">
-                             <ConvertedAmount
-                               amount={property.purchasePrice}
-                               currency={property.currency}
-                               convertedAmount={property.exchangeRate != null ? multiply(property.purchasePrice, property.exchangeRate) : undefined}
-                               baseCurrency={property.baseCurrency}
-                               exchangeRate={property.exchangeRate}
-                               isConverted={property.isConverted}
-                             />
-                           </p>
-                         </div>
+                        <div>
+                          <p className="text-sm text-text-secondary mb-1">
+                            {t('form.purchasePrice')}
+                          </p>
+                          <p className="text-text-primary">
+                            <ConvertedAmount
+                              amount={property.purchasePrice}
+                              currency={property.currency}
+                              convertedAmount={
+                                property.exchangeRate != null
+                                  ? multiply(property.purchasePrice, property.exchangeRate)
+                                  : undefined
+                              }
+                              baseCurrency={property.baseCurrency}
+                              exchangeRate={property.exchangeRate}
+                              isConverted={property.isConverted}
+                            />
+                          </p>
+                        </div>
 
                         <div>
                           <p className="text-sm text-text-secondary mb-1">{t('form.currency')}</p>
@@ -271,27 +327,36 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
 
                         {property.mortgageName && (
                           <div>
-                            <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.linkedMortgage')}</p>
+                            <p className="text-sm text-text-secondary mb-1">
+                              {t('propertyDetail.linkedMortgage')}
+                            </p>
                             <p className="text-text-primary">{property.mortgageName}</p>
                           </div>
                         )}
 
-                         {property.rentalIncome && property.rentalIncome > 0 && (
-                           <div>
-                              <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.monthlyRentalIncome')}</p>
-                             <p className="text-primary font-medium">
-                               <ConvertedAmount
-                                 amount={property.rentalIncome}
-                                 currency={property.currency}
-                                 convertedAmount={property.exchangeRate != null ? multiply(property.rentalIncome, property.exchangeRate) : undefined}
-                                 baseCurrency={property.baseCurrency}
-                                 exchangeRate={property.exchangeRate}
-                                 isConverted={property.isConverted}
-                                 inline
-                               />/mo
-                             </p>
-                           </div>
-                         )}
+                        {property.rentalIncome && property.rentalIncome > 0 && (
+                          <div>
+                            <p className="text-sm text-text-secondary mb-1">
+                              {t('propertyDetail.monthlyRentalIncome')}
+                            </p>
+                            <p className="text-primary font-medium">
+                              <ConvertedAmount
+                                amount={property.rentalIncome}
+                                currency={property.currency}
+                                convertedAmount={
+                                  property.exchangeRate != null
+                                    ? multiply(property.rentalIncome, property.exchangeRate)
+                                    : undefined
+                                }
+                                baseCurrency={property.baseCurrency}
+                                exchangeRate={property.exchangeRate}
+                                isConverted={property.isConverted}
+                                inline
+                              />
+                              /mo
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </Card>
 
@@ -305,14 +370,22 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {property.latitude && (
                             <div>
-                              <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.latitude')}</p>
-                              <p className="text-text-primary font-mono">{property.latitude.toFixed(6)}</p>
+                              <p className="text-sm text-text-secondary mb-1">
+                                {t('propertyDetail.latitude')}
+                              </p>
+                              <p className="text-text-primary font-mono">
+                                {property.latitude.toFixed(6)}
+                              </p>
                             </div>
                           )}
                           {property.longitude && (
                             <div>
-                              <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.longitude')}</p>
-                              <p className="text-text-primary font-mono">{property.longitude.toFixed(6)}</p>
+                              <p className="text-sm text-text-secondary mb-1">
+                                {t('propertyDetail.longitude')}
+                              </p>
+                              <p className="text-text-primary font-mono">
+                                {property.longitude.toFixed(6)}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -325,10 +398,15 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                     {/* Notes */}
                     {property.notes && (
                       <Card className="p-6">
-                        <h3 className="text-lg font-semibold text-text-primary mb-3">{t('propertyDetail.notes')}</h3>
+                        <h3 className="text-lg font-semibold text-text-primary mb-3">
+                          {t('propertyDetail.notes')}
+                        </h3>
                         <p className="text-text-secondary whitespace-pre-wrap">{property.notes}</p>
                       </Card>
                     )}
+
+                    {/* Costs + Loan movements (Task 8) */}
+                    <PropertyMovementsSection property={property} />
                   </div>
                 )}
 
@@ -339,85 +417,116 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                       <LoadingSkeleton className="h-64" />
                     ) : equity ? (
                       <>
-                         {/* Equity Summary Card */}
-                         <Card className="p-6 bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
-                            <h3 className="text-xl font-semibold text-text-primary mb-4">{t('propertyDetail.propertyEquity')}</h3>
-                            <p className="text-4xl font-bold text-green-400 mb-2">
-                             <ConvertedAmount
-                               amount={equity.equity}
-                               currency={equity.currency}
-                               convertedAmount={property.exchangeRate != null ? multiply(equity.equity, property.exchangeRate) : undefined}
-                               baseCurrency={property.baseCurrency}
-                               exchangeRate={property.exchangeRate}
-                               isConverted={property.isConverted}
-                             />
-                           </p>
-                            <p className="text-text-secondary">
-                              {t('propertyDetail.percentOfValue', { percentage: equity.equityPercentage.toFixed(2) })}
-                            </p>
-                         </Card>
+                        {/* Equity Summary Card */}
+                        <Card className="p-6 bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+                          <h3 className="text-xl font-semibold text-text-primary mb-4">
+                            {t('propertyDetail.propertyEquity')}
+                          </h3>
+                          <p className="text-4xl font-bold text-green-400 mb-2">
+                            <ConvertedAmount
+                              amount={equity.equity}
+                              currency={equity.currency}
+                              convertedAmount={
+                                property.exchangeRate != null
+                                  ? multiply(equity.equity, property.exchangeRate)
+                                  : undefined
+                              }
+                              baseCurrency={property.baseCurrency}
+                              exchangeRate={property.exchangeRate}
+                              isConverted={property.isConverted}
+                            />
+                          </p>
+                          <p className="text-text-secondary">
+                            {t('propertyDetail.percentOfValue', {
+                              percentage: equity.equityPercentage.toFixed(2),
+                            })}
+                          </p>
+                        </Card>
 
                         {/* Equity Calculation */}
                         <Card className="p-6">
-                           <h3 className="text-lg font-semibold text-text-primary mb-4">{t('propertyDetail.equityCalculation')}</h3>
+                          <h3 className="text-lg font-semibold text-text-primary mb-4">
+                            {t('propertyDetail.equityCalculation')}
+                          </h3>
 
                           <div className="space-y-4">
-                             {/* Current Value */}
-                             <div className="flex justify-between items-center text-lg">
-                                <span className="text-text-secondary">{t('form.currentValue')}</span>
-                                <span className="text-text-primary font-semibold">
-                                 <ConvertedAmount
-                                   amount={equity.currentValue}
-                                   currency={equity.currency}
-                                   convertedAmount={property.exchangeRate != null ? multiply(equity.currentValue, property.exchangeRate) : undefined}
-                                   baseCurrency={property.baseCurrency}
-                                   exchangeRate={property.exchangeRate}
-                                   isConverted={property.isConverted}
-                                 />
-                               </span>
-                             </div>
+                            {/* Current Value */}
+                            <div className="flex justify-between items-center text-lg">
+                              <span className="text-text-secondary">{t('form.currentValue')}</span>
+                              <span className="text-text-primary font-semibold">
+                                <ConvertedAmount
+                                  amount={equity.currentValue}
+                                  currency={equity.currency}
+                                  convertedAmount={
+                                    property.exchangeRate != null
+                                      ? multiply(equity.currentValue, property.exchangeRate)
+                                      : undefined
+                                  }
+                                  baseCurrency={property.baseCurrency}
+                                  exchangeRate={property.exchangeRate}
+                                  isConverted={property.isConverted}
+                                />
+                              </span>
+                            </div>
 
-                             {/* Mortgage Balance */}
-                             {equity.hasMortgage && (
-                               <>
-                                 <div className="flex justify-between items-center text-lg">
-                                    <span className="text-text-secondary">{t('propertyDetail.mortgageBalance')}</span>
-                                   <span className="text-error font-semibold">
-                                     - <ConvertedAmount
-                                       amount={equity.mortgageBalance}
-                                       currency={equity.currency}
-                                       convertedAmount={property.exchangeRate != null ? multiply(equity.mortgageBalance, property.exchangeRate) : undefined}
-                                       baseCurrency={property.baseCurrency}
-                                       exchangeRate={property.exchangeRate}
-                                       isConverted={property.isConverted}
-                                       inline
-                                     />
-                                   </span>
-                                 </div>
+                            {/* Mortgage Balance */}
+                            {equity.hasMortgage && (
+                              <>
+                                <div className="flex justify-between items-center text-lg">
+                                  <span className="text-text-secondary">
+                                    {t('propertyDetail.mortgageBalance')}
+                                  </span>
+                                  <span className="text-error font-semibold">
+                                    -{' '}
+                                    <ConvertedAmount
+                                      amount={equity.mortgageBalance}
+                                      currency={equity.currency}
+                                      convertedAmount={
+                                        property.exchangeRate != null
+                                          ? multiply(equity.mortgageBalance, property.exchangeRate)
+                                          : undefined
+                                      }
+                                      baseCurrency={property.baseCurrency}
+                                      exchangeRate={property.exchangeRate}
+                                      isConverted={property.isConverted}
+                                      inline
+                                    />
+                                  </span>
+                                </div>
 
-                                 <div className="border-t border-border pt-4">
-                                   <div className="flex justify-between items-center text-xl">
-                                      <span className="text-text-primary font-semibold">{t('propertyDetail.totalEquity')}</span>
-                                     <span className="text-green-400 font-bold">
-                                       <ConvertedAmount
-                                         amount={equity.equity}
-                                         currency={equity.currency}
-                                         convertedAmount={property.exchangeRate != null ? multiply(equity.equity, property.exchangeRate) : undefined}
-                                         baseCurrency={property.baseCurrency}
-                                         exchangeRate={property.exchangeRate}
-                                         isConverted={property.isConverted}
-                                       />
-                                     </span>
-                                   </div>
-                                 </div>
-                               </>
-                             )}
+                                <div className="border-t border-border pt-4">
+                                  <div className="flex justify-between items-center text-xl">
+                                    <span className="text-text-primary font-semibold">
+                                      {t('propertyDetail.totalEquity')}
+                                    </span>
+                                    <span className="text-green-400 font-bold">
+                                      <ConvertedAmount
+                                        amount={equity.equity}
+                                        currency={equity.currency}
+                                        convertedAmount={
+                                          property.exchangeRate != null
+                                            ? multiply(equity.equity, property.exchangeRate)
+                                            : undefined
+                                        }
+                                        baseCurrency={property.baseCurrency}
+                                        exchangeRate={property.exchangeRate}
+                                        isConverted={property.isConverted}
+                                      />
+                                    </span>
+                                  </div>
+                                </div>
+                              </>
+                            )}
 
                             {/* Visual Bar */}
                             <div className="mt-6">
                               <div className="flex justify-between text-sm text-text-secondary mb-2">
-                                 <span>{t('propertyDetail.equityVsDebt')}</span>
-                                 <span>{t('propertyDetail.equityPercent', { percentage: equity.equityPercentage.toFixed(1) })}</span>
+                                <span>{t('propertyDetail.equityVsDebt')}</span>
+                                <span>
+                                  {t('propertyDetail.equityPercent', {
+                                    percentage: equity.equityPercentage.toFixed(1),
+                                  })}
+                                </span>
                               </div>
                               <div className="h-4 bg-surface rounded-full overflow-hidden">
                                 <div
@@ -444,8 +553,6 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                             </p>
                           )}
                         </Card>
-
-
                       </>
                     ) : (
                       <div className="p-4 bg-error/10 border border-error/20 rounded-lg text-error">
@@ -462,134 +569,194 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                       <LoadingSkeleton className="h-64" />
                     ) : roi ? (
                       <>
-                         {/* Overall ROI Summary */}
-                         <Card className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-                            <h3 className="text-xl font-semibold text-text-primary mb-4">{t('propertyDetail.totalROI')}</h3>
-                            <p className="text-4xl font-bold text-primary mb-2">
-                              <PrivateAmount>{roi.totalROI != null ? `${roi.totalROI.toFixed(2)}%` : t('propertyDetail.na')}</PrivateAmount>
-                           </p>
-                            <p className="text-text-secondary">
-                              {t('propertyDetail.annualizedReturn', { value: roi.annualizedReturn != null ? roi.annualizedReturn.toFixed(2) : t('propertyDetail.na') })}
+                        {/* Overall ROI Summary */}
+                        <Card className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+                          <h3 className="text-xl font-semibold text-text-primary mb-4">
+                            {t('propertyDetail.totalROI')}
+                          </h3>
+                          <p className="text-4xl font-bold text-primary mb-2">
+                            <PrivateAmount>
+                              {roi.totalROI != null
+                                ? `${roi.totalROI.toFixed(2)}%`
+                                : t('propertyDetail.na')}
+                            </PrivateAmount>
+                          </p>
+                          <p className="text-text-secondary">
+                            {t('propertyDetail.annualizedReturn', {
+                              value:
+                                roi.annualizedReturn != null
+                                  ? roi.annualizedReturn.toFixed(2)
+                                  : t('propertyDetail.na'),
+                            })}
+                          </p>
+                          {roi.yearsOwned != null && (
+                            <p className="text-sm text-text-tertiary mt-2">
+                              {t('propertyDetail.holdingPeriod', { years: roi.yearsOwned })}
                             </p>
-                           {roi.yearsOwned != null && (
-                              <p className="text-sm text-text-tertiary mt-2">
-                                {t('propertyDetail.holdingPeriod', { years: roi.yearsOwned })}
-                             </p>
-                           )}
-                         </Card>
+                          )}
+                        </Card>
 
-                         {/* Appreciation Section */}
-                         <Card className="p-6">
-                            <h3 className="text-lg font-semibold text-text-primary mb-4">{t('card.appreciation')}</h3>
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div>
-                               <p className="text-sm text-text-secondary mb-1">{t('form.purchasePrice')}</p>
-                               <p className="text-text-primary font-medium">
-                                 <ConvertedAmount
-                                   amount={roi.purchasePrice}
-                                   currency={roi.currency}
-                                   convertedAmount={property.exchangeRate != null ? multiply(roi.purchasePrice, property.exchangeRate) : undefined}
-                                   baseCurrency={property.baseCurrency}
-                                   exchangeRate={property.exchangeRate}
-                                   isConverted={property.isConverted}
-                                 />
-                               </p>
-                             </div>
+                        {/* Appreciation Section */}
+                        <Card className="p-6">
+                          <h3 className="text-lg font-semibold text-text-primary mb-4">
+                            {t('card.appreciation')}
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-text-secondary mb-1">
+                                {t('form.purchasePrice')}
+                              </p>
+                              <p className="text-text-primary font-medium">
+                                <ConvertedAmount
+                                  amount={roi.purchasePrice}
+                                  currency={roi.currency}
+                                  convertedAmount={
+                                    property.exchangeRate != null
+                                      ? multiply(roi.purchasePrice, property.exchangeRate)
+                                      : undefined
+                                  }
+                                  baseCurrency={property.baseCurrency}
+                                  exchangeRate={property.exchangeRate}
+                                  isConverted={property.isConverted}
+                                />
+                              </p>
+                            </div>
 
-                             <div>
-                                <p className="text-sm text-text-secondary mb-1">{t('form.currentValue')}</p>
-                                <p className="text-text-primary font-medium">
-                                 <ConvertedAmount
-                                   amount={roi.currentValue}
-                                   currency={roi.currency}
-                                   convertedAmount={property.exchangeRate != null ? multiply(roi.currentValue, property.exchangeRate) : undefined}
-                                   baseCurrency={property.baseCurrency}
-                                   exchangeRate={property.exchangeRate}
-                                   isConverted={property.isConverted}
-                                 />
-                               </p>
-                             </div>
+                            <div>
+                              <p className="text-sm text-text-secondary mb-1">
+                                {t('form.currentValue')}
+                              </p>
+                              <p className="text-text-primary font-medium">
+                                <ConvertedAmount
+                                  amount={roi.currentValue}
+                                  currency={roi.currency}
+                                  convertedAmount={
+                                    property.exchangeRate != null
+                                      ? multiply(roi.currentValue, property.exchangeRate)
+                                      : undefined
+                                  }
+                                  baseCurrency={property.baseCurrency}
+                                  exchangeRate={property.exchangeRate}
+                                  isConverted={property.isConverted}
+                                />
+                              </p>
+                            </div>
 
-                             <div>
-                                <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.totalAppreciation')}</p>
-                               <p className={cn(
-                                 'font-bold text-lg',
-                                 roi.appreciation >= 0 ? 'text-green-400' : 'text-red-400'
-                               )}>
-                                 {roi.appreciation >= 0 ? '+' : '-'}
-                                 <ConvertedAmount
-                                   amount={Math.abs(roi.appreciation)}
-                                   currency={roi.currency}
-                                   convertedAmount={property.exchangeRate != null ? multiply(Math.abs(roi.appreciation), property.exchangeRate) : undefined}
-                                   baseCurrency={property.baseCurrency}
-                                   exchangeRate={property.exchangeRate}
-                                   isConverted={property.isConverted}
-                                   inline
-                                  /> ({roi.appreciationPercentage != null ? roi.appreciationPercentage.toFixed(2) : t('propertyDetail.na')}%)
-                               </p>
-                             </div>
+                            <div>
+                              <p className="text-sm text-text-secondary mb-1">
+                                {t('propertyDetail.totalAppreciation')}
+                              </p>
+                              <p
+                                className={cn(
+                                  'font-bold text-lg',
+                                  roi.appreciation >= 0 ? 'text-green-400' : 'text-red-400'
+                                )}
+                              >
+                                {roi.appreciation >= 0 ? '+' : '-'}
+                                <ConvertedAmount
+                                  amount={Math.abs(roi.appreciation)}
+                                  currency={roi.currency}
+                                  convertedAmount={
+                                    property.exchangeRate != null
+                                      ? multiply(Math.abs(roi.appreciation), property.exchangeRate)
+                                      : undefined
+                                  }
+                                  baseCurrency={property.baseCurrency}
+                                  exchangeRate={property.exchangeRate}
+                                  isConverted={property.isConverted}
+                                  inline
+                                />{' '}
+                                (
+                                {roi.appreciationPercentage != null
+                                  ? roi.appreciationPercentage.toFixed(2)
+                                  : t('propertyDetail.na')}
+                                %)
+                              </p>
+                            </div>
 
-                             <div>
-                                <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.annualizedReturnLabel')}</p>
+                            <div>
+                              <p className="text-sm text-text-secondary mb-1">
+                                {t('propertyDetail.annualizedReturnLabel')}
+                              </p>
+                              <p className="text-primary font-bold text-lg">
+                                {roi.annualizedReturn != null
+                                  ? roi.annualizedReturn.toFixed(2)
+                                  : t('propertyDetail.na')}
+                                %
+                              </p>
+                            </div>
+                          </div>
+                        </Card>
+
+                        {/* Rental Income Section */}
+                        {roi.isRentalProperty && roi.monthlyRentalIncome != null && (
+                          <Card className="p-6">
+                            <h3 className="text-lg font-semibold text-text-primary mb-4">
+                              {t('propertyDetail.rentalIncome')}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-sm text-text-secondary mb-1">
+                                  {t('propertyDetail.monthlyRentalIncome')}
+                                </p>
                                 <p className="text-primary font-bold text-lg">
-                                  {roi.annualizedReturn != null ? roi.annualizedReturn.toFixed(2) : t('propertyDetail.na')}%
-                               </p>
-                             </div>
-                           </div>
-                         </Card>
+                                  <ConvertedAmount
+                                    amount={roi.monthlyRentalIncome}
+                                    currency={roi.currency}
+                                    convertedAmount={
+                                      property.exchangeRate != null
+                                        ? multiply(roi.monthlyRentalIncome, property.exchangeRate)
+                                        : undefined
+                                    }
+                                    baseCurrency={property.baseCurrency}
+                                    exchangeRate={property.exchangeRate}
+                                    isConverted={property.isConverted}
+                                    inline
+                                  />
+                                  /mo
+                                </p>
+                              </div>
 
-                         {/* Rental Income Section */}
-                         {roi.isRentalProperty && roi.monthlyRentalIncome != null && (
-                           <Card className="p-6">
-                              <h3 className="text-lg font-semibold text-text-primary mb-4">{t('propertyDetail.rentalIncome')}</h3>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                               <div>
-                                 <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.monthlyRentalIncome')}</p>
-                                 <p className="text-primary font-bold text-lg">
-                                   <ConvertedAmount
-                                     amount={roi.monthlyRentalIncome}
-                                     currency={roi.currency}
-                                     convertedAmount={property.exchangeRate != null ? multiply(roi.monthlyRentalIncome, property.exchangeRate) : undefined}
-                                     baseCurrency={property.baseCurrency}
-                                     exchangeRate={property.exchangeRate}
-                                     isConverted={property.isConverted}
-                                     inline
-                                   />/mo
-                                 </p>
-                               </div>
+                              {roi.totalRentalIncome != null && (
+                                <div>
+                                  <p className="text-sm text-text-secondary mb-1">
+                                    {t('propertyDetail.totalRentalIncome')}
+                                  </p>
+                                  <p className="text-text-primary font-medium">
+                                    <ConvertedAmount
+                                      amount={roi.totalRentalIncome}
+                                      currency={roi.currency}
+                                      convertedAmount={
+                                        property.exchangeRate != null
+                                          ? multiply(roi.totalRentalIncome, property.exchangeRate)
+                                          : undefined
+                                      }
+                                      baseCurrency={property.baseCurrency}
+                                      exchangeRate={property.exchangeRate}
+                                      isConverted={property.isConverted}
+                                    />
+                                  </p>
+                                </div>
+                              )}
 
-                               {roi.totalRentalIncome != null && (
-                                 <div>
-                                    <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.totalRentalIncome')}</p>
-                                   <p className="text-text-primary font-medium">
-                                     <ConvertedAmount
-                                       amount={roi.totalRentalIncome}
-                                       currency={roi.currency}
-                                       convertedAmount={property.exchangeRate != null ? multiply(roi.totalRentalIncome, property.exchangeRate) : undefined}
-                                       baseCurrency={property.baseCurrency}
-                                       exchangeRate={property.exchangeRate}
-                                       isConverted={property.isConverted}
-                                     />
-                                   </p>
-                                 </div>
-                               )}
-
-                               {roi.rentalYield != null && (
-                                 <div className="md:col-span-2">
-                                    <p className="text-sm text-text-secondary mb-1">{t('propertyDetail.rentalYield')}</p>
-                                    <p className="text-green-400 font-bold text-lg">
-                                      {t('propertyDetail.rentalYieldValue', { percentage: roi.rentalYield.toFixed(2) })}
-                                    </p>
-                                    <p className="text-xs text-text-tertiary mt-1">
-                                      {t('propertyDetail.basedOnCurrentValue')}
-                                    </p>
-                                 </div>
-                               )}
-                             </div>
-                           </Card>
-                         )}
-
-
+                              {roi.rentalYield != null && (
+                                <div className="md:col-span-2">
+                                  <p className="text-sm text-text-secondary mb-1">
+                                    {t('propertyDetail.rentalYield')}
+                                  </p>
+                                  <p className="text-green-400 font-bold text-lg">
+                                    {t('propertyDetail.rentalYieldValue', {
+                                      percentage: roi.rentalYield.toFixed(2),
+                                    })}
+                                  </p>
+                                  <p className="text-xs text-text-tertiary mt-1">
+                                    {t('propertyDetail.basedOnCurrentValue')}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </Card>
+                        )}
                       </>
                     ) : (
                       <div className="p-4 bg-error/10 border border-error/20 rounded-lg text-error">

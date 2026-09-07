@@ -153,3 +153,29 @@ export interface LiabilityBreakdown {
   linkedTransactionCount: number;
   linkedTransactionsTotalAmount: number;
 }
+
+/** Lifecycle status of a liability tranche (staged drawdown). */
+export type TrancheStatus = 'PLANNED' | 'DRAWN' | 'CANCELLED';
+
+/**
+ * A single tranche (planned drawdown) of a staged liability.
+ * Returned by GET /api/v1/liabilities/{id}/tranches.
+ */
+export interface LiabilityTranche {
+  id: number;
+  liabilityId: number;
+  /** 1-based position of the tranche in the drawdown plan (T1, T2, …) */
+  trancheNo: number;
+  plannedAmount: number;
+  drawnAmount?: number | null;
+  remaining: number;
+  plannedDate?: string | null;
+  drawnDate?: string | null;
+  fee?: number | null;
+  interestOnly?: boolean | null;
+  interestOnlyUntil?: string | null;
+  status: TrancheStatus;
+  realEstateId?: number | null;
+  notes?: string | null;
+  currency: string;
+}

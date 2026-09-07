@@ -315,8 +315,6 @@
     "rentNetWorth": "Patrimoine Location",
     "advantage": "Avantage",
     "regimeComparison": "Comparaison des régimes fiscaux",
-    "netYield": "Rentabilité nette",
-    "monthlyCashFlow": "Cash-flow mensuel",
     "generatedBy": "Généré par Open-Finance - Ces résultats sont fournis à titre indicatif."
   },
   "accessibility": {
@@ -460,7 +458,7 @@
     "chart": "Graphique",
     "yearN": "Année {{year}}",
     "buyScenario": "Scénario Achat",
-    "averageMonthlyCost": "Coût moyen mensuel",
+    "averageMonthlyCost": "Coût mensuel moyen",
     "totalCost": "Coût total",
     "propertyValue": "Valeur du bien",
     "remainingCapital": "Capital restant dû",
@@ -484,7 +482,7 @@
     "rentRecommended": "Location recommandée",
     "costsTotal": "Coûts totaux",
     "resalePriceAlert": "Le prix de revente minimum (<minPrice></minPrice>) est supérieur à la valeur du bien (<propertyValue></propertyValue>). Vous ne pourrez pas réaliser le bénéfice souhaité.",
-    "resalePriceSuccess": "Le prix de revente minimum est atteignable. Bénéfice possible : <profit></profit>.",
+    "resalePriceSuccess": "Le prix de revente minimum est atteignable. Bénéfice possible: <profit></profit>.",
     "rentAdvantage": "La location permet d'économiser <savings></savings> par rapport à l'achat à cette échéance.",
     "directComparison": "Comparaison directe",
     "savedWith": "économisé avec {{scenario}}",
@@ -492,12 +490,6 @@
     "forBuyScenario": "pour le scénario achat",
     "conclusionYearN": "À l'année {{year}}, {{winner}} est plus avantageux avec un patrimoine net de <winnerAmount></winnerAmount> contre <loserAmount></loserAmount>.",
     "resalePriceWarning": "Le prix de revente minimum ({{price}}) est supérieur à la valeur du bien ({{value}}). Vous ne pourrez pas réaliser le bénéfice souhaité.",
-    "resalePriceSuccess": "Le prix de revente minimum est atteignable. Bénéfice possible: <profit></profit>.",
-    "rentAdvantage": "La location permet d'économiser <savings></savings> par rapport à l'achat à cette échéance.",
-    "directComparison": "Comparaison directe",
-    "annualProfitability": "Rentabilité annuelle",
-    "forBuyScenario": "pour le scénario achat",
-    "conclusionYearN": "À l'année {{year}}, {{winner}} est plus avantageux avec un patrimoine net de <winnerAmount></winnerAmount> contre <loserAmount></loserAmount>.",
     "buyMoreAdvantageous": "L'achat est plus avantageux",
     "rentMoreAdvantageous": "La location est plus avantageuse",
     "netWorthHigher": "Patrimoine net supérieur de {{difference}} après {{years}} ans",
@@ -506,8 +498,6 @@
     "buy": "Achat",
     "rent": "Location",
     "difference": "Différence",
-    "averageMonthlyCost": "Coût mensuel moyen",
-    "monthlyGap": "Écart mensuel",
     "buyCostsLess": "L'achat coûte moins cher",
     "rentCostsLess": "La location coûte moins cher",
     "costAnalysis": "Analyse des coûts",
@@ -552,7 +542,6 @@
     "net": "Net",
     "rentDetails": "Détails Location",
     "rent": "Loyer",
-    "charges": "Charges",
     "comparison": "Comparaison",
     "difference": "Différence",
     "advantage": "Avantage",
@@ -614,5 +603,18 @@
     "reloadPage": "Recharger la page",
     "backToTools": "Retour aux outils",
     "persistenceMessage": "Si le problème persiste, essayez de réinitialiser les paramètres ou contactez le support."
+  },
+  "movements": {
+    "costsTitle": "Coûts",
+    "capitalized": "Capitalisés",
+    "maintenance": "Entretien",
+    "loanMovements": "Mouvements d’emprunt",
+    "empty": "Aucun mouvement enregistré pour le moment.",
+    "movementTypes": {
+      "DISBURSEMENT": "Déblocage",
+      "REPAYMENT": "Remboursement",
+      "CAPITAL_IMPROVEMENT": "Capitalisé",
+      "MAINTENANCE": "Entretien"
+    }
   }
 }

@@ -13,25 +13,27 @@
  *   - Linked Payments: transactions linked to this liability
  */
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CreditCard, RefreshCcw, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/Tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 import { AmortizationSchedule } from '@/components/liabilities/AmortizationSchedule';
 import { LiabilityBreakdownPanel } from '@/components/liabilities/LiabilityBreakdownPanel';
+import { TrancheDrawdownsTab } from '@/components/liabilities/TrancheDrawdownsTab';
 import { AttachmentList, AttachmentUpload } from '@/components/attachments';
 import { AttachmentEntityType } from '@/types/attachment';
 import { multiply } from '@/utils/money';
-import { useAmortizationSchedule, useLiabilityBreakdown, useLiabilityTransactions } from '@/hooks/useLiabilities';
+import {
+  useAmortizationSchedule,
+  useLiabilityBreakdown,
+  useLiabilityTransactions,
+} from '@/hooks/useLiabilities';
+import { useTranches, getTrancheLabel } from '@/hooks/useTranches';
 import type { Liability } from '@/types/liability';
 
-type DetailTab = 'overview' | 'schedule' | 'payments' | 'attachments';
+type DetailTab = 'overview' | 'schedule' | 'payments' | 'drawdowns' | 'attachments';
 
 interface LiabilityDetailDialogProps {
   /** The liability to show details for, or null to close the dialog */
@@ -271,8 +273,13 @@ function TotalCostHero({ liability }: { liability: Liability }) {
  * Requirement 3.2: Display linked transactions in a dedicated tab.
  */
 function LinkedPaymentsTab({ liability }: { liability: Liability }) {
+  const { t } = useTranslation('liabilities');
   const { data: breakdown } = useLiabilityBreakdown(liability.id);
   const { data: transactions = [], isLoading, error } = useLiabilityTransactions(liability.id);
+  const { data: tranches = [] } = useTranches(liability.id);
+
+  // trancheId → T{n} label, for repayments allocated to a specific tranche
+  const trancheLabelById = new Map(tranches.map(tr => [tr.id, getTrancheLabel(tr.trancheNo)]));
 
   if (isLoading) {
     return (
@@ -297,9 +304,7 @@ function LinkedPaymentsTab({ liability }: { liability: Liability }) {
     return (
       <div className="text-center py-12">
         <CreditCard className="h-10 w-10 text-text-tertiary mx-auto mb-3" />
-        <p className="text-text-secondary text-sm">
-          No transactions linked to this liability yet.
-        </p>
+        <p className="text-text-secondary text-sm">No transactions linked to this liability yet.</p>
         <p className="text-text-tertiary text-xs mt-1">
           Link expense transactions to track payments against this liability.
         </p>
@@ -331,15 +336,15 @@ function LinkedPaymentsTab({ liability }: { liability: Liability }) {
               exchangeRate={liability.exchangeRate}
               isConverted={liability.isConverted}
               inline
-            />
-            {' '}total
+            />{' '}
+            total
           </span>
         </div>
       )}
 
       {/* Transaction list */}
       <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
-        {transactions.map((tx) => (
+        {transactions.map(tx => (
           <div
             key={tx.id}
             className="flex items-center justify-between px-4 py-3 bg-surface hover:bg-surface-elevated transition-colors"
@@ -347,8 +352,20 @@ function LinkedPaymentsTab({ liability }: { liability: Liability }) {
             <div className="flex items-center gap-3 min-w-0">
               <RefreshCcw className="h-4 w-4 text-text-tertiary flex-shrink-0" />
               <div className="min-w-0">
-                <div className="text-sm text-text-primary truncate">
-                  {tx.description || tx.payee || `Transaction #${tx.id}`}
+                <div className="text-sm text-text-primary truncate flex items-center gap-2">
+                  <span className="truncate">
+                    {tx.description || tx.payee || `Transaction #${tx.id}`}
+                  </span>
+                  {tx.movementType && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-elevated text-text-secondary border border-border text-xs font-medium flex-shrink-0">
+                      {t(`movementTypes.${tx.movementType}`)}
+                    </span>
+                  )}
+                  {tx.trancheId != null && trancheLabelById.has(tx.trancheId) && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/30 text-xs font-mono font-medium flex-shrink-0">
+                      {trancheLabelById.get(tx.trancheId)}
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-text-tertiary">
                   {new Date(tx.date).toLocaleDateString('en-US', {
@@ -367,9 +384,7 @@ function LinkedPaymentsTab({ liability }: { liability: Liability }) {
               <ConvertedAmount
                 amount={tx.amount}
                 currency={tx.currency}
-                convertedAmount={
-                  tx.currency === liability.currency ? toBase(tx.amount) : undefined
-                }
+                convertedAmount={tx.currency === liability.currency ? toBase(tx.amount) : undefined}
                 baseCurrency={liability.baseCurrency}
                 exchangeRate={liability.exchangeRate}
                 isConverted={tx.currency === liability.currency ? liability.isConverted : false}
@@ -395,6 +410,7 @@ export function LiabilityDetailDialog({
   initialTab = 'overview',
   onClose,
 }: LiabilityDetailDialogProps) {
+  const { t } = useTranslation('liabilities');
   const [activeTab, setActiveTab] = useState<DetailTab>(initialTab);
 
   // Fetch amortization schedule only when schedule tab is active and liability has an interest rate
@@ -406,7 +422,7 @@ export function LiabilityDetailDialog({
   if (!liability) return null;
 
   return (
-    <Dialog open={!!liability} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={!!liability} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{liability.name} — Details</DialogTitle>
@@ -452,6 +468,17 @@ export function LiabilityDetailDialog({
                 Linked Payments
               </button>
               <button
+                onClick={() => setActiveTab('drawdowns')}
+                className={cn(
+                  'px-4 py-2 font-medium border-b-2 transition-colors',
+                  activeTab === 'drawdowns'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                )}
+              >
+                {t('drawdowns.tab')}
+              </button>
+              <button
                 onClick={() => setActiveTab('attachments')}
                 className={cn(
                   'px-4 py-2 font-medium border-b-2 transition-colors',
@@ -482,9 +509,7 @@ export function LiabilityDetailDialog({
                     Loading amortization schedule…
                   </div>
                 )}
-                {amortizationSchedule && (
-                  <AmortizationSchedule schedule={amortizationSchedule} />
-                )}
+                {amortizationSchedule && <AmortizationSchedule schedule={amortizationSchedule} />}
               </div>
             )}
 
@@ -492,6 +517,13 @@ export function LiabilityDetailDialog({
             {activeTab === 'payments' && (
               <div>
                 <LinkedPaymentsTab liability={liability} />
+              </div>
+            )}
+
+            {/* Tab 4: Drawdowns (staged loan tranches) */}
+            {activeTab === 'drawdowns' && (
+              <div>
+                <TrancheDrawdownsTab liability={liability} />
               </div>
             )}
 

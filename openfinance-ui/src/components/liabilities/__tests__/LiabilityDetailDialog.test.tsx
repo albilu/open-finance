@@ -12,7 +12,8 @@ import { renderWithProviders } from '@/test/test-utils';
 import React from 'react';
 import { LiabilityDetailDialog } from '../LiabilityDetailDialog';
 import * as useLiabilitiesModule from '@/hooks/useLiabilities';
-import type { Liability } from '@/types/liability';
+import * as useTranchesModule from '@/hooks/useTranches';
+import type { Liability, LiabilityTranche } from '@/types/liability';
 
 // Mock VisibilityContext
 vi.mock('@/context/VisibilityContext', () => ({
@@ -75,7 +76,7 @@ const mockTransactions = [
 ];
 
 // Mock the hooks
-vi.mock('@/hooks/useLiabilities', async (importOriginal) => {
+vi.mock('@/hooks/useLiabilities', async importOriginal => {
   const actual = await importOriginal<typeof useLiabilitiesModule>();
   return {
     ...actual,
@@ -98,9 +99,18 @@ vi.mock('@/hooks/useLiabilities', async (importOriginal) => {
   };
 });
 
+vi.mock('@/hooks/useTranches', async importOriginal => {
+  const actual = await importOriginal<typeof useTranchesModule>();
+  return {
+    ...actual,
+    useTranches: vi.fn(() => ({ data: [], isLoading: false, error: null })),
+  };
+});
+
 const mockUseLiabilityBreakdown = vi.mocked(useLiabilitiesModule.useLiabilityBreakdown);
 const mockUseAmortizationSchedule = vi.mocked(useLiabilitiesModule.useAmortizationSchedule);
 const mockUseLiabilityTransactions = vi.mocked(useLiabilitiesModule.useLiabilityTransactions);
+const mockUseTranches = vi.mocked(useTranchesModule.useTranches);
 
 // Mock the child components
 vi.mock('../LiabilityBreakdownPanel', () => ({
@@ -121,7 +131,7 @@ vi.mock('../AmortizationSchedule', () => ({
 
 // Mock UI components with simple implementations
 vi.mock('@/components/ui/Dialog', () => ({
-  Dialog: ({ children, open }: any) => open ? <div data-testid="dialog">{children}</div> : null,
+  Dialog: ({ children, open }: any) => (open ? <div data-testid="dialog">{children}</div> : null),
   DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
   DialogHeader: ({ children }: any) => <div data-testid="dialog-header">{children}</div>,
   DialogTitle: ({ children }: any) => <div data-testid="dialog-title">{children}</div>,
@@ -147,13 +157,16 @@ describe('LiabilityDetailDialog', () => {
       isLoading: false,
       error: null,
     });
+    mockUseTranches.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
   });
 
   describe('Dialog Visibility', () => {
     it('does not render when liability prop is null', () => {
-      renderWithProviders(
-        <LiabilityDetailDialog liability={null} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={null} onClose={vi.fn()} />);
 
       expect(screen.queryByTestId('dialog')).not.toBeInTheDocument();
     });
@@ -165,9 +178,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       expect(screen.getByTestId('dialog')).toBeInTheDocument();
       expect(screen.getByTestId('dialog-title')).toHaveTextContent('Home Mortgage — Details');
@@ -182,9 +193,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       expect(screen.getByText('Total Lifetime Cost')).toBeInTheDocument();
       expect(screen.getByText('€532,400.00')).toBeInTheDocument(); // 60600 + 471800
@@ -197,9 +206,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Check legend items
       expect(screen.getByText('Principal')).toBeInTheDocument();
@@ -244,12 +251,13 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       expect(screen.getByTestId('liability-breakdown-panel')).toBeInTheDocument();
-      expect(screen.getByTestId('liability-breakdown-panel')).toHaveAttribute('data-liability-id', '1');
+      expect(screen.getByTestId('liability-breakdown-panel')).toHaveAttribute(
+        'data-liability-id',
+        '1'
+      );
     });
   });
 
@@ -261,9 +269,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       expect(screen.getByText('Amortization Schedule')).toBeInTheDocument();
     });
@@ -293,9 +299,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       expect(screen.getByText('Linked Payments')).toBeInTheDocument();
     });
@@ -313,9 +317,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Click the Linked Payments tab
       const paymentsTab = screen.getByText('Linked Payments');
@@ -324,7 +326,9 @@ describe('LiabilityDetailDialog', () => {
       });
 
       expect(screen.getByText('No transactions linked to this liability yet.')).toBeInTheDocument();
-      expect(screen.getByText('Link expense transactions to track payments against this liability.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Link expense transactions to track payments against this liability.')
+      ).toBeInTheDocument();
     });
 
     it('shows transaction list in Linked Payments tab when transactions exist', () => {
@@ -340,9 +344,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Click the Linked Payments tab
       const paymentsTab = screen.getByText('Linked Payments');
@@ -367,9 +369,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Click the Linked Payments tab
       const paymentsTab = screen.getByText('Linked Payments');
@@ -394,9 +394,7 @@ describe('LiabilityDetailDialog', () => {
         error: new Error('Failed to load'),
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Click the Linked Payments tab
       const paymentsTab = screen.getByText('Linked Payments');
@@ -404,7 +402,119 @@ describe('LiabilityDetailDialog', () => {
         paymentsTab.click();
       });
 
-      expect(screen.getByText('Failed to load linked transactions. Please try again.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Failed to load linked transactions. Please try again.')
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('Drawdowns Tab', () => {
+    const mockTranches: LiabilityTranche[] = [
+      {
+        id: 1,
+        liabilityId: 1,
+        trancheNo: 1,
+        plannedAmount: 100000,
+        drawnAmount: 100000,
+        remaining: 40000,
+        status: 'DRAWN',
+        currency: 'USD',
+      },
+      {
+        id: 2,
+        liabilityId: 1,
+        trancheNo: 2,
+        plannedAmount: 50000,
+        drawnAmount: null,
+        remaining: 50000,
+        status: 'PLANNED',
+        currency: 'USD',
+      },
+    ];
+
+    it('renders the Drawdowns tab and lists tranches when selected', () => {
+      mockUseTranches.mockReturnValue({
+        data: mockTranches,
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      const drawdownsTab = screen.getByText('Drawdowns');
+      act(() => {
+        drawdownsTab.click();
+      });
+
+      expect(screen.getByText('T1')).toBeInTheDocument();
+      expect(screen.getByText('T2')).toBeInTheDocument();
+      expect(screen.getByText('Drawn')).toBeInTheDocument();
+      expect(screen.getByText('Planned')).toBeInTheDocument();
+      expect(screen.getByText('$40,000.00')).toBeInTheDocument();
+    });
+
+    it('shows the empty state in the Drawdowns tab when there are no tranches', () => {
+      mockUseTranches.mockReturnValue({
+        data: [],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      act(() => {
+        screen.getByText('Drawdowns').click();
+      });
+
+      expect(screen.getByText(/no planned drawdowns/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('Linked Payments movement badges', () => {
+    it('shows movement type badge and tranche label on linked payment rows', () => {
+      mockUseLiabilityTransactions.mockReturnValue({
+        data: [
+          {
+            id: 'txn-1',
+            date: '2023-01-01',
+            description: 'Mortgage Payment',
+            amount: 1500,
+            type: 'expense',
+            accountId: 'acc-1',
+            liabilityId: '1',
+            currency: 'EUR',
+            movementType: 'REPAYMENT' as const,
+            trancheId: 1,
+          },
+        ],
+        isLoading: false,
+        error: null,
+      });
+      mockUseTranches.mockReturnValue({
+        data: [
+          {
+            id: 1,
+            liabilityId: 1,
+            trancheNo: 1,
+            plannedAmount: 100000,
+            drawnAmount: 100000,
+            remaining: 40000,
+            status: 'DRAWN',
+            currency: 'USD',
+          },
+        ],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      act(() => {
+        screen.getByText('Linked Payments').click();
+      });
+
+      expect(screen.getByText('Repayment')).toBeInTheDocument();
+      expect(screen.getByText('T1')).toBeInTheDocument();
     });
   });
 
@@ -418,9 +528,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Check that PrivateAmount components are present
       const privateAmounts = document.querySelectorAll('.transition-all.duration-300');
@@ -436,9 +544,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Check that PrivateAmount components have blur classes
       const blurredAmounts = document.querySelectorAll('.blur-md.select-none');
@@ -454,9 +560,7 @@ describe('LiabilityDetailDialog', () => {
         error: null,
       });
 
-      renderWithProviders(
-        <LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />
-      );
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
 
       // Check that PrivateAmount spans have aria-hidden=true
       const hiddenSpans = document.querySelectorAll('span[aria-hidden="true"]');

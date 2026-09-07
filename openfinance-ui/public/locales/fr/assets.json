@@ -70,11 +70,11 @@
       "attachments": "Pièces jointes",
       "gallery": "Galerie"
     },
-"gallery": {
+    "gallery": {
       "empty": "Aucune image pour le moment. Téléversez des images dans l’onglet Pièces jointes.",
       "hint": "Gérez les images dans l’onglet Pièces jointes."
     },
-        "metrics": {
+    "metrics": {
       "currentValue": "Valeur actuelle",
       "costBasis": "Prix de revient",
       "gainLoss": "Gain/Perte"
@@ -174,5 +174,15 @@
     "FURNITURE": "Mobilier",
     "REAL_ESTATE": "Immobilier",
     "OTHER": "Autre"
+  },
+  "costs": {
+    "title": "Coûts",
+    "capitalized": "Capitalisés",
+    "maintenance": "Entretien",
+    "empty": "Aucun coût enregistré pour le moment.",
+    "movementTypes": {
+      "CAPITAL_IMPROVEMENT": "Capitalisé",
+      "MAINTENANCE": "Entretien"
+    }
   }
 }

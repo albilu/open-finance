@@ -174,5 +174,33 @@
     "annualInsuranceRate": "Annual Insurance Rate ({{rate}}%)",
     "oneTimeFee": "One-time Fee",
     "institution": "Institution"
+  },
+  "drawdowns": {
+    "tab": "Drawdowns",
+    "title": "Planned drawdowns",
+    "tranche": "Tranche",
+    "status": {
+      "PLANNED": "Planned",
+      "DRAWN": "Drawn",
+      "CANCELLED": "Cancelled"
+    },
+    "planned": "Planned",
+    "drawn": "Drawn",
+    "remaining": "Remaining",
+    "linkedProperty": "Property #{{id}}",
+    "interestOnly": "Interest-only",
+    "empty": "This liability has no planned drawdowns (tranches) yet.",
+    "loading": "Loading drawdowns…",
+    "error": "Failed to load drawdowns. Please try again."
+  },
+  "movementTypes": {
+    "DISBURSEMENT": "Disbursement",
+    "REPAYMENT": "Repayment",
+    "INTEREST": "Interest",
+    "INSURANCE": "Insurance",
+    "FEE": "Fee",
+    "CAPITAL_IMPROVEMENT": "Capitalized",
+    "MAINTENANCE": "Maintenance",
+    "REVALUATION": "Revaluation"
   }
 }

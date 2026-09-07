@@ -89,6 +89,9 @@ export function useTransactions(filters?: TransactionFilters) {
         params.append('amountMax', filters.maxAmount.toString());
       if (filters?.page !== undefined) params.append('page', filters.page.toString());
       if (filters?.size) params.append('size', filters.size.toString());
+      if (filters?.realEstateId) params.append('realEstateId', filters.realEstateId.toString());
+      if (filters?.assetId) params.append('assetId', filters.assetId.toString());
+      if (filters?.liabilityId) params.append('liabilityId', filters.liabilityId.toString());
       // Add sorting (default to date descending for newest first)
       if (filters?.sort) {
         params.append('sort', filters.sort);
