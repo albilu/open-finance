@@ -1,7 +1,8 @@
 -- =============================================================================
 -- V6: Liability tranches and transaction movement link columns.
 --
--- Mirrors src/main/resources/db/migration/V79 (liability_tranches table) and V80
+-- Mirrors src/main/resources/db/migration/V79__create_liability_tranches_table.sql
+-- (liability_tranches table) and V80__add_movement_link_columns_to_transactions.sql
 -- (movement link columns on transactions + archive mirror) for PostgreSQL
 -- deployments. Parent table is created first so the inline REFERENCES in the
 -- transaction link columns resolve. movement_type is VARCHAR(30): longest value
@@ -40,7 +41,7 @@ CREATE INDEX IF NOT EXISTS idx_liability_tranche_liability_id
 CREATE INDEX IF NOT EXISTS idx_liability_tranche_status
     ON liability_tranches(status);
 
--- V80: movement link columns on transactions (+ archive mirror, cf. V2).
+-- V80__add_movement_link_columns_to_transactions.sql: movement link columns on transactions (+ archive mirror, cf. V2).
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS tranche_id BIGINT REFERENCES liability_tranches(id) ON DELETE SET NULL;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS real_estate_id BIGINT REFERENCES real_estate_properties(id) ON DELETE SET NULL;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS asset_id BIGINT REFERENCES assets(id) ON DELETE SET NULL;

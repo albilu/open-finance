@@ -1,4 +1,4 @@
--- Migration: Create liability_tranches table.
+-- Migration: V79__create_liability_tranches_table.sql — Create liability_tranches table.
 -- Each row is one planned drawdown of a liability (e.g. a construction loan released in
 -- stages). Tranche numbers are unique per liability. Monetary amounts are plain numerics.
 --

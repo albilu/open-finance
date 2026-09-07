@@ -1,4 +1,4 @@
--- Migration: Link transactions to liability tranches, real estate properties and assets.
+-- Migration: V80__add_movement_link_columns_to_transactions.sql — Link transactions to liability tranches, real estate properties and assets.
 -- Adds the movement classification columns consumed by the liability / asset / real-estate
 -- module. All columns are nullable so existing rows are unaffected. Each FK is declared
 -- inline at column-creation time; parents all exist when this migration runs

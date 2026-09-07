@@ -11,14 +11,18 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -40,7 +44,10 @@ import org.hibernate.annotations.UpdateTimestamp;
             @Index(name = "idx_liability_tranche_liability_id", columnList = "liability_id"),
             @Index(name = "idx_liability_tranche_status", columnList = "status")
         })
-@Data
+@Getter
+@Setter
+@ToString(onlyExplicitlyIncluded = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -48,6 +55,8 @@ public class LiabilityTranche {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @ToString.Include
+    @EqualsAndHashCode.Include
     private Long id;
 
     @NotNull(message = "{liabilityTranche.userId.notnull}")
@@ -97,6 +106,7 @@ public class LiabilityTranche {
     private String notes;
 
     @NotNull(message = "{liabilityTranche.currency.notnull}")
+    @Pattern(regexp = "^[A-Z]{3}$", message = "{liabilityTranche.currency.pattern}")
     @Column(name = "currency", nullable = false, length = 3)
     private String currency;
 
