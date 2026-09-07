@@ -7,9 +7,11 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.AmortizationScheduleEntry;
+import org.openfinance.dto.DisbursementRequest;
 import org.openfinance.dto.LiabilityBreakdownResponse;
 import org.openfinance.dto.LiabilityRequest;
 import org.openfinance.dto.LiabilityResponse;
+import org.openfinance.dto.LiabilityTrancheResponse;
 import org.openfinance.dto.TransactionResponse;
 import org.openfinance.entity.LiabilityType;
 import org.openfinance.entity.User;
@@ -47,6 +49,8 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>DELETE /api/v1/liabilities/{id} - Delete liability
  *   <li>GET /api/v1/liabilities/{id}/amortization - Get amortization schedule
  *   <li>GET /api/v1/liabilities/{id}/total-interest - Get projected total interest
+ *   <li>GET /api/v1/liabilities/{id}/tranches - List liability tranches
+ *   <li>POST /api/v1/liabilities/{id}/disburse - Disburse a liability tranche
  *   <li>GET /api/v1/liabilities/total - Get total liabilities by currency
  * </ul>
  *
@@ -705,5 +709,82 @@ public class LiabilityController {
         log.info("Total liabilities calculated: {}", totalsByCurrency);
 
         return ResponseEntity.ok(totalsByCurrency);
+    }
+
+    /**
+     * Disburses a tranche of a liability.
+     *
+     * <p>Exactly one routing target must be set in the request body: {@code toAccountId} (the bank
+     * paid into the user's account — an INCOME DISBURSEMENT transaction is recorded and both the
+     * liability and account balances increase) or {@code directRealEstateId} (the bank paid the
+     * seller/property directly — the liability balance and the property's current value increase
+     * and no account transaction is recorded). {@code trancheId} is optional: when absent the next
+     * PLANNED tranche is drawn, or a single T1 tranche is created for the requested amount.
+     *
+     * <p><strong>Example Request:</strong>
+     *
+     * <pre>POST /api/v1/liabilities/1/disburse
+     * {
+     *   "trancheId": 3,
+     *   "toAccountId": 7,
+     *   "amount": 40000.00,
+     *   "date": "2026-03-01"
+     * }</pre>
+     *
+     * <p><strong>Success Response (HTTP 200 OK):</strong> the updated LiabilityResponse
+     *
+     * @param liabilityId liability ID to draw from
+     * @param request disbursement request (exactly one routing target)
+     * @param authentication Spring Security authentication object
+     * @return HTTP 200 OK with the updated LiabilityResponse
+     */
+    @PostMapping("/{id}/disburse")
+    public ResponseEntity<LiabilityResponse> disburseLiability(
+            @PathVariable("id") Long liabilityId,
+            @Valid @RequestBody DisbursementRequest request,
+            Authentication authentication) {
+
+        log.info(
+                "Disbursing liability {}: toAccountId={}, directRealEstateId={}, trancheId={}",
+                liabilityId,
+                request.getToAccountId(),
+                request.getDirectRealEstateId(),
+                request.getTrancheId());
+        User user = (User) authentication.getPrincipal();
+        LiabilityResponse response = liabilityService.disburse(user.getId(), liabilityId, request);
+
+        log.info(
+                "Disbursement applied to liability {}: new balance={}",
+                liabilityId,
+                response.getCurrentBalance());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves the tranches (planned drawdowns) of a liability, ordered by tranche number.
+     *
+     * <p><strong>Example Request:</strong>
+     *
+     * <pre>GET /api/v1/liabilities/1/tranches</pre>
+     *
+     * <p><strong>Success Response (HTTP 200 OK):</strong> list of LiabilityTrancheResponse
+     *
+     * @param liabilityId liability ID
+     * @param authentication Spring Security authentication object
+     * @return HTTP 200 OK with the list of tranches (may be empty)
+     */
+    @GetMapping("/{id}/tranches")
+    public ResponseEntity<List<LiabilityTrancheResponse>> getTranches(
+            @PathVariable("id") Long liabilityId, Authentication authentication) {
+
+        log.info("Retrieving tranches for liability: id={}", liabilityId);
+        User user = (User) authentication.getPrincipal();
+        List<LiabilityTrancheResponse> tranches =
+                liabilityService.getTranches(liabilityId, user.getId());
+
+        log.info("Retrieved {} tranches for liability {}", tranches.size(), liabilityId);
+
+        return ResponseEntity.ok(tranches);
     }
 }

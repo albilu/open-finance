@@ -11,7 +11,7 @@ import org.openfinance.entity.TrancheStatus;
 /**
  * Data Transfer Object for liability tranche responses.
  *
- * <p>The {@code remaining} field is computed (planned amount minus drawn amount), not persisted.
+ * <p>The {@code remaining} field is computed (outstanding drawn principal), not persisted.
  */
 @Data
 @Builder
@@ -34,7 +34,11 @@ public class LiabilityTrancheResponse {
     /** Amount already drawn. */
     private BigDecimal drawnAmount;
 
-    /** Computed remaining amount (planned minus drawn). Not persisted. */
+    /**
+     * Outstanding drawn principal of this tranche (drawn amount minus repaid principal). Repayment
+     * allocation across tranches lands in Task 7 (FIFO); until then this equals {@code drawnAmount}
+     * (zero when not yet drawn). Not persisted.
+     */
     private BigDecimal remaining;
 
     /** Planned drawdown date. */

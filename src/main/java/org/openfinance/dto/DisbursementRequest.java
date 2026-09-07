@@ -15,8 +15,10 @@ import lombok.NoArgsConstructor;
 /**
  * Data Transfer Object for disbursing a liability tranche.
  *
- * <p>Either {@code trancheId} (drawdown of a planned tranche) or {@code directRealEstateId} (direct
- * disbursement linked to a property) identifies the disbursement target.
+ * <p>Exactly one routing target must be set: {@code toAccountId} (the bank paid into the user's
+ * account) or {@code directRealEstateId} (the bank paid the seller/property directly). {@code
+ * trancheId} is optional — when absent, the next PLANNED tranche by {@code trancheNo} is drawn, or
+ * a single T1 tranche is created on the fly.
  */
 @Data
 @Builder
@@ -24,14 +26,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DisbursementRequest {
 
-    /** ID of the account receiving the disbursed funds. */
-    @NotNull(message = "{disbursement.toAccount.required}")
+    /** ID of the account receiving the disbursed funds (bank paid my account route). */
     private Long toAccountId;
 
-    /** ID of the real estate property for a direct disbursement. */
+    /** ID of the real estate property for a direct disbursement (bank paid seller route). */
     private Long directRealEstateId;
 
-    /** ID of the planned tranche being drawn. */
+    /** Optional ID of the planned tranche being drawn; auto-picked when absent. */
     private Long trancheId;
 
     /** Disbursed amount. */
@@ -49,14 +50,14 @@ public class DisbursementRequest {
     private String notes;
 
     /**
-     * Validates that exactly one disbursement target is set.
+     * Validates that exactly one routing target is set.
      *
      * <p>Called by Jakarta Bean Validation during full-request validation.
      *
-     * @return true when exactly one of trancheId and directRealEstateId is set
+     * @return true when exactly one of toAccountId and directRealEstateId is set
      */
-    @AssertTrue(message = "{disbursement.target.exclusive}")
-    private boolean isTargetCoherent() {
-        return (trancheId != null) ^ (directRealEstateId != null);
+    @AssertTrue(message = "{disbursement.route.exclusive}")
+    private boolean isValidRoute() {
+        return (toAccountId != null) ^ (directRealEstateId != null);
     }
 }

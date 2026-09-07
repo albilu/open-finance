@@ -33,9 +33,10 @@ class MovementCoherenceTest {
         validatorFactory.close();
     }
 
-    private static DisbursementRequest disbursement(Long trancheId, Long directRealEstateId) {
+    private static DisbursementRequest disbursement(
+            Long toAccountId, Long trancheId, Long directRealEstateId) {
         return DisbursementRequest.builder()
-                .toAccountId(1L)
+                .toAccountId(toAccountId)
                 .trancheId(trancheId)
                 .directRealEstateId(directRealEstateId)
                 .amount(new BigDecimal("100.00"))
@@ -63,35 +64,46 @@ class MovementCoherenceTest {
     }
 
     @Test
-    @DisplayName("Direct disbursement with toAccountId and directRealEstateId passes")
-    void directDisbursementPasses() {
+    @DisplayName("Disbursement routed to an account only (no trancheId) passes")
+    void toAccountOnlyDisbursementPasses() {
         Set<ConstraintViolation<DisbursementRequest>> violations =
-                validator.validate(disbursement(null, 5L));
+                validator.validate(disbursement(1L, null, null));
 
         assertThat(violations)
-                .filteredOn(v -> v.getPropertyPath().toString().equals("targetCoherent"))
+                .filteredOn(v -> v.getPropertyPath().toString().equals("validRoute"))
                 .isEmpty();
     }
 
     @Test
-    @DisplayName("Disbursement with both trancheId and directRealEstateId fails")
-    void bothTargetsFails() {
+    @DisplayName("Direct disbursement without toAccountId passes")
+    void directDisbursementPasses() {
         Set<ConstraintViolation<DisbursementRequest>> violations =
-                validator.validate(disbursement(3L, 5L));
+                validator.validate(disbursement(null, null, 5L));
 
         assertThat(violations)
-                .filteredOn(v -> v.getPropertyPath().toString().equals("targetCoherent"))
+                .filteredOn(v -> v.getPropertyPath().toString().equals("validRoute"))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("Disbursement with both toAccountId and directRealEstateId fails")
+    void bothRoutesFail() {
+        Set<ConstraintViolation<DisbursementRequest>> violations =
+                validator.validate(disbursement(1L, null, 5L));
+
+        assertThat(violations)
+                .filteredOn(v -> v.getPropertyPath().toString().equals("validRoute"))
                 .hasSize(1);
     }
 
     @Test
-    @DisplayName("Disbursement with neither target fails")
-    void neitherTargetFails() {
+    @DisplayName("Disbursement with neither route fails even when a trancheId is set")
+    void neitherRouteFails() {
         Set<ConstraintViolation<DisbursementRequest>> violations =
-                validator.validate(disbursement(null, null));
+                validator.validate(disbursement(null, 3L, null));
 
         assertThat(violations)
-                .filteredOn(v -> v.getPropertyPath().toString().equals("targetCoherent"))
+                .filteredOn(v -> v.getPropertyPath().toString().equals("validRoute"))
                 .hasSize(1);
     }
 

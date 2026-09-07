@@ -10,24 +10,41 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.AccountResponse;
 import org.openfinance.dto.AmortizationScheduleEntry;
+import org.openfinance.dto.DisbursementRequest;
 import org.openfinance.dto.LiabilityBreakdownResponse;
 import org.openfinance.dto.LiabilityRequest;
 import org.openfinance.dto.LiabilityResponse;
+import org.openfinance.dto.LiabilityTrancheRequest;
+import org.openfinance.dto.LiabilityTrancheResponse;
+import org.openfinance.dto.TransactionRequest;
+import org.openfinance.entity.Account;
 import org.openfinance.entity.Liability;
+import org.openfinance.entity.LiabilityTranche;
 import org.openfinance.entity.LiabilityType;
+import org.openfinance.entity.MovementType;
+import org.openfinance.entity.RealEstateProperty;
+import org.openfinance.entity.RealEstateValueHistory;
+import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
+import org.openfinance.entity.TransactionType;
+import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.exception.LiabilityNotFoundException;
+import org.openfinance.exception.RealEstatePropertyNotFoundException;
 import org.openfinance.exception.ResourceNotFoundException;
+import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.CurrencyRepository;
 import org.openfinance.repository.LiabilityRepository;
+import org.openfinance.repository.LiabilityTrancheRepository;
 import org.openfinance.repository.NetWorthRepository;
 import org.openfinance.repository.RealEstateRepository;
+import org.openfinance.repository.RealEstateValueHistoryRepository;
 import org.openfinance.repository.TransactionRepository;
 import org.openfinance.repository.UserRepository;
 import org.openfinance.security.EncryptionService;
@@ -93,6 +110,9 @@ public class LiabilityService {
     private final SearchTokenService searchTokenService;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
     private final CurrencyConversionHelper currencyConversionHelper;
+    private final LiabilityTrancheRepository liabilityTrancheRepository;
+    private final AccountRepository accountRepository;
+    private final RealEstateValueHistoryRepository realEstateValueHistoryRepository;
 
     // Constants for calculations
     private static final int MAX_AMORTIZATION_PERIODS = 360; // Max 30 years of monthly payments
@@ -1191,6 +1211,399 @@ public class LiabilityService {
         return transactions.stream()
                 .map(t -> transactionService.toResponseWithDecryption(t))
                 .collect(Collectors.toList());
+    }
+
+    // ===========================
+    // Disbursement & Tranches (Task 4)
+    // ===========================
+
+    /**
+     * Disburses a tranche of a staged liability.
+     *
+     * <p>The routing target decides how money moves:
+     *
+     * <ul>
+     *   <li><strong>toAccountId</strong> (bank paid into the user's account): the movement is
+     *       delegated to {@link TransactionService#createTransaction} with {@code
+     *       movementType=DISBURSEMENT}. The transaction-side sync hook is the <em>single owner</em>
+     *       of the liability and account balance legs — this method must NOT adjust the liability
+     *       balance itself, or the amount would be counted twice.
+     *   <li><strong>directRealEstateId</strong> (bank paid the seller/property directly): the funds
+     *       never touch a user account, so no Transaction row is created (spec §4
+     *       DISBURSEMENT_DIRECT has no account leg). The liability balance is increased inline, the
+     *       property's current value is bumped with a value-history entry, and tracking happens via
+     *       the tranche (Drawdowns tab) plus the property history.
+     * </ul>
+     *
+     * <p>In both cases the resolved tranche is marked DRAWN <em>before</em> any balance change, so
+     * the sync-side clamp (liability balance ≤ SUM(drawnAmount of DRAWN tranches)) already counts
+     * this drawdown.
+     *
+     * @param userId the ID of the user disbursing (for authorization)
+     * @param liabilityId the ID of the liability being drawn
+     * @param request the disbursement request (exactly one routing target required)
+     * @return the liability after the disbursement was applied
+     * @throws LiabilityNotFoundException if the liability does not belong to the user
+     * @throws InvalidTransactionException if the account is not owned, its currency differs from
+     *     the liability currency, or the tranche is not PLANNED
+     */
+    public LiabilityResponse disburse(Long userId, Long liabilityId, DisbursementRequest request) {
+        Liability liability =
+                liabilityRepository
+                        .findByIdAndUserId(liabilityId, userId)
+                        .orElseThrow(
+                                () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
+
+        LiabilityTranche tranche = resolveTrancheForDisbursement(userId, liability, request);
+        tranche.setDrawnAmount(request.getAmount());
+        tranche.setDrawnDate(request.getDate());
+        if (request.getDirectRealEstateId() != null) {
+            tranche.setRealEstateId(request.getDirectRealEstateId());
+        }
+        if (request.getNotes() != null && !request.getNotes().isBlank()) {
+            tranche.setNotes(request.getNotes());
+        }
+        tranche.setStatus(TrancheStatus.DRAWN);
+        liabilityTrancheRepository.save(tranche);
+
+        if (request.getToAccountId() != null) {
+            disburseToAccount(userId, liability, tranche, request);
+        } else {
+            disburseDirectly(userId, liability, request);
+        }
+        return toResponseWithDecryption(liability);
+    }
+
+    /**
+     * Resolves which tranche a disbursement draws: the explicitly requested one (validated for
+     * ownership, liability membership and PLANNED status), else the next PLANNED tranche by {@code
+     * trancheNo}, else a freshly created single tranche planned for the requested amount.
+     */
+    private LiabilityTranche resolveTrancheForDisbursement(
+            Long userId, Liability liability, DisbursementRequest request) {
+        if (request.getTrancheId() != null) {
+            LiabilityTranche tranche =
+                    liabilityTrancheRepository
+                            .findByIdAndUserId(request.getTrancheId(), userId)
+                            .orElseThrow(
+                                    () ->
+                                            new ResourceNotFoundException(
+                                                    String.format(
+                                                            "Tranche with ID %d not found",
+                                                            request.getTrancheId())));
+            if (!tranche.getLiabilityId().equals(liability.getId())) {
+                throw new InvalidTransactionException(
+                        String.format(
+                                "Tranche %d does not belong to liability %d",
+                                tranche.getId(), liability.getId()));
+            }
+            if (tranche.getStatus() != TrancheStatus.PLANNED) {
+                throw new InvalidTransactionException(
+                        String.format(
+                                "Tranche %d is not PLANNED (status: %s)",
+                                tranche.getId(), tranche.getStatus()));
+            }
+            return tranche;
+        }
+        return liabilityTrancheRepository
+                .findByLiabilityIdAndUserId(liability.getId(), userId)
+                .stream()
+                .filter(t -> t.getStatus() == TrancheStatus.PLANNED)
+                .min(Comparator.comparing(LiabilityTranche::getTrancheNo))
+                .orElseGet(
+                        () ->
+                                LiabilityTranche.builder()
+                                        .userId(userId)
+                                        .liabilityId(liability.getId())
+                                        .trancheNo(nextTrancheNo(liability.getId(), userId))
+                                        .plannedAmount(request.getAmount())
+                                        .plannedDate(request.getDate())
+                                        .status(TrancheStatus.PLANNED)
+                                        .currency(liability.getCurrency())
+                                        .build());
+    }
+
+    /** Bank-paid-my-account route: a single INCOME DISBURSEMENT transaction owns both legs. */
+    private void disburseToAccount(
+            Long userId,
+            Liability liability,
+            LiabilityTranche tranche,
+            DisbursementRequest request) {
+        Account account =
+                accountRepository
+                        .findByIdAndUserId(request.getToAccountId(), userId)
+                        .orElseThrow(
+                                () ->
+                                        InvalidTransactionException.accountNotOwnedByUser(
+                                                request.getToAccountId(), userId));
+        if (account.getCurrency() != null
+                && liability.getCurrency() != null
+                && !account.getCurrency().equalsIgnoreCase(liability.getCurrency())) {
+            throw InvalidTransactionException.currencyMismatch(
+                    account.getCurrency(), liability.getCurrency());
+        }
+        TransactionRequest txRequest =
+                TransactionRequest.builder()
+                        .accountId(request.getToAccountId())
+                        .type(TransactionType.INCOME)
+                        .amount(request.getAmount())
+                        .currency(liability.getCurrency())
+                        .date(request.getDate())
+                        .description("Disbursement T" + tranche.getTrancheNo())
+                        .notes(request.getNotes())
+                        .movementType(MovementType.DISBURSEMENT)
+                        .liabilityId(liability.getId())
+                        .trancheId(tranche.getId())
+                        .build();
+        transactionService.createTransaction(userId, txRequest);
+    }
+
+    /** Direct-to-property route: no account leg, no transaction row (spec §4). */
+    private void disburseDirectly(Long userId, Liability liability, DisbursementRequest request) {
+        BigDecimal current = decryptAmount(liability.getCurrentBalance());
+        BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(request.getAmount());
+        liability.setCurrentBalance(updated.toPlainString());
+        liabilityRepository.save(liability);
+
+        RealEstateProperty property =
+                realEstateRepository
+                        .findByIdAndUserId(request.getDirectRealEstateId(), userId)
+                        .orElseThrow(
+                                () ->
+                                        RealEstatePropertyNotFoundException.byIdAndUser(
+                                                request.getDirectRealEstateId(), userId));
+        BigDecimal propertyValue = property.getCurrentValueDecimal();
+        BigDecimal updatedValue =
+                (propertyValue == null ? BigDecimal.ZERO : propertyValue).add(request.getAmount());
+        property.setCurrentValue(updatedValue.toPlainString());
+        RealEstateProperty savedProperty = realEstateRepository.save(property);
+        realEstateValueHistoryRepository.save(
+                RealEstateValueHistory.builder()
+                        .propertyId(savedProperty.getId())
+                        .userId(savedProperty.getUserId())
+                        .effectiveDate(LocalDate.now())
+                        .recordedValue(updatedValue.toPlainString())
+                        .currency(savedProperty.getCurrency())
+                        .currencyId(savedProperty.getCurrencyId())
+                        .build());
+        log.info(
+                "Direct disbursement of {} applied to liability {} and property {}: liability "
+                        + "balance {}, property value {}",
+                request.getAmount(),
+                liability.getId(),
+                savedProperty.getId(),
+                updated,
+                updatedValue);
+    }
+
+    /**
+     * Lists the tranches of a liability ordered by {@code trancheNo}.
+     *
+     * @throws LiabilityNotFoundException if the liability does not belong to the user
+     */
+    @Transactional(readOnly = true)
+    public List<LiabilityTrancheResponse> getTranches(Long liabilityId, Long userId) {
+        liabilityRepository
+                .findByIdAndUserId(liabilityId, userId)
+                .orElseThrow(() -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
+        return liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
+                .sorted(Comparator.comparing(LiabilityTranche::getTrancheNo))
+                .map(this::toTrancheResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Creates a planned tranche on a liability.
+     *
+     * <p>{@code trancheNo} defaults to max existing + 1; {@code currency} always comes from the
+     * liability (a provided value must match it).
+     *
+     * @throws LiabilityNotFoundException if the liability does not belong to the user
+     * @throws InvalidTransactionException on a duplicate tranche number or a currency mismatch
+     */
+    public LiabilityTrancheResponse createTranche(
+            Long userId, Long liabilityId, LiabilityTrancheRequest request) {
+        Liability liability =
+                liabilityRepository
+                        .findByIdAndUserId(liabilityId, userId)
+                        .orElseThrow(
+                                () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
+        validateTrancheCurrency(request, liability);
+
+        Integer trancheNo =
+                request.getTrancheNo() != null
+                        ? request.getTrancheNo()
+                        : nextTrancheNo(liabilityId, userId);
+        if (liabilityTrancheRepository.existsByLiabilityIdAndUserIdAndTrancheNo(
+                liabilityId, userId, trancheNo)) {
+            throw new InvalidTransactionException(
+                    String.format(
+                            "Tranche number %d already exists for liability %d",
+                            trancheNo, liabilityId));
+        }
+
+        LiabilityTranche tranche =
+                LiabilityTranche.builder()
+                        .userId(userId)
+                        .liabilityId(liabilityId)
+                        .trancheNo(trancheNo)
+                        .plannedAmount(request.getPlannedAmount())
+                        .plannedDate(request.getPlannedDate())
+                        .fee(request.getFee())
+                        .interestOnly(Boolean.TRUE.equals(request.getInterestOnly()))
+                        .interestOnlyUntil(request.getInterestOnlyUntil())
+                        .realEstateId(request.getRealEstateId())
+                        .notes(request.getNotes())
+                        .status(TrancheStatus.PLANNED)
+                        .currency(liability.getCurrency())
+                        .build();
+        LiabilityTranche saved = liabilityTrancheRepository.save(tranche);
+        log.info(
+                "Created tranche T{} ({}) on liability {} for user {}",
+                saved.getTrancheNo(),
+                saved.getPlannedAmount(),
+                liabilityId,
+                userId);
+        return toTrancheResponse(saved);
+    }
+
+    /**
+     * Updates a tranche.
+     *
+     * <p>PLANNED/CANCELLED tranches accept planned-field updates and PLANNED&#8596;CANCELLED status
+     * transitions. DRAWN tranches are immutable except for {@code realEstateId} and {@code notes}.
+     *
+     * @throws ResourceNotFoundException if the tranche does not belong to the user
+     * @throws InvalidTransactionException when a DRAWN tranche's planned fields/status change, on
+     *     an illegal status transition, or on a currency mismatch
+     */
+    public LiabilityTrancheResponse updateTranche(
+            Long userId, Long trancheId, LiabilityTrancheRequest request) {
+        LiabilityTranche tranche =
+                liabilityTrancheRepository
+                        .findByIdAndUserId(trancheId, userId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                String.format(
+                                                        "Tranche with ID %d not found",
+                                                        trancheId)));
+        if (request.getCurrency() != null
+                && tranche.getCurrency() != null
+                && !tranche.getCurrency().equalsIgnoreCase(request.getCurrency())) {
+            throw InvalidTransactionException.currencyMismatch(
+                    tranche.getCurrency(), request.getCurrency());
+        }
+
+        if (tranche.getStatus() == TrancheStatus.DRAWN) {
+            updateDrawnTranche(tranche, request);
+        } else {
+            updatePlannedTranche(tranche, request);
+        }
+        LiabilityTranche saved = liabilityTrancheRepository.save(tranche);
+        log.info(
+                "Updated tranche {} of liability {}: status={}",
+                trancheId,
+                saved.getLiabilityId(),
+                saved.getStatus());
+        return toTrancheResponse(saved);
+    }
+
+    private void updatePlannedTranche(LiabilityTranche tranche, LiabilityTrancheRequest request) {
+        tranche.setPlannedAmount(request.getPlannedAmount());
+        tranche.setPlannedDate(request.getPlannedDate());
+        tranche.setFee(request.getFee());
+        tranche.setInterestOnly(Boolean.TRUE.equals(request.getInterestOnly()));
+        tranche.setInterestOnlyUntil(request.getInterestOnlyUntil());
+        tranche.setRealEstateId(request.getRealEstateId());
+        tranche.setNotes(request.getNotes());
+        if (request.getStatus() != null && request.getStatus() != tranche.getStatus()) {
+            if (request.getStatus() != TrancheStatus.PLANNED
+                    && request.getStatus() != TrancheStatus.CANCELLED) {
+                throw new InvalidTransactionException(
+                        String.format(
+                                "Illegal tranche status transition %s -> %s (only PLANNED and "
+                                        + "CANCELLED are toggleable)",
+                                tranche.getStatus(), request.getStatus()));
+            }
+            tranche.setStatus(request.getStatus());
+        }
+    }
+
+    private void updateDrawnTranche(LiabilityTranche tranche, LiabilityTrancheRequest request) {
+        boolean plannedFieldsChanged =
+                amountsDiffer(request.getPlannedAmount(), tranche.getPlannedAmount())
+                        || !Objects.equals(request.getPlannedDate(), tranche.getPlannedDate())
+                        || amountsDiffer(request.getFee(), tranche.getFee())
+                        || Boolean.TRUE.equals(request.getInterestOnly())
+                                != tranche.isInterestOnly()
+                        || !Objects.equals(
+                                request.getInterestOnlyUntil(), tranche.getInterestOnlyUntil());
+        if (plannedFieldsChanged
+                || (request.getStatus() != null && request.getStatus() != TrancheStatus.DRAWN)) {
+            throw new InvalidTransactionException(
+                    String.format(
+                            "Tranche %d is DRAWN and immutable except realEstateId and notes",
+                            tranche.getId()));
+        }
+        tranche.setRealEstateId(request.getRealEstateId());
+        tranche.setNotes(request.getNotes());
+    }
+
+    /** Null-safe scale-insensitive comparison of two monetary amounts. */
+    private boolean amountsDiffer(BigDecimal a, BigDecimal b) {
+        if (a == null && b == null) {
+            return false;
+        }
+        if (a == null || b == null) {
+            return true;
+        }
+        return a.compareTo(b) != 0;
+    }
+
+    private void validateTrancheCurrency(LiabilityTrancheRequest request, Liability liability) {
+        if (request.getCurrency() != null
+                && liability.getCurrency() != null
+                && !liability.getCurrency().equalsIgnoreCase(request.getCurrency())) {
+            throw InvalidTransactionException.currencyMismatch(
+                    liability.getCurrency(), request.getCurrency());
+        }
+    }
+
+    private Integer nextTrancheNo(Long liabilityId, Long userId) {
+        return liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
+                        .map(LiabilityTranche::getTrancheNo)
+                        .max(Integer::compareTo)
+                        .orElse(0)
+                + 1;
+    }
+
+    /**
+     * Maps a tranche to its response. {@code remaining} is the outstanding drawn principal; FIFO
+     * allocation of repayments to tranches lands in Task 7, so until then it equals {@code
+     * drawnAmount} (zero when not yet drawn).
+     */
+    private LiabilityTrancheResponse toTrancheResponse(LiabilityTranche tranche) {
+        return LiabilityTrancheResponse.builder()
+                .id(tranche.getId())
+                .liabilityId(tranche.getLiabilityId())
+                .trancheNo(tranche.getTrancheNo())
+                .plannedAmount(tranche.getPlannedAmount())
+                .drawnAmount(tranche.getDrawnAmount())
+                .remaining(
+                        tranche.getDrawnAmount() != null
+                                ? tranche.getDrawnAmount()
+                                : BigDecimal.ZERO)
+                .plannedDate(tranche.getPlannedDate())
+                .drawnDate(tranche.getDrawnDate())
+                .fee(tranche.getFee())
+                .interestOnly(tranche.isInterestOnly())
+                .interestOnlyUntil(tranche.getInterestOnlyUntil())
+                .status(tranche.getStatus())
+                .realEstateId(tranche.getRealEstateId())
+                .notes(tranche.getNotes())
+                .currency(tranche.getCurrency())
+                .build();
     }
 
     // ===========================
