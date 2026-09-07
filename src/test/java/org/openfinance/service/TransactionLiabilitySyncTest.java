@@ -495,4 +495,101 @@ class TransactionLiabilitySyncTest {
         assertThat(trancheCaptor.getValue().getDrawnAmount())
                 .isEqualByComparingTo(new BigDecimal("45000.00"));
     }
+
+    @Test
+    @DisplayName(
+            "Updating a DISBURSEMENT amount keeps the liability balance at the new amount "
+                    + "(tranche re-marked DRAWN before the reconcile clamp)")
+    void updateDisbursementAmountKeepsLiabilityBalanceAfterRedraw() {
+        // Shared mutable tranche so the reconcile sees the state persisted so far
+        LiabilityTranche tranche = drawnTrancheFixture(new BigDecimal("40000.00"));
+        when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
+                .thenReturn(Optional.of(disbursementEntity(new BigDecimal("40000.00"))));
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
+                .thenReturn(Optional.of(accountFixture("USD")));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(transactionRepository.save(any(Transaction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(transactionMapper.toResponse(any(Transaction.class)))
+                .thenReturn(new TransactionResponse());
+        when(transactionSplitService.getSplitsForTransaction(TX_ID)).thenReturn(List.of());
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("40000.00", "USD")));
+        when(liabilityRepository.save(any(Liability.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(liabilityTrancheRepository.findByIdAndUserId(TRANCHE_ID, USER_ID))
+                .thenReturn(Optional.of(tranche));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(List.of(tranche));
+        when(liabilityTrancheRepository.save(any(LiabilityTranche.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        TransactionRequest update =
+                linkedRequest(new BigDecimal("45000.00"), MovementType.DISBURSEMENT, "USD");
+        update.setTrancheId(TRANCHE_ID);
+
+        transactionService.updateTransaction(TX_ID, USER_ID, update);
+
+        // Reverse 40000 (balance → 0, tranche PLANNED), re-draw 45000: the clamp must count the
+        // re-drawn tranche, so the final balance is 45000 — not clamped down to 0.
+        ArgumentCaptor<Liability> liabilityCaptor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository, times(2)).save(liabilityCaptor.capture());
+        assertThat(liabilityCaptor.getValue().getCurrentBalance()).isEqualTo("45000.00");
+
+        ArgumentCaptor<LiabilityTranche> trancheCaptor =
+                ArgumentCaptor.forClass(LiabilityTranche.class);
+        verify(liabilityTrancheRepository, times(2)).save(trancheCaptor.capture());
+        assertThat(trancheCaptor.getValue().getStatus()).isEqualTo(TrancheStatus.DRAWN);
+        assertThat(trancheCaptor.getValue().getDrawnAmount())
+                .isEqualByComparingTo(new BigDecimal("45000.00"));
+    }
+
+    @Test
+    @DisplayName(
+            "Creating a DISBURSEMENT with trancheId marks the tranche DRAWN before the balance "
+                    + "reconcile, so the balance equals the amount")
+    void createDisbursementWithTrancheIdMarksDrawnThenAddsBalance() {
+        LiabilityTranche planned =
+                LiabilityTranche.builder()
+                        .id(TRANCHE_ID)
+                        .liabilityId(LIABILITY_ID)
+                        .userId(USER_ID)
+                        .trancheNo(1)
+                        .plannedAmount(new BigDecimal("50000.00"))
+                        .status(TrancheStatus.PLANNED)
+                        .currency("USD")
+                        .build();
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("45000.00"), MovementType.DISBURSEMENT, "USD");
+        request.setTrancheId(TRANCHE_ID);
+        Transaction mapped =
+                linkedEntity(null, new BigDecimal("45000.00"), MovementType.DISBURSEMENT, "USD");
+        mapped.setTrancheId(TRANCHE_ID);
+        Transaction saved =
+                linkedEntity(TX_ID, new BigDecimal("45000.00"), MovementType.DISBURSEMENT, "USD");
+        saved.setTrancheId(TRANCHE_ID);
+        stubCreate(request, mapped, saved);
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("0.00", "USD")));
+        when(liabilityTrancheRepository.findByIdAndUserId(TRANCHE_ID, USER_ID))
+                .thenReturn(Optional.of(planned));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(List.of(planned));
+        when(liabilityTrancheRepository.save(any(LiabilityTranche.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        transactionService.createTransaction(USER_ID, request);
+
+        // The tranche is marked DRAWN before the reconcile, so drawnSum counts it and the
+        // balance is the full amount instead of being clamped down to 0.
+        ArgumentCaptor<Liability> liabilityCaptor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(liabilityCaptor.capture());
+        assertThat(liabilityCaptor.getValue().getCurrentBalance()).isEqualTo("45000.00");
+
+        ArgumentCaptor<LiabilityTranche> trancheCaptor =
+                ArgumentCaptor.forClass(LiabilityTranche.class);
+        verify(liabilityTrancheRepository).save(trancheCaptor.capture());
+        assertThat(trancheCaptor.getValue().getStatus()).isEqualTo(TrancheStatus.DRAWN);
+        assertThat(trancheCaptor.getValue().getDrawnAmount())
+                .isEqualByComparingTo(new BigDecimal("45000.00"));
+    }
 }

@@ -2230,13 +2230,18 @@ public class TransactionService {
             } else {
                 delta = extractPrincipalLeg(request.getAmount(), request.getSplits()).negate();
             }
-            adjustLiabilityBalance(liability, delta);
 
+            // Mirror LiabilityService.disburse's contract: the tranche is (re-)marked DRAWN
+            // BEFORE the balance change, so the mid-flow reconcile clamp inside
+            // adjustLiabilityBalance already counts this drawdown. In the update flow
+            // reverseLinkedMovements has already reverted the tranche to PLANNED; marking it
+            // drawn only after the clamp would let the clamp destroy the new balance.
             if (transaction.getMovementType() == MovementType.DISBURSEMENT
                     && transaction.getTrancheId() != null) {
                 markTrancheDrawn(
                         userId, transaction.getTrancheId(), request.getAmount(), request.getDate());
             }
+            adjustLiabilityBalance(liability, delta);
         }
 
         if (transaction.getRealEstateId() != null
