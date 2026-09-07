@@ -53,10 +53,10 @@ public class DisbursementRequest {
      *
      * <p>Called by Jakarta Bean Validation during full-request validation.
      *
-     * @return true when exactly one of toAccountId and directRealEstateId is set
+     * @return true when exactly one of trancheId and directRealEstateId is set
      */
-    @AssertTrue(message = "Exactly one of toAccountId and directRealEstateId must be set")
+    @AssertTrue(message = "{disbursement.target.exclusive}")
     private boolean isTargetCoherent() {
-        return (toAccountId != null) ^ (directRealEstateId != null);
+        return (trancheId != null) ^ (directRealEstateId != null);
     }
 }

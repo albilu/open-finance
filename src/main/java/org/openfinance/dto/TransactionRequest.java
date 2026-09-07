@@ -239,7 +239,7 @@ public class TransactionRequest {
      *
      * @return true when movementType is not DISBURSEMENT or liabilityId is set
      */
-    @AssertTrue(message = "liabilityId is required when movementType is DISBURSEMENT")
+    @AssertTrue(message = "{transaction.movement.disbursement}")
     private boolean isDisbursementCoherent() {
         if (movementType == MovementType.DISBURSEMENT) {
             return liabilityId != null;
@@ -254,9 +254,7 @@ public class TransactionRequest {
      *
      * @return true when movementType is not CAPITAL_IMPROVEMENT/MAINTENANCE or a link is set
      */
-    @AssertTrue(
-            message =
-                    "realEstateId or assetId is required when movementType is CAPITAL_IMPROVEMENT or MAINTENANCE")
+    @AssertTrue(message = "{transaction.movement.improvement}")
     private boolean isImprovementCoherent() {
         if (movementType == MovementType.CAPITAL_IMPROVEMENT
                 || movementType == MovementType.MAINTENANCE) {
