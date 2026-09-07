@@ -69,6 +69,7 @@ class TransactionLiabilitySyncTest {
     private static final Long LIABILITY_ID = 200L;
     private static final Long PROPERTY_ID = 300L;
     private static final Long TX_ID = 100L;
+    private static final Long TRANCHE_ID = 400L;
 
     @Mock private TransactionRepository transactionRepository;
     @Mock private AccountRepository accountRepository;
@@ -402,5 +403,96 @@ class TransactionLiabilitySyncTest {
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
         verify(liabilityRepository).save(captor.capture());
         assertThat(captor.getValue().getCurrentBalance()).isEqualTo("6000.00");
+    }
+
+    // ---------- DISBURSEMENT tranche lifecycle on delete/update ----------
+
+    private Transaction disbursementEntity(BigDecimal amount) {
+        Transaction tx = linkedEntity(TX_ID, amount, MovementType.DISBURSEMENT, "USD");
+        tx.setType(TransactionType.INCOME);
+        tx.setTrancheId(TRANCHE_ID);
+        return tx;
+    }
+
+    private LiabilityTranche drawnTrancheFixture(BigDecimal drawnAmount) {
+        return LiabilityTranche.builder()
+                .id(TRANCHE_ID)
+                .liabilityId(LIABILITY_ID)
+                .userId(USER_ID)
+                .trancheNo(1)
+                .plannedAmount(new BigDecimal("50000.00"))
+                .drawnAmount(drawnAmount)
+                .drawnDate(LocalDate.now().minusDays(1))
+                .status(TrancheStatus.DRAWN)
+                .currency("USD")
+                .build();
+    }
+
+    @Test
+    @DisplayName(
+            "Deleting a DISBURSEMENT tx reverts its tranche to PLANNED with drawn fields cleared")
+    void deleteDisbursementTxRevertsTrancheToPlanned() {
+        when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
+                .thenReturn(Optional.of(disbursementEntity(new BigDecimal("40000.00"))));
+        when(transactionRepository.save(any(Transaction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
+                .thenReturn(Optional.of(accountFixture("USD")));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(transactionSplitService.getSplitsForTransaction(TX_ID)).thenReturn(List.of());
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("40000.00", "USD")));
+        when(liabilityRepository.save(any(Liability.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(liabilityTrancheRepository.findByIdAndUserId(TRANCHE_ID, USER_ID))
+                .thenReturn(Optional.of(drawnTrancheFixture(new BigDecimal("40000.00"))));
+        when(liabilityTrancheRepository.save(any(LiabilityTranche.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        transactionService.deleteTransaction(TX_ID, USER_ID);
+
+        ArgumentCaptor<LiabilityTranche> trancheCaptor =
+                ArgumentCaptor.forClass(LiabilityTranche.class);
+        verify(liabilityTrancheRepository).save(trancheCaptor.capture());
+        assertThat(trancheCaptor.getValue().getStatus()).isEqualTo(TrancheStatus.PLANNED);
+        assertThat(trancheCaptor.getValue().getDrawnAmount()).isNull();
+        assertThat(trancheCaptor.getValue().getDrawnDate()).isNull();
+    }
+
+    @Test
+    @DisplayName("Updating a DISBURSEMENT tx amount re-marks the tranche DRAWN with the new amount")
+    void updateDisbursementTxAmountUpdatesTrancheDrawnAmount() {
+        when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
+                .thenReturn(Optional.of(disbursementEntity(new BigDecimal("40000.00"))));
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
+                .thenReturn(Optional.of(accountFixture("USD")));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(transactionRepository.save(any(Transaction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(transactionMapper.toResponse(any(Transaction.class)))
+                .thenReturn(new TransactionResponse());
+        when(transactionSplitService.getSplitsForTransaction(TX_ID)).thenReturn(List.of());
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("40000.00", "USD")));
+        when(liabilityRepository.save(any(Liability.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(liabilityTrancheRepository.findByIdAndUserId(TRANCHE_ID, USER_ID))
+                .thenAnswer(inv -> Optional.of(drawnTrancheFixture(new BigDecimal("40000.00"))));
+        when(liabilityTrancheRepository.save(any(LiabilityTranche.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        TransactionRequest update =
+                linkedRequest(new BigDecimal("45000.00"), MovementType.DISBURSEMENT, "USD");
+        update.setTrancheId(TRANCHE_ID);
+
+        transactionService.updateTransaction(TX_ID, USER_ID, update);
+
+        // First save reverts the tranche to PLANNED, the second re-marks it DRAWN at 45000
+        ArgumentCaptor<LiabilityTranche> trancheCaptor =
+                ArgumentCaptor.forClass(LiabilityTranche.class);
+        verify(liabilityTrancheRepository, times(2)).save(trancheCaptor.capture());
+        assertThat(trancheCaptor.getAllValues().get(0).getStatus())
+                .isEqualTo(TrancheStatus.PLANNED);
+        assertThat(trancheCaptor.getValue().getStatus()).isEqualTo(TrancheStatus.DRAWN);
+        assertThat(trancheCaptor.getValue().getDrawnAmount())
+                .isEqualByComparingTo(new BigDecimal("45000.00"));
     }
 }

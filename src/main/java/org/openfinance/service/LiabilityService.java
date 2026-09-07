@@ -34,6 +34,7 @@ import org.openfinance.entity.RealEstateValueHistory;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
+import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.exception.LiabilityNotFoundException;
 import org.openfinance.exception.RealEstatePropertyNotFoundException;
@@ -1246,6 +1247,9 @@ public class LiabilityService {
      * @throws LiabilityNotFoundException if the liability does not belong to the user
      * @throws InvalidTransactionException if the account is not owned, its currency differs from
      *     the liability currency, or the tranche is not PLANNED
+     * @throws InvalidLiabilityStateException if the liability balance exceeds the total drawn
+     *     amount of its DRAWN tranches (reconcile first), or the amount exceeds the tranche's
+     *     planned amount
      */
     public LiabilityResponse disburse(Long userId, Long liabilityId, DisbursementRequest request) {
         Liability liability =
@@ -1254,7 +1258,20 @@ public class LiabilityService {
                         .orElseThrow(
                                 () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
 
+        // Fail fast on a contradictory state: the balance must never exceed what the DRAWN
+        // tranches account for, otherwise this drawdown would silently rely on untracked money.
+        BigDecimal currentBalance = decryptAmount(liability.getCurrentBalance());
+        BigDecimal drawnSum = sumDrawnAmounts(liability.getId(), userId);
+        if (currentBalance != null && currentBalance.compareTo(drawnSum) > 0) {
+            throw InvalidLiabilityStateException.balanceExceedsDrawnTranches(
+                    liability.getId(), currentBalance, drawnSum);
+        }
+
         LiabilityTranche tranche = resolveTrancheForDisbursement(userId, liability, request);
+        if (request.getAmount().compareTo(tranche.getPlannedAmount()) > 0) {
+            throw InvalidLiabilityStateException.disbursementOverdraw(
+                    request.getAmount(), tranche.getId(), tranche.getPlannedAmount());
+        }
         tranche.setDrawnAmount(request.getAmount());
         tranche.setDrawnDate(request.getDate());
         if (request.getDirectRealEstateId() != null) {
@@ -1360,11 +1377,6 @@ public class LiabilityService {
 
     /** Direct-to-property route: no account leg, no transaction row (spec §4). */
     private void disburseDirectly(Long userId, Liability liability, DisbursementRequest request) {
-        BigDecimal current = decryptAmount(liability.getCurrentBalance());
-        BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(request.getAmount());
-        liability.setCurrentBalance(updated.toPlainString());
-        liabilityRepository.save(liability);
-
         RealEstateProperty property =
                 realEstateRepository
                         .findByIdAndUserId(request.getDirectRealEstateId(), userId)
@@ -1372,10 +1384,27 @@ public class LiabilityService {
                                 () ->
                                         RealEstatePropertyNotFoundException.byIdAndUser(
                                                 request.getDirectRealEstateId(), userId));
+        if (property.getCurrency() != null
+                && liability.getCurrency() != null
+                && !property.getCurrency().equalsIgnoreCase(liability.getCurrency())) {
+            throw InvalidTransactionException.currencyMismatch(
+                    property.getCurrency(), liability.getCurrency());
+        }
+
+        BigDecimal current = decryptAmount(liability.getCurrentBalance());
+        BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(request.getAmount());
+        liability.setCurrentBalance(updated.toPlainString());
+        reconcileTranches(liability);
+        liabilityRepository.save(liability);
+
         BigDecimal propertyValue = property.getCurrentValueDecimal();
         BigDecimal updatedValue =
                 (propertyValue == null ? BigDecimal.ZERO : propertyValue).add(request.getAmount());
         property.setCurrentValue(updatedValue.toPlainString());
+        BigDecimal purchasePrice = property.getPurchasePriceDecimal();
+        BigDecimal updatedPurchase =
+                (purchasePrice == null ? BigDecimal.ZERO : purchasePrice).add(request.getAmount());
+        property.setPurchasePrice(updatedPurchase.toPlainString());
         RealEstateProperty savedProperty = realEstateRepository.save(property);
         realEstateValueHistoryRepository.save(
                 RealEstateValueHistory.builder()
@@ -1388,12 +1417,52 @@ public class LiabilityService {
                         .build());
         log.info(
                 "Direct disbursement of {} applied to liability {} and property {}: liability "
-                        + "balance {}, property value {}",
+                        + "balance {}, property value {}, purchase price {}",
                 request.getAmount(),
                 liability.getId(),
                 savedProperty.getId(),
                 updated,
-                updatedValue);
+                updatedValue,
+                updatedPurchase);
+    }
+
+    /**
+     * Sums the drawn amounts of the liability's DRAWN tranches (null drawn amounts count as zero).
+     */
+    private BigDecimal sumDrawnAmounts(Long liabilityId, Long userId) {
+        return liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
+                .filter(t -> t.getStatus() == TrancheStatus.DRAWN)
+                .map(LiabilityTranche::getDrawnAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Guard for staged loans (spec §3.2): the current balance must not exceed the sum of drawn
+     * amounts of DRAWN tranches. Clamps the balance if it does.
+     */
+    private void reconcileTranches(Liability liability) {
+        List<LiabilityTranche> tranches =
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(
+                        liability.getId(), liability.getUserId());
+        if (tranches.isEmpty()) {
+            return;
+        }
+        BigDecimal drawnSum = BigDecimal.ZERO;
+        for (LiabilityTranche tranche : tranches) {
+            if (tranche.getStatus() == TrancheStatus.DRAWN && tranche.getDrawnAmount() != null) {
+                drawnSum = drawnSum.add(tranche.getDrawnAmount());
+            }
+        }
+        BigDecimal balance = decryptAmount(liability.getCurrentBalance());
+        if (balance != null && balance.compareTo(drawnSum) > 0) {
+            log.warn(
+                    "Clamping liability {} balance {} to drawn tranche sum {}",
+                    liability.getId(),
+                    balance,
+                    drawnSum);
+            liability.setCurrentBalance(drawnSum.toPlainString());
+        }
     }
 
     /**

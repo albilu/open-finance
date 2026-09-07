@@ -942,6 +942,7 @@ public class TransactionService {
         // Capture old linked-instrument legs before the mapper overwrites them (Task 3)
         Long oldLiabilityId = transaction.getLiabilityId();
         Long oldRealEstateId = transaction.getRealEstateId();
+        Long oldTrancheId = transaction.getTrancheId();
         MovementType oldMovementType = transaction.getMovementType();
         List<TransactionSplitResponse> oldSplits =
                 oldLiabilityId != null
@@ -1047,7 +1048,13 @@ public class TransactionService {
 
         // Reverse old linked liability / property legs, then apply the new ones (Task 3)
         reverseLinkedMovements(
-                userId, oldLiabilityId, oldRealEstateId, oldMovementType, oldAmount, oldSplits);
+                userId,
+                oldLiabilityId,
+                oldRealEstateId,
+                oldTrancheId,
+                oldMovementType,
+                oldAmount,
+                oldSplits);
         applyLinkedMovements(userId, transaction, request);
 
         log.info(
@@ -1198,6 +1205,7 @@ public class TransactionService {
                     userId,
                     transaction.getLiabilityId(),
                     transaction.getRealEstateId(),
+                    transaction.getTrancheId(),
                     transaction.getMovementType(),
                     transaction.getAmount(),
                     transaction.getLiabilityId() != null
@@ -2223,6 +2231,12 @@ public class TransactionService {
                 delta = extractPrincipalLeg(request.getAmount(), request.getSplits()).negate();
             }
             adjustLiabilityBalance(liability, delta);
+
+            if (transaction.getMovementType() == MovementType.DISBURSEMENT
+                    && transaction.getTrancheId() != null) {
+                markTrancheDrawn(
+                        userId, transaction.getTrancheId(), request.getAmount(), request.getDate());
+            }
         }
 
         if (transaction.getRealEstateId() != null
@@ -2237,9 +2251,13 @@ public class TransactionService {
      * Reverses the liability / property balance effects of a transaction that is being deleted or
      * replaced by an update.
      *
+     * <p>For a DISBURSEMENT linked to a tranche, the tranche is reverted to PLANNED (drawnAmount
+     * and drawnDate cleared) so it is not stuck in DRAWN after its backing movement disappears.
+     *
      * @param userId the owner's ID
      * @param liabilityId the old liability link (nullable)
      * @param realEstateId the old property link (nullable)
+     * @param trancheId the old tranche link (nullable)
      * @param movementType the old movement classification
      * @param amount the old transaction amount
      * @param splits the old stored split lines (used to recover the principal leg)
@@ -2248,6 +2266,7 @@ public class TransactionService {
             Long userId,
             Long liabilityId,
             Long realEstateId,
+            Long trancheId,
             MovementType movementType,
             BigDecimal amount,
             List<TransactionSplitResponse> splits) {
@@ -2266,11 +2285,54 @@ public class TransactionService {
                 delta = extractPrincipalLegFromStored(amount, splits);
             }
             adjustLiabilityBalance(liability, delta);
+
+            if (movementType == MovementType.DISBURSEMENT && trancheId != null) {
+                revertDisbursedTranche(userId, trancheId);
+            }
         }
 
         if (realEstateId != null && movementType == MovementType.CAPITAL_IMPROVEMENT) {
             reverseCapitalImprovement(userId, realEstateId, amount);
         }
+    }
+
+    /**
+     * Reverts a tranche drawn by a DISBURSEMENT movement back to PLANNED, clearing its drawn
+     * fields. A missing tranche is ignored (e.g. it was deleted independently).
+     */
+    private void revertDisbursedTranche(Long userId, Long trancheId) {
+        liabilityTrancheRepository
+                .findByIdAndUserId(trancheId, userId)
+                .ifPresent(
+                        tranche -> {
+                            tranche.setStatus(TrancheStatus.PLANNED);
+                            tranche.setDrawnAmount(null);
+                            tranche.setDrawnDate(null);
+                            liabilityTrancheRepository.save(tranche);
+                            log.info(
+                                    "Tranche {} reverted to PLANNED after its DISBURSEMENT movement"
+                                            + " was reversed",
+                                    trancheId);
+                        });
+    }
+
+    /**
+     * (Re-)marks a tranche as DRAWN for a DISBURSEMENT movement: drawnAmount follows the movement
+     * amount, drawnDate keeps its value once set.
+     */
+    private void markTrancheDrawn(
+            Long userId, Long trancheId, BigDecimal amount, LocalDate drawnDate) {
+        liabilityTrancheRepository
+                .findByIdAndUserId(trancheId, userId)
+                .ifPresent(
+                        tranche -> {
+                            tranche.setStatus(TrancheStatus.DRAWN);
+                            tranche.setDrawnAmount(amount);
+                            if (tranche.getDrawnDate() == null && drawnDate != null) {
+                                tranche.setDrawnDate(drawnDate);
+                            }
+                            liabilityTrancheRepository.save(tranche);
+                        });
     }
 
     /**

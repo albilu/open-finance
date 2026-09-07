@@ -106,11 +106,16 @@ class LiabilityDisburseApiTest {
 
     /** Creates a staged construction loan starting at a zero balance. */
     private Long createStagedLiability() throws Exception {
+        return createLiabilityWithBalance(BigDecimal.ZERO);
+    }
+
+    /** Creates a staged construction loan with the given starting balance. */
+    private Long createLiabilityWithBalance(BigDecimal currentBalance) throws Exception {
         LiabilityRequest request = new LiabilityRequest();
         request.setName("Construction Loan");
         request.setType(LiabilityType.LOAN);
         request.setPrincipal(new BigDecimal("200000.00"));
-        request.setCurrentBalance(BigDecimal.ZERO);
+        request.setCurrentBalance(currentBalance);
         request.setInterestRate(new BigDecimal("4.5"));
         request.setStartDate(LocalDate.now().minusMonths(1));
         request.setCurrency("USD");
@@ -134,15 +139,26 @@ class LiabilityDisburseApiTest {
     }
 
     private Long createProperty() throws Exception {
+        return createProperty("USD");
+    }
+
+    private Long createProperty(String currency) throws Exception {
         Map<String, Object> body =
                 Map.of(
-                        "name", "Build Site",
-                        "propertyType", "RESIDENTIAL",
-                        "address", "1 Main St",
-                        "purchasePrice", new BigDecimal("100000.00"),
-                        "currentValue", new BigDecimal("100000.00"),
-                        "purchaseDate", LocalDate.now().minusMonths(2).toString(),
-                        "currency", "USD");
+                        "name",
+                        "Build Site",
+                        "propertyType",
+                        "RESIDENTIAL",
+                        "address",
+                        "1 Main St",
+                        "purchasePrice",
+                        new BigDecimal("100000.00"),
+                        "currentValue",
+                        new BigDecimal("100000.00"),
+                        "purchaseDate",
+                        LocalDate.now().minusMonths(2).toString(),
+                        "currency",
+                        currency);
         String resp = performPost("/api/v1/real-estate", body);
         return objectMapper.readTree(resp).get("id").asLong();
     }
@@ -261,13 +277,104 @@ class LiabilityDisburseApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
 
-        // Property current value increased by the disbursed amount
+        // Property purchase price AND current value increased by the disbursed amount
         mockMvc.perform(
                         get("/api/v1/real-estate/" + propertyId)
                                 .header("Authorization", "Bearer " + token)
                                 .header("X-Encryption-Session", encKey))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.currentValue").value(130000.00));
+                .andExpect(jsonPath("$.currentValue").value(130000.00))
+                .andExpect(jsonPath("$.purchasePrice").value(130000.00));
+    }
+
+    // ---------- direct-path guards ----------
+
+    @Test
+    @DisplayName(
+            "Direct disbursement to a property whose currency differs from the liability is rejected")
+    void directDisbursementCurrencyMismatchIsRejected() throws Exception {
+        Long liabilityId = createStagedLiability();
+        Long propertyId = createProperty("EUR");
+
+        Map<String, Object> body = disbursementBody(new BigDecimal("1000.00"));
+        body.put("directRealEstateId", propertyId);
+
+        mockMvc.perform(
+                        post("/api/v1/liabilities/" + liabilityId + "/disburse")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Disbursement exceeding the tranche's planned amount is rejected without mutation")
+    void disbursementExceedingPlannedAmountIsRejected() throws Exception {
+        Long liabilityId = createStagedLiability();
+        Long propertyId = createProperty();
+        Long trancheId = createPlannedTranche(liabilityId, "50000.00");
+
+        Map<String, Object> body = disbursementBody(new BigDecimal("60000.00"));
+        body.put("trancheId", trancheId);
+        body.put("directRealEstateId", propertyId);
+
+        mockMvc.perform(
+                        post("/api/v1/liabilities/" + liabilityId + "/disburse")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isConflict());
+
+        // The tranche is untouched: still PLANNED with no drawn fields
+        mockMvc.perform(
+                        get("/api/v1/liabilities/" + liabilityId + "/tranches")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("PLANNED"))
+                .andExpect(jsonPath("$[0].drawnAmount").doesNotExist());
+    }
+
+    @Test
+    @DisplayName(
+            "Disbursement fails fast (409) when the balance already exceeds the drawn tranches")
+    void disburseFailsFastWhenBalanceExceedsDrawnTranches() throws Exception {
+        Long liabilityId = createLiabilityWithBalance(new BigDecimal("200000.00"));
+        Long propertyId = createProperty();
+
+        Map<String, Object> body = disbursementBody(new BigDecimal("40000.00"));
+        body.put("directRealEstateId", propertyId);
+
+        mockMvc.perform(
+                        post("/api/v1/liabilities/" + liabilityId + "/disburse")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isConflict());
+
+        // Not a silent clamp: the balance is untouched and no tranche was created
+        String getResp =
+                mockMvc.perform(
+                                get("/api/v1/liabilities/" + liabilityId)
+                                        .header("Authorization", "Bearer " + token)
+                                        .header("X-Encryption-Session", encKey))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        String persistedBalance = objectMapper.readTree(getResp).get("currentBalance").asText();
+        org.assertj.core.api.Assertions.assertThat(
+                        new BigDecimal(persistedBalance).compareTo(new BigDecimal("200000.00")))
+                .isZero();
+        mockMvc.perform(
+                        get("/api/v1/liabilities/" + liabilityId + "/tranches")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     // ---------- route validation ----------

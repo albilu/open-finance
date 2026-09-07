@@ -473,6 +473,31 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles invalid liability state exceptions (contradictory state that must be reconciled).
+     *
+     * @param ex the exception
+     * @param request the web request
+     * @return HTTP 409 Conflict with error message
+     */
+    @ExceptionHandler(InvalidLiabilityStateException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidLiabilityState(
+            InvalidLiabilityStateException ex, WebRequest request) {
+
+        log.warn("Invalid liability state: {}", ex.getMessage());
+
+        ErrorResponse errorResponse =
+                ErrorResponse.builder()
+                        .timestamp(LocalDateTime.now())
+                        .status(HttpStatus.CONFLICT.value())
+                        .error(HttpStatus.CONFLICT.getReasonPhrase())
+                        .message(resolveMessage(ex))
+                        .path(getRequestPath(request))
+                        .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
+    /**
      * Handles budget not found exceptions.
      *
      * @param ex the exception
