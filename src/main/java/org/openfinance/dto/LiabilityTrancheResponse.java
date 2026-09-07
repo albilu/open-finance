@@ -43,11 +43,23 @@ public class LiabilityTrancheResponse {
     /** Actual drawdown date. */
     private LocalDate drawnDate;
 
+    /** Fee associated with this tranche. */
+    private BigDecimal fee;
+
+    /** Whether this tranche is interest-only. */
+    private Boolean interestOnly;
+
+    /** End date of the interest-only period. */
+    private LocalDate interestOnlyUntil;
+
     /** Lifecycle status of the tranche. */
     private TrancheStatus status;
 
     /** ID of the linked real estate property. */
     private Long realEstateId;
+
+    /** Optional notes about this tranche. */
+    private String notes;
 
     /** Currency code in ISO 4217 format. */
     private String currency;

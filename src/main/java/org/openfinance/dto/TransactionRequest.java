@@ -2,6 +2,7 @@ package org.openfinance.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -230,4 +231,37 @@ public class TransactionRequest {
      * <p>Requirement REQ-SPL-1.5: Splits only for INCOME/EXPENSE
      */
     @Valid private List<TransactionSplitRequest> splits;
+
+    /**
+     * Validates that DISBURSEMENT movements link to a liability.
+     *
+     * <p>Called by Jakarta Bean Validation during full-request validation.
+     *
+     * @return true when movementType is not DISBURSEMENT or liabilityId is set
+     */
+    @AssertTrue(message = "liabilityId is required when movementType is DISBURSEMENT")
+    private boolean isDisbursementCoherent() {
+        if (movementType == MovementType.DISBURSEMENT) {
+            return liabilityId != null;
+        }
+        return true;
+    }
+
+    /**
+     * Validates that improvement and maintenance movements link to a property or an asset.
+     *
+     * <p>Called by Jakarta Bean Validation during full-request validation.
+     *
+     * @return true when movementType is not CAPITAL_IMPROVEMENT/MAINTENANCE or a link is set
+     */
+    @AssertTrue(
+            message =
+                    "realEstateId or assetId is required when movementType is CAPITAL_IMPROVEMENT or MAINTENANCE")
+    private boolean isImprovementCoherent() {
+        if (movementType == MovementType.CAPITAL_IMPROVEMENT
+                || movementType == MovementType.MAINTENANCE) {
+            return realEstateId != null || assetId != null;
+        }
+        return true;
+    }
 }

@@ -1,5 +1,6 @@
 package org.openfinance.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
@@ -46,4 +47,16 @@ public class DisbursementRequest {
     /** Optional notes about the disbursement. */
     @Size(max = 1000, message = "{disbursement.notes.max}")
     private String notes;
+
+    /**
+     * Validates that exactly one disbursement target is set.
+     *
+     * <p>Called by Jakarta Bean Validation during full-request validation.
+     *
+     * @return true when exactly one of toAccountId and directRealEstateId is set
+     */
+    @AssertTrue(message = "Exactly one of toAccountId and directRealEstateId must be set")
+    private boolean isTargetCoherent() {
+        return (toAccountId != null) ^ (directRealEstateId != null);
+    }
 }

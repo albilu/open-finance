@@ -2,6 +2,7 @@ package org.openfinance.dto;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -27,6 +28,7 @@ public class LiabilityTrancheRequest {
 
     /** Sequential number of the tranche within its liability. */
     @NotNull(message = "{liabilityTranche.trancheNo.required}")
+    @Min(value = 1, message = "{liabilityTranche.trancheNo.min}")
     private Integer trancheNo;
 
     /** Planned drawdown amount. */
@@ -57,7 +59,7 @@ public class LiabilityTrancheRequest {
     private String notes;
 
     /** Currency code in ISO 4217 format (e.g., "USD", "EUR", "GBP"). */
-    @NotBlank(message = "{account.currency.required}")
+    @NotBlank(message = "{liabilityTranche.currency.required}")
     @ValidCurrency
     private String currency;
 }
