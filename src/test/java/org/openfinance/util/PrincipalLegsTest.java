@@ -1,6 +1,7 @@
 package org.openfinance.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
@@ -52,5 +53,44 @@ class PrincipalLegsTest {
     @DisplayName("both null arguments resolve to zero")
     void ofWithBothNullResolvesToZero() {
         assertThat(PrincipalLegs.of(null, null)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("null conversion rate is rejected")
+    void ofConvertedWithNullRateThrows() {
+        assertThatThrownBy(() -> PrincipalLegs.ofConverted(new BigDecimal("1200"), null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Conversion rate");
+    }
+
+    @Test
+    @DisplayName("zero conversion rate is rejected")
+    void ofConvertedWithZeroRateThrows() {
+        assertThatThrownBy(
+                        () ->
+                                PrincipalLegs.ofConverted(
+                                        new BigDecimal("1200"), null, BigDecimal.ZERO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Conversion rate");
+    }
+
+    @Test
+    @DisplayName("negative conversion rate is rejected")
+    void ofConvertedWithNegativeRateThrows() {
+        assertThatThrownBy(
+                        () ->
+                                PrincipalLegs.ofConverted(
+                                        new BigDecimal("1200"), null, new BigDecimal("-0.5")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Conversion rate");
+    }
+
+    @Test
+    @DisplayName("positive conversion rate converts the categorized sum and rounds to 2 decimals")
+    void ofConvertedConvertsCategorizedSum() {
+        assertThat(
+                        PrincipalLegs.ofConverted(
+                                new BigDecimal("1200"), new BigDecimal("500"), new BigDecimal("2")))
+                .isEqualByComparingTo("950");
     }
 }

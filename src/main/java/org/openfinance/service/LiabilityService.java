@@ -817,13 +817,9 @@ public class LiabilityService {
                 "Calculating amortization schedule for liability {}: userId={}",
                 liabilityId,
                 userId);
+        if (liabilityId == null) throw new IllegalArgumentException("Liability ID cannot be null");
+        if (userId == null) throw new IllegalArgumentException("User ID cannot be null");
 
-        if (liabilityId == null) {
-            throw new IllegalArgumentException("Liability ID cannot be null");
-        }
-        if (userId == null) {
-            throw new IllegalArgumentException("User ID cannot be null");
-        }
         // Fetch liability and verify ownership
         Liability liability =
                 liabilityRepository
@@ -831,76 +827,89 @@ public class LiabilityService {
                         .orElseThrow(
                                 () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
 
-        // Decrypt required fields
+        // Decrypt + validate balance/rate/minimum payment; empty schedule when insufficient.
+        ScheduleInputs inputs = resolveScheduleInputs(liability, liabilityId, userId);
+        if (inputs == null) {
+            return new ArrayList<>();
+        }
+
+        // Two-phase support (Task 9): a DRAWN interest-only tranche whose window is still open
+        // suppresses the principal during that period.
+        InterestOnlyWindow window =
+                resolveInterestOnlyWindow(
+                        liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId));
+        List<AmortizationScheduleEntry> schedule =
+                buildSchedule(inputs, window, monthlyInsuranceOf(liability));
+
+        log.info(
+                "Amortization schedule calculated for liability {}: {} payments, total interest: {}",
+                liabilityId,
+                schedule.size(),
+                totalInterestOf(schedule));
+
+        return schedule;
+    }
+
+    /** Validated inputs of an amortization schedule computation. */
+    private record ScheduleInputs(
+            BigDecimal balance, BigDecimal minimumPayment, BigDecimal monthlyRate) {}
+
+    /** Total interest of a generated schedule (sum of the per-row interest portions). */
+    private static BigDecimal totalInterestOf(List<AmortizationScheduleEntry> schedule) {
+        return schedule.stream()
+                .map(AmortizationScheduleEntry::getInterestPortion)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Builds the schedule rows, or an empty list when the minimum payment cannot cover the first
+     * month's interest outside an interest-only window (avoids an infinite loop). Inside a window
+     * the payment is the computed interest itself, so the check only applies once the schedule
+     * amortizes; the row loop stops at the window end when the payment cannot cover interest.
+     */
+    private List<AmortizationScheduleEntry> buildSchedule(
+            ScheduleInputs inputs, InterestOnlyWindow window, BigDecimal monthlyInsurance) {
+        LocalDate firstPaymentDate = LocalDate.now();
+        BigDecimal firstMonthInterest = inputs.balance().multiply(inputs.monthlyRate());
+        if (!window.activeOn(firstPaymentDate)
+                && inputs.minimumPayment().compareTo(firstMonthInterest) <= 0) {
+            log.warn(
+                    "Cannot calculate amortization schedule: minimum payment ({}) does not cover"
+                            + " first month interest ({})",
+                    inputs.minimumPayment(),
+                    firstMonthInterest);
+            return new ArrayList<>();
+        }
+        return generateScheduleRows(inputs, monthlyInsurance, window, firstPaymentDate);
+    }
+
+    /**
+     * Decrypts and validates the fields an amortization schedule needs: balance, interest rate and
+     * minimum payment (auto-calculated from principal and term when missing). Returns null, with a
+     * WARN log explaining why, when the schedule cannot be computed.
+     */
+    private ScheduleInputs resolveScheduleInputs(
+            Liability liability, Long liabilityId, Long userId) {
         BigDecimal currentBalance = decryptAmount(liability.getCurrentBalance());
         BigDecimal interestRate = decryptAmount(liability.getInterestRate());
         BigDecimal minimumPayment = decryptAmount(liability.getMinimumPayment());
 
-        // Validate required fields
         if (currentBalance.compareTo(BigDecimal.ZERO) <= 0) {
             log.warn("Cannot calculate amortization schedule: current balance is zero or negative");
-            return new ArrayList<>();
+            return null;
         }
-
         if (interestRate == null || interestRate.compareTo(BigDecimal.ZERO) < 0) {
             log.warn(
                     "Cannot calculate amortization schedule: interest rate is missing or negative");
-            return new ArrayList<>();
+            return null;
         }
-
-        // Calculate missing minimumPayment
         if (minimumPayment == null || minimumPayment.compareTo(BigDecimal.ZERO) <= 0) {
-            BigDecimal principal = decryptAmount(liability.getPrincipal());
-            if (principal != null
-                    && principal.compareTo(BigDecimal.ZERO) > 0
-                    && liability.getEndDate() != null
-                    && liability.getStartDate() != null) {
-
-                long totalMonths =
-                        java.time.temporal.ChronoUnit.MONTHS.between(
-                                liability.getStartDate().withDayOfMonth(1),
-                                liability.getEndDate().withDayOfMonth(1));
-
-                if (totalMonths > 0) {
-                    BigDecimal mRate =
-                            interestRate.divide(
-                                    BigDecimal.valueOf(MONTHS_PER_YEAR * 100),
-                                    SCALE,
-                                    RoundingMode.HALF_UP);
-
-                    if (mRate.compareTo(BigDecimal.ZERO) > 0) {
-                        try {
-                            BigDecimal onePlusRPowN =
-                                    mRate.add(BigDecimal.ONE).pow((int) totalMonths);
-                            BigDecimal numerator = mRate.multiply(onePlusRPowN);
-                            BigDecimal denominator = onePlusRPowN.subtract(BigDecimal.ONE);
-                            minimumPayment =
-                                    principal
-                                            .multiply(numerator)
-                                            .divide(denominator, 2, RoundingMode.HALF_UP);
-                            log.info(
-                                    "Calculated missing minimum payment for liability {}: {} over {} total months using principal {}",
-                                    liabilityId,
-                                    minimumPayment,
-                                    totalMonths,
-                                    principal);
-                        } catch (ArithmeticException e) {
-                            log.warn("Error calculating minimum payment: {}", e.getMessage());
-                        }
-                    } else {
-                        // 0% interest rate
-                        minimumPayment =
-                                principal.divide(
-                                        BigDecimal.valueOf(totalMonths), 2, RoundingMode.HALF_UP);
-                    }
-                }
-            }
-
-            // if it is still missing or zero after auto-calculation
-            if (minimumPayment == null || minimumPayment.compareTo(BigDecimal.ZERO) <= 0) {
+            minimumPayment = autoCalculatedMinimumPayment(liability, liabilityId, interestRate);
+            if (minimumPayment == null) {
                 log.warn(
-                        "Cannot calculate amortization schedule: minimum payment is missing and cannot be auto-calculated");
-                return new ArrayList<>();
+                        "Cannot calculate amortization schedule: minimum payment is missing and"
+                                + " cannot be auto-calculated");
+                return null;
             }
         }
 
@@ -908,63 +917,120 @@ public class LiabilityService {
         BigDecimal monthlyRate =
                 interestRate.divide(
                         BigDecimal.valueOf(MONTHS_PER_YEAR * 100), SCALE, RoundingMode.HALF_UP);
+        return new ScheduleInputs(currentBalance, minimumPayment, monthlyRate);
+    }
 
-        // Two-phase support (Task 9): a DRAWN interest-only tranche whose window is still open
-        // suppresses the principal during that period. Resolve the effective window once from the
-        // tranches (same predicate as getRepaymentPreview): open-ended when any qualifying tranche
-        // has no interestOnlyUntil, otherwise the latest interestOnlyUntil among them.
+    /** Resolved interest-only window of a liability's DRAWN interest-only tranches. */
+    private record InterestOnlyWindow(LocalDate interestOnlyUntil, boolean openEnded) {
+
+        /** Whether the window suppresses principal on the given payment date. */
+        boolean activeOn(LocalDate date) {
+            return openEnded || (interestOnlyUntil != null && !date.isAfter(interestOnlyUntil));
+        }
+    }
+
+    /**
+     * Resolves the effective interest-only window once from the tranches (same predicate as {@code
+     * getRepaymentPreview}): open-ended when any qualifying tranche has no {@code
+     * interestOnlyUntil}, otherwise the latest {@code interestOnlyUntil} among them.
+     */
+    private static InterestOnlyWindow resolveInterestOnlyWindow(List<LiabilityTranche> tranches) {
         LocalDate interestOnlyUntil = null;
-        boolean openEndedInterestOnly = false;
-        for (LiabilityTranche tranche :
-                liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId)) {
+        for (LiabilityTranche tranche : tranches) {
             if (tranche.getStatus() == TrancheStatus.DRAWN && tranche.isInterestOnly()) {
                 if (tranche.getInterestOnlyUntil() == null) {
-                    openEndedInterestOnly = true;
-                } else if (interestOnlyUntil == null
+                    return new InterestOnlyWindow(null, true);
+                }
+                if (interestOnlyUntil == null
                         || tranche.getInterestOnlyUntil().isAfter(interestOnlyUntil)) {
                     interestOnlyUntil = tranche.getInterestOnlyUntil();
                 }
             }
         }
-        LocalDate firstPaymentDate = LocalDate.now();
-        boolean startsInInterestOnlyWindow =
-                openEndedInterestOnly
-                        || (interestOnlyUntil != null
-                                && !firstPaymentDate.isAfter(interestOnlyUntil));
+        return new InterestOnlyWindow(interestOnlyUntil, false);
+    }
 
-        // Monthly insurance (principal × percentage / 1200), added to interest-only window
-        // payments when set — same formula as the repayment preview.
-        BigDecimal monthlyInsurance = BigDecimal.ZERO;
+    /**
+     * Monthly insurance (principal × percentage / 1200) added to interest-only window payments when
+     * set — same formula as the repayment preview; zero when either field is missing or not
+     * positive.
+     */
+    private BigDecimal monthlyInsuranceOf(Liability liability) {
         BigDecimal insurancePercentage = decryptAmount(liability.getInsurancePercentage());
         BigDecimal principalAmount = decryptAmount(liability.getPrincipal());
-        if (insurancePercentage != null
-                && insurancePercentage.compareTo(BigDecimal.ZERO) > 0
-                && principalAmount != null
-                && principalAmount.compareTo(BigDecimal.ZERO) > 0) {
-            monthlyInsurance =
-                    principalAmount
-                            .multiply(insurancePercentage)
-                            .divide(
-                                    BigDecimal.valueOf(MONTHS_PER_YEAR * 100),
-                                    2,
-                                    RoundingMode.HALF_UP);
+        if (insurancePercentage == null
+                || insurancePercentage.compareTo(BigDecimal.ZERO) <= 0
+                || principalAmount == null
+                || principalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return principalAmount
+                .multiply(insurancePercentage)
+                .divide(BigDecimal.valueOf(MONTHS_PER_YEAR * 100), 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Auto-calculates the missing minimum payment from the principal and term using the annuity
+     * formula (plain division at 0% interest), or null when it cannot be derived.
+     */
+    private BigDecimal autoCalculatedMinimumPayment(
+            Liability liability, Long liabilityId, BigDecimal interestRate) {
+        BigDecimal principal = decryptAmount(liability.getPrincipal());
+        if (principal == null
+                || principal.compareTo(BigDecimal.ZERO) <= 0
+                || liability.getEndDate() == null
+                || liability.getStartDate() == null) {
+            return null;
         }
 
-        // Check if payment covers interest (avoid infinite loop). Inside an interest-only window
-        // the payment is the computed interest itself, so the check only applies once the schedule
-        // amortizes; the loop below stops at the window end when the payment cannot cover interest.
-        BigDecimal firstMonthInterest = currentBalance.multiply(monthlyRate);
-        if (!startsInInterestOnlyWindow && minimumPayment.compareTo(firstMonthInterest) <= 0) {
-            log.warn(
-                    "Cannot calculate amortization schedule: minimum payment ({}) does not cover first month interest ({})",
-                    minimumPayment,
-                    firstMonthInterest);
-            return new ArrayList<>();
+        long totalMonths =
+                ChronoUnit.MONTHS.between(
+                        liability.getStartDate().withDayOfMonth(1),
+                        liability.getEndDate().withDayOfMonth(1));
+        if (totalMonths <= 0) {
+            return null;
         }
 
-        // Generate amortization schedule
+        BigDecimal mRate =
+                interestRate.divide(
+                        BigDecimal.valueOf(MONTHS_PER_YEAR * 100), SCALE, RoundingMode.HALF_UP);
+        if (mRate.compareTo(BigDecimal.ZERO) > 0) {
+            try {
+                BigDecimal onePlusRPowN = mRate.add(BigDecimal.ONE).pow((int) totalMonths);
+                BigDecimal numerator = mRate.multiply(onePlusRPowN);
+                BigDecimal denominator = onePlusRPowN.subtract(BigDecimal.ONE);
+                BigDecimal minimumPayment =
+                        principal.multiply(numerator).divide(denominator, 2, RoundingMode.HALF_UP);
+                log.info(
+                        "Calculated missing minimum payment for liability {}: {} over {} total"
+                                + " months using principal {}",
+                        liabilityId,
+                        minimumPayment,
+                        totalMonths,
+                        principal);
+                return minimumPayment;
+            } catch (ArithmeticException e) {
+                log.warn("Error calculating minimum payment: {}", e.getMessage());
+                return null;
+            }
+        }
+        // 0% interest rate
+        return principal.divide(BigDecimal.valueOf(totalMonths), 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Generates the schedule rows: while the interest-only window is active, payment = interest (+
+     * monthly insurance) with principal 0 and a flat balance (Phase 1); afterwards, normal
+     * principal &amp; interest rows until the balance is cleared or {@code
+     * MAX_AMORTIZATION_PERIODS} is reached (Phase 2).
+     */
+    private List<AmortizationScheduleEntry> generateScheduleRows(
+            ScheduleInputs inputs,
+            BigDecimal monthlyInsurance,
+            InterestOnlyWindow window,
+            LocalDate firstPaymentDate) {
         List<AmortizationScheduleEntry> schedule = new ArrayList<>();
-        BigDecimal remainingBalance = currentBalance;
+        BigDecimal remainingBalance = inputs.balance();
         LocalDate currentDate = firstPaymentDate;
         int paymentNumber = 1;
 
@@ -975,31 +1041,28 @@ public class LiabilityService {
                 && paymentNumber <= MAX_AMORTIZATION_PERIODS) {
             // Calculate interest for this period
             BigDecimal interestPortion =
-                    remainingBalance.multiply(monthlyRate).setScale(2, RoundingMode.HALF_UP);
-
-            // Interest-only window (Phase 1): payment = interest (+ monthly insurance), principal
-            // 0, balance flat. Otherwise (Phase 2) normal principal & interest rows.
-            boolean interestOnlyRow =
-                    openEndedInterestOnly
-                            || (interestOnlyUntil != null
-                                    && !currentDate.isAfter(interestOnlyUntil));
+                    remainingBalance
+                            .multiply(inputs.monthlyRate())
+                            .setScale(2, RoundingMode.HALF_UP);
+            boolean interestOnlyRow = window.activeOn(currentDate);
 
             BigDecimal principalPortion;
             BigDecimal actualPayment;
 
             if (interestOnlyRow) {
+                // Interest-only window (Phase 1): payment = interest (+ monthly insurance)
                 principalPortion = BigDecimal.ZERO;
                 actualPayment = interestPortion.add(monthlyInsurance);
             } else {
-                // Calculate principal portion
-                principalPortion = minimumPayment.subtract(interestPortion);
+                // Phase 2: normal principal & interest row
+                principalPortion = inputs.minimumPayment().subtract(interestPortion);
 
                 if (principalPortion.compareTo(BigDecimal.ZERO) <= 0) {
                     log.warn(
-                            "Stopping amortization schedule at payment {}: minimum payment ({}) does"
-                                    + " not cover interest ({})",
+                            "Stopping amortization schedule at payment {}: minimum payment ({})"
+                                    + " does not cover interest ({})",
                             paymentNumber,
-                            minimumPayment,
+                            inputs.minimumPayment(),
                             interestPortion);
                     break;
                 }
@@ -1020,8 +1083,7 @@ public class LiabilityService {
             cumulativePrincipal = cumulativePrincipal.add(principalPortion);
             cumulativeInterest = cumulativeInterest.add(interestPortion);
 
-            // Create schedule entry
-            AmortizationScheduleEntry entry =
+            schedule.add(
                     AmortizationScheduleEntry.builder()
                             .paymentNumber(paymentNumber)
                             .paymentDate(currentDate)
@@ -1032,21 +1094,12 @@ public class LiabilityService {
                             .cumulativePrincipal(cumulativePrincipal)
                             .cumulativeInterest(cumulativeInterest)
                             .interestOnlyPhase(interestOnlyRow)
-                            .build();
-
-            schedule.add(entry);
+                            .build());
 
             // Move to next month
             currentDate = currentDate.plusMonths(1);
             paymentNumber++;
         }
-
-        log.info(
-                "Amortization schedule calculated for liability {}: {} payments, total interest: {}",
-                liabilityId,
-                schedule.size(),
-                cumulativeInterest);
-
         return schedule;
     }
 
@@ -1878,7 +1931,9 @@ public class LiabilityService {
                                 .convert(
                                         total, inputCurrency.toUpperCase(), liability.getCurrency())
                                 .setScale(2, RoundingMode.HALF_UP);
-            } catch (RuntimeException e) {
+            } catch (IllegalStateException e) {
+                // ExchangeRateService signals "no exchange rate available" with an
+                // IllegalStateException; invalid-input IllegalArgumentExceptions propagate.
                 log.warn(
                         "FX repayment preview for liability {} could not convert {} → {}: {}",
                         liabilityId,
@@ -1888,7 +1943,7 @@ public class LiabilityService {
                 throw InvalidTransactionException.exchangeRateUnavailable(
                         inputCurrency.toUpperCase(), liability.getCurrency());
             }
-            log.info(
+            log.debug(
                     "FX repayment preview: converted {} {} to {} {} for liability {}",
                     total,
                     inputCurrency,

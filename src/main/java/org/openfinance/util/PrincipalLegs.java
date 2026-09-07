@@ -49,18 +49,23 @@ public final class PrincipalLegs {
      *
      * @param total the movement total in the linked instrument's currency
      * @param categorizedSum the sum of categorized split amounts in the account currency
-     * @param conversionRate the stored conversion rate (positive)
+     * @param conversionRate the stored conversion rate, strictly positive
      * @return {@code max(total − categorizedSum / rate, 0)} rounded to 2 decimals
+     * @throws IllegalArgumentException if {@code conversionRate} is null or not strictly positive.
+     *     Unreachable from request paths (rates are validated positive at write time and callers
+     *     only invoke this method with a non-null stored rate); the guard protects against silently
+     *     dividing by a default of 1 on corrupt data.
      */
     public static BigDecimal ofConverted(
             BigDecimal total, BigDecimal categorizedSum, BigDecimal conversionRate) {
-        BigDecimal safeRate =
-                conversionRate != null && conversionRate.signum() > 0
-                        ? conversionRate
-                        : BigDecimal.ONE;
+        if (conversionRate == null || conversionRate.signum() <= 0) {
+            throw new IllegalArgumentException(
+                    "Conversion rate must be strictly positive, got: " + conversionRate);
+        }
         BigDecimal converted =
                 categorizedSum != null
-                        ? categorizedSum.divide(safeRate, CONVERSION_SCALE, RoundingMode.HALF_UP)
+                        ? categorizedSum.divide(
+                                conversionRate, CONVERSION_SCALE, RoundingMode.HALF_UP)
                         : BigDecimal.ZERO;
         return of(total, converted).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
     }

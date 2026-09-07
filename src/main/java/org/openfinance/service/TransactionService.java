@@ -2373,7 +2373,7 @@ public class TransactionService {
 
     /** Rounds a monetary value to 2 decimals HALF_UP (balance-write scale). */
     private BigDecimal roundMoney(BigDecimal value) {
-        return value != null ? value.setScale(2, java.math.RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        return value != null ? value.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
     }
 
     /**
@@ -2412,7 +2412,8 @@ public class TransactionService {
                 transaction.getOriginalCurrency(),
                 transaction.getConversionRate(),
                 transaction.getDate(),
-                splits);
+                // Defensive copy: the snapshot must not observe later mutations of the list
+                List.copyOf(splits));
     }
 
     /**
