@@ -289,6 +289,83 @@ describe('LiabilityDetailDialog', () => {
 
       expect(screen.queryByText('Amortization Schedule')).not.toBeInTheDocument();
     });
+
+    it('shows the interest-only phase banner on the schedule tab while a DRAWN tranche phase is active', () => {
+      mockUseLiabilityBreakdown.mockReturnValue({
+        data: mockBreakdown,
+        isLoading: false,
+        error: null,
+      });
+      mockUseAmortizationSchedule.mockReturnValue({
+        data: {
+          liabilityId: 5,
+          liabilityName: mockLiability.name,
+          principal: 150000,
+          interestRate: 4,
+          termMonths: 24,
+          monthlyPayment: 5000,
+          totalPayments: 24,
+          totalInterest: 10000,
+          totalAmount: 160000,
+          currency: 'USD',
+          payments: [],
+        },
+        isLoading: false,
+      } as any);
+      mockUseTranches.mockReturnValue({
+        data: [
+          {
+            id: 1,
+            liabilityId: 5,
+            trancheNo: 1,
+            plannedAmount: 150000,
+            drawnAmount: 150000,
+            remaining: 150000,
+            status: 'DRAWN',
+            interestOnly: true,
+            interestOnlyUntil: '2027-06-01',
+            currency: 'USD',
+          },
+        ],
+        isLoading: false,
+        error: null,
+      } as any);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      act(() => {
+        screen.getByText('Amortization Schedule').click();
+      });
+
+      expect(
+        screen.getByText(/interest-only until 2027-06-01: principal 0/i)
+      ).toBeInTheDocument();
+    });
+
+    it('shows no interest-only banner when no active interest-only tranche exists', () => {
+      mockUseLiabilityBreakdown.mockReturnValue({
+        data: mockBreakdown,
+        isLoading: false,
+        error: null,
+      });
+      mockUseAmortizationSchedule.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+      } as any);
+      mockUseTranches.mockReturnValue({
+        data: [],
+        isLoading: false,
+        error: null,
+      } as any);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      act(() => {
+        screen.getByText('Amortization Schedule').click();
+      });
+
+      expect(screen.queryByText(/interest-only until/i)).not.toBeInTheDocument();
+    });
   });
 
   describe('Linked Payments Tab', () => {

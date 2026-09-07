@@ -3,10 +3,24 @@
  *
  * TanStack Query wrappers around the liability tranche endpoints.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import { buildEncryptionHeaders } from '@/utils/encryption';
 import type { LiabilityTranche } from '@/types/liability';
+
+/**
+ * Request payload of the create-tranche endpoint (Task 9 interest-only UI).
+ */
+export interface TrancheRequest {
+  plannedAmount: number;
+  plannedDate?: string;
+  fee?: number;
+  interestOnly?: boolean;
+  interestOnlyUntil?: string;
+  realEstateId?: number;
+  notes?: string;
+  currency?: string;
+}
 
 /**
  * Fetch the tranches (planned drawdowns) of a liability, ordered by tranche number.
@@ -27,6 +41,31 @@ export function useTranches(liabilityId: number | null) {
       return response.data;
     },
     enabled: liabilityId != null,
+  });
+}
+
+/**
+ * Add a tranche (planned drawdown) to a staged liability (Task 9 interest-only UI).
+ * {@code interestOnly} + {@code interestOnlyUntil} mark an interest-only phase.
+ */
+export function useCreateTranche() {
+  const queryClient = useQueryClient();
+
+  return useMutation<LiabilityTranche, Error, { liabilityId: number; request: TrancheRequest }>({
+    mutationFn: async ({ liabilityId, request }) => {
+      const response = await apiClient.post<LiabilityTranche>(
+        `/liabilities/${liabilityId}/tranches`,
+        request,
+        {
+          headers: buildEncryptionHeaders(),
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['liabilities', variables.liabilityId, 'tranches'] });
+      queryClient.invalidateQueries({ queryKey: ['liabilities'] });
+    },
   });
 }
 

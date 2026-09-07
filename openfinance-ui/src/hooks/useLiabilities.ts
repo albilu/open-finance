@@ -113,6 +113,46 @@ export function useCreateLiability() {
 }
 
 /**
+ * Request payload of the liability disbursement endpoint (Task 6/9).
+ */
+export interface DisbursementRequest {
+  toAccountId?: number;
+  directRealEstateId?: number;
+  trancheId?: number;
+  amount: number;
+  date: string;
+  notes?: string;
+}
+
+/**
+ * Disburse a liability tranche: the bank pays either the user's account
+ * ({@code toAccountId}) or the seller of a property directly
+ * ({@code directRealEstateId}).
+ */
+export function useDisburseLiability() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Liability, Error, { liabilityId: number; request: DisbursementRequest }>({
+    mutationFn: async ({ liabilityId, request }) => {
+      const response = await apiClient.post<Liability>(
+        `/liabilities/${liabilityId}/disburse`,
+        request,
+        {
+          headers: buildEncryptionHeaders(),
+        }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liabilities'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['networth'] });
+    },
+  });
+}
+
+/**
  * Update an existing liability
  */
 export function useUpdateLiability() {

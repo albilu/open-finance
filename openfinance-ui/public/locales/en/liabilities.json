@@ -191,7 +191,17 @@
     "interestOnly": "Interest-only",
     "empty": "This liability has no planned drawdowns (tranches) yet.",
     "loading": "Loading drawdowns…",
-    "error": "Failed to load drawdowns. Please try again."
+    "error": "Failed to load drawdowns. Please try again.",
+    "add": {
+      "label": "Add tranche",
+      "plannedAmount": "Planned amount",
+      "plannedDate": "Planned date",
+      "interestOnly": "Interest-only",
+      "interestOnlyUntil": "Interest-only until",
+      "cancel": "Cancel",
+      "submit": "Add",
+      "error": "The tranche could not be created. Please try again."
+    }
   },
   "movementTypes": {
     "DISBURSEMENT": "Disbursement",
@@ -202,5 +212,9 @@
     "CAPITAL_IMPROVEMENT": "Capitalized",
     "MAINTENANCE": "Maintenance",
     "REVALUATION": "Revaluation"
+  },
+  "schedule": {
+    "interestOnlyPhase": "Interest-only until {{date}}: principal 0",
+    "interestOnlyPhaseOpen": "Interest-only phase active: principal 0"
   }
 }

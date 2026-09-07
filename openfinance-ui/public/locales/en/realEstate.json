@@ -617,5 +617,36 @@
       "MAINTENANCE": "Maintenance"
     },
     "error": "Failed to load movements. Please try again."
+  },
+  "wizard": {
+    "back": "Back",
+    "buyProperty": "Buy property",
+    "confirm": "Confirm purchase",
+    "disbursementRoute": "Disbursement route",
+    "downPaymentAccount": "Down payment account",
+    "downPaymentAmount": "Down payment amount",
+    "downPaymentDescription": "Down payment for {{name}}",
+    "error": "The purchase could not be completed. Please try again.",
+    "existingMortgage": "Existing mortgage",
+    "funding": {
+      "new": "New mortgage",
+      "existing": "Existing mortgage",
+      "none": "Cash (no loan)"
+    },
+    "fundingSource": "Funding source",
+    "interestRate": "Interest rate (%)",
+    "loanAmount": "Loan amount",
+    "disbursedAmount": "Amount to disburse now",
+    "mortgageName": "Mortgage name",
+    "next": "Next",
+    "route": {
+      "direct": "Bank pays the seller directly",
+      "account": "Bank pays my account"
+    },
+    "steps": {
+      "property": "Property",
+      "funding": "Funding",
+      "review": "Review"
+    }
   }
 }

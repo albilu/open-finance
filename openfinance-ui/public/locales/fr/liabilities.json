@@ -191,7 +191,17 @@
     "interestOnly": "Intérêts seuls",
     "empty": "Ce passif n’a aucune tranche de tirage planifiée pour le moment.",
     "loading": "Chargement des tirages…",
-    "error": "Échec du chargement des tirages. Veuillez réessayer."
+    "error": "Échec du chargement des tirages. Veuillez réessayer.",
+    "add": {
+      "label": "Ajouter une tranche",
+      "plannedAmount": "Montant prévu",
+      "plannedDate": "Date prévue",
+      "interestOnly": "Intérêts seuls",
+      "interestOnlyUntil": "Intérêts seuls jusqu'au",
+      "cancel": "Annuler",
+      "submit": "Ajouter",
+      "error": "La tranche n'a pas pu être créée. Veuillez réessayer."
+    }
   },
   "movementTypes": {
     "DISBURSEMENT": "Déblocage",
@@ -202,5 +212,9 @@
     "CAPITAL_IMPROVEMENT": "Capitalisé",
     "MAINTENANCE": "Entretien",
     "REVALUATION": "Réévaluation"
+  },
+  "schedule": {
+    "interestOnlyPhase": "Intérêts seuls jusqu'au {{date}} : capital 0",
+    "interestOnlyPhaseOpen": "Phase d'intérêts seuls active : capital 0"
   }
 }

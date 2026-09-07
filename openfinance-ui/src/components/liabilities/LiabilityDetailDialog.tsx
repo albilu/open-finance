@@ -420,6 +420,19 @@ export function LiabilityDetailDialog({
     activeTab === 'schedule' && hasSchedule ? liability : null
   );
 
+  // Interest-only phase note (Task 9): a DRAWN tranche flagged interest-only whose window is
+  // still open suppresses the principal during that period.
+  const { data: scheduleTranches = [] } = useTranches(
+    activeTab === 'schedule' && hasSchedule ? liability.id : null
+  );
+  const today = new Date().toISOString().split('T')[0];
+  const activeInterestOnlyTranche = scheduleTranches.find(
+    tr =>
+      tr.status === 'DRAWN' &&
+      tr.interestOnly &&
+      (!tr.interestOnlyUntil || tr.interestOnlyUntil >= today)
+  );
+
   if (!liability) return null;
 
   return (
@@ -505,6 +518,18 @@ export function LiabilityDetailDialog({
             {/* Tab 2: Amortization Schedule */}
             {activeTab === 'schedule' && hasSchedule && (
               <div>
+                {activeInterestOnlyTranche && (
+                  <p
+                    data-testid="interest-only-banner"
+                    className="mb-3 px-3 py-2 rounded-md bg-info/10 border border-info/30 text-info text-sm"
+                  >
+                    {activeInterestOnlyTranche.interestOnlyUntil
+                      ? t('schedule.interestOnlyPhase', {
+                          date: activeInterestOnlyTranche.interestOnlyUntil,
+                        })
+                      : t('schedule.interestOnlyPhaseOpen')}
+                  </p>
+                )}
                 {isLoadingSchedule && (
                   <div className="py-12 text-center text-text-secondary text-sm">
                     Loading amortization schedule…

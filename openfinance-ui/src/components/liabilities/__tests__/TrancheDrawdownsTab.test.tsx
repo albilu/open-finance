@@ -3,9 +3,10 @@
  *
  * Verifies the Drawdowns tab of the liability detail dialog: tranche rows with
  * T{n} label, status badge, planned/drawn/remaining amounts, linked property
- * label and interest-only flag.
+ * label and interest-only flag. Since Task 9 also covers the "Add tranche"
+ * form with the interest-only fields.
  */
-import { screen } from '@testing-library/react';
+import { screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { renderWithProviders } from '@/test/test-utils';
 import { TrancheDrawdownsTab } from '../TrancheDrawdownsTab';
@@ -17,10 +18,12 @@ vi.mock('@/hooks/useTranches', async importOriginal => {
   return {
     ...actual,
     useTranches: vi.fn(() => ({ data: [], isLoading: false, error: null })),
+    useCreateTranche: vi.fn(),
   };
 });
 
 const mockUseTranches = vi.mocked(useTranchesModule.useTranches);
+const mockUseCreateTranche = vi.mocked(useTranchesModule.useCreateTranche);
 
 const mockLiability: Liability = {
   id: 5,
@@ -67,6 +70,11 @@ describe('TrancheDrawdownsTab', () => {
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+    mockUseCreateTranche.mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue({}),
+      isLoading: false,
+      isError: false,
+    } as any);
   });
 
   it('renders one row per tranche with its T{n} label and status badge', () => {
@@ -108,5 +116,88 @@ describe('TrancheDrawdownsTab', () => {
     renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
 
     expect(screen.getByText(/no planned drawdowns/i)).toBeInTheDocument();
+  });
+
+  // ── Add tranche (Task 9: interest-only UI) ────────────────────────────────
+
+  it('opens the add-tranche form from the empty state', () => {
+    mockUseTranches.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+
+    renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add tranche/i }));
+
+    expect(screen.getByLabelText(/planned amount/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Interest-only')).toBeInTheDocument();
+  });
+
+  it('creates an interest-only tranche with its end date', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockUseCreateTranche.mockReturnValue({
+      mutateAsync,
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add tranche/i }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/planned amount/i), {
+        target: { value: '50000' },
+      });
+      const interestOnly = screen.getByLabelText('Interest-only') as HTMLInputElement;
+      interestOnly.click();
+      fireEvent.change(screen.getByLabelText('Interest-only until'), {
+        target: { value: '2027-06-01' },
+      });
+    });
+    await act(async () => {
+      screen.getByRole('button', { name: /^add$/i }).click();
+    });
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledWith({
+      liabilityId: 5,
+      request: expect.objectContaining({
+        plannedAmount: 50000,
+        interestOnly: true,
+        interestOnlyUntil: '2027-06-01',
+        currency: 'USD',
+      }),
+    });
+  });
+
+  it('creates a plain tranche without the interest-only fields', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockUseCreateTranche.mockReturnValue({
+      mutateAsync,
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add tranche/i }));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/planned amount/i), {
+        target: { value: '25000' },
+      });
+    });
+    await act(async () => {
+      screen.getByRole('button', { name: /^add$/i }).click();
+    });
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledWith({
+      liabilityId: 5,
+      request: expect.objectContaining({ plannedAmount: 25000, interestOnly: false }),
+    });
   });
 });

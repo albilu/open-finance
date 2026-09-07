@@ -617,5 +617,36 @@
       "MAINTENANCE": "Entretien"
     },
     "error": "Échec du chargement des mouvements. Veuillez réessayer."
+  },
+  "wizard": {
+    "back": "Retour",
+    "buyProperty": "Acheter un bien",
+    "confirm": "Confirmer l'achat",
+    "disbursementRoute": "Mode de déblocage",
+    "downPaymentAccount": "Compte de l'apport",
+    "downPaymentAmount": "Montant de l'apport",
+    "downPaymentDescription": "Apport pour {{name}}",
+    "error": "L'achat n'a pas pu être finalisé. Veuillez réessayer.",
+    "existingMortgage": "Prêt existant",
+    "funding": {
+      "new": "Nouveau prêt hypothécaire",
+      "existing": "Prêt existant",
+      "none": "Comptant (sans prêt)"
+    },
+    "fundingSource": "Source de financement",
+    "interestRate": "Taux d'intérêt (%)",
+    "loanAmount": "Montant du prêt",
+    "disbursedAmount": "Montant à débloquer maintenant",
+    "mortgageName": "Nom du prêt",
+    "next": "Suivant",
+    "route": {
+      "direct": "La banque paie le vendeur directement",
+      "account": "La banque verse sur mon compte"
+    },
+    "steps": {
+      "property": "Bien",
+      "funding": "Financement",
+      "review": "Récapitulatif"
+    }
   }
 }

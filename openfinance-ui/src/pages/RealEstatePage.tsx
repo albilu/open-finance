@@ -6,7 +6,7 @@
  */
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Building2, Calculator, Filter, Search, X, AlertTriangle } from 'lucide-react';
+import { Plus, Building2, Calculator, Filter, Search, X, AlertTriangle, Home } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ROUTES } from '@/constants/routes';
 import { DEFAULT_PAGE_SIZE, FETCH_ALL_PAGE_SIZE } from '@/constants/pagination';
@@ -19,9 +19,11 @@ import { LoadingSkeleton } from '@/components/LoadingComponents';
 import { Card } from '@/components/ui/Card';
 import { PropertyCard } from '@/components/real-estate/PropertyCard';
 import { RealEstateForm } from '@/components/real-estate/RealEstateForm';
+import { BuyPropertyWizard } from '@/components/real-estate/BuyPropertyWizard';
 import { PropertyDetailView } from '@/components/real-estate/PropertyDetailView';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { usePropertiesSearch, useCreateProperty, useUpdateProperty } from '@/hooks/useRealEstate';
+import { useAccounts } from '@/hooks/useAccounts';
 import { CurrencySelector } from '@/components/ui/CurrencySelector';
 import { NumberInput } from '@/components/ui/NumberInput';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
@@ -43,6 +45,7 @@ export default function RealEstatePage() {
   const { convert, secondaryCurrency: secCurrency, secondaryExchangeRate } = useSecondaryConversion(baseCurrency);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isBuyWizardOpen, setIsBuyWizardOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<RealEstateProperty | null>(null);
   const [viewingPropertyId, setViewingPropertyId] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -63,6 +66,8 @@ export default function RealEstatePage() {
   const { data: propertiesPage, isLoading, error } = usePropertiesSearch(apiFilters);
   // Fetch all active properties (unfiltered) for global summary totals
   const { data: allPropertiesPage } = usePropertiesSearch({ page: 0, size: FETCH_ALL_PAGE_SIZE, sort: 'name,asc', isActive: true });
+  // Active accounts for the buy wizard's down-payment / to-account pickers
+  const { data: accounts = [] } = useAccounts('active');
 
   const properties = propertiesPage?.content || [];
   const allProperties = allPropertiesPage?.content || [];
@@ -269,6 +274,10 @@ export default function RealEstatePage() {
           <Button variant="outline" onClick={() => navigate(ROUTES.REAL_ESTATE_TOOLS)}>
             <Calculator className="h-4 w-4 mr-2" />
             {t('tools')}
+          </Button>
+          <Button variant="outline" onClick={() => setIsBuyWizardOpen(true)}>
+            <Home className="h-4 w-4 mr-2" />
+            {t('wizard.buyProperty')}
           </Button>
           <Button variant="primary" onClick={handleCreate}>
             <Plus className="h-4 w-4 mr-2" />
@@ -581,11 +590,24 @@ export default function RealEstatePage() {
               {editingProperty ? t('dialogs.editTitle') : t('dialogs.createTitle')}
             </DialogTitle>
           </DialogHeader>
-          <RealEstateForm
-            property={editingProperty || undefined}
-            onSubmit={handleFormSubmit}
-            onCancel={handleFormClose}
-            isLoading={createMutation.isPending || updateMutation.isPending}
+            <RealEstateForm
+              property={editingProperty || undefined}
+              onSubmit={handleFormSubmit}
+              onCancel={handleFormClose}
+              isLoading={createMutation.isPending || updateMutation.isPending}
+            />
+        </DialogContent>
+      </Dialog>
+
+      {/* Buy Property Wizard (Task 9) */}
+      <Dialog open={isBuyWizardOpen} onOpenChange={setIsBuyWizardOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('wizard.buyProperty')}</DialogTitle>
+          </DialogHeader>
+          <BuyPropertyWizard
+            accounts={accounts}
+            onClose={() => setIsBuyWizardOpen(false)}
           />
         </DialogContent>
       </Dialog>
