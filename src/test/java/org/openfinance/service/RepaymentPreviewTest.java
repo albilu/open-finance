@@ -34,6 +34,8 @@ class RepaymentPreviewTest {
 
     @Mock private LiabilityTrancheRepository liabilityTrancheRepository;
 
+    @Mock private ExchangeRateService exchangeRateService;
+
     @InjectMocks private LiabilityService liabilityService;
 
     private static final Long USER_ID = 1L;
@@ -230,5 +232,37 @@ class RepaymentPreviewTest {
         assertThat(preview.getInsurance()).isEqualByComparingTo("0.00");
         assertThat(preview.getPrincipal()).isEqualByComparingTo("1200.00");
         assertThat(preview.getInterestOnly()).isFalse();
+    }
+
+    // ---------- (f) FX preview (Task 9) ----------
+
+    @Test
+    @DisplayName("FX preview: an input-currency total is converted to the liability currency first")
+    void fxPreviewConvertsInputCurrencyTotalFirst() {
+        givenLiability(liability("50000.00", "5.25", "50000.00", null), List.of());
+        when(exchangeRateService.convert(new BigDecimal("1200.00"), "EUR", "USD"))
+                .thenReturn(new BigDecimal("1310.04"));
+
+        RepaymentPreviewResponse preview =
+                liabilityService.getRepaymentPreview(
+                        USER_ID, LIABILITY_ID, new BigDecimal("1200.00"), DATE, "EUR");
+
+        assertThat(preview.getTotal()).isEqualByComparingTo("1310.04");
+        assertThat(preview.getInterest()).isEqualByComparingTo("218.75");
+        assertThat(preview.getPrincipal()).isEqualByComparingTo("1091.29");
+        assertThat(preview.getInsurance()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    @DisplayName("FX preview with input currency equal to the liability currency skips conversion")
+    void fxPreviewMatchingInputCurrencySkipsConversion() {
+        givenLiability(liability("50000.00", "5.25", "50000.00", null), List.of());
+
+        RepaymentPreviewResponse preview =
+                liabilityService.getRepaymentPreview(
+                        USER_ID, LIABILITY_ID, new BigDecimal("1200.00"), DATE, "USD");
+
+        assertThat(preview.getTotal()).isEqualByComparingTo("1200.00");
+        assertThat(preview.getPrincipal()).isEqualByComparingTo("981.25");
     }
 }

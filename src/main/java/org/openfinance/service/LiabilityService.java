@@ -1763,18 +1763,58 @@ public class LiabilityService {
     @Transactional(readOnly = true)
     public RepaymentPreviewResponse getRepaymentPreview(
             Long userId, Long liabilityId, BigDecimal total, LocalDate date) {
+        return getRepaymentPreview(userId, liabilityId, total, date, null);
+    }
+
+    /**
+     * FX variant of the repayment preview (Task 9): when {@code inputCurrency} is provided and
+     * differs from the liability's currency, the total is first converted into the liability
+     * currency via {@link ExchangeRateService}; every returned component is then expressed in the
+     * liability currency.
+     *
+     * @param userId the ID of the user requesting the preview (for authorization)
+     * @param liabilityId the ID of the liability being repaid
+     * @param total the total repayment amount, expressed in {@code inputCurrency} when provided
+     * @param date the repayment date used for the interest-only window check
+     * @param inputCurrency optional ISO 4217 code the {@code total} is entered in (null = liability
+     *     currency)
+     * @return the repayment breakdown preview in the liability currency
+     * @throws LiabilityNotFoundException if the liability does not belong to the user
+     */
+    @Transactional(readOnly = true)
+    public RepaymentPreviewResponse getRepaymentPreview(
+            Long userId, Long liabilityId, BigDecimal total, LocalDate date, String inputCurrency) {
         log.debug(
-                "Previewing repayment for liability {}: userId={}, total={}, date={}",
+                "Previewing repayment for liability {}: userId={}, total={}, date={}, inputCurrency={}",
                 liabilityId,
                 userId,
                 total,
-                date);
+                date,
+                inputCurrency);
 
         Liability liability =
                 liabilityRepository
                         .findByIdAndUserId(liabilityId, userId)
                         .orElseThrow(
                                 () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
+
+        BigDecimal effectiveTotal = total;
+        if (inputCurrency != null
+                && !inputCurrency.isBlank()
+                && liability.getCurrency() != null
+                && !inputCurrency.equalsIgnoreCase(liability.getCurrency())) {
+            effectiveTotal =
+                    exchangeRateService
+                            .convert(total, inputCurrency.toUpperCase(), liability.getCurrency())
+                            .setScale(2, RoundingMode.HALF_UP);
+            log.info(
+                    "FX repayment preview: converted {} {} to {} {} for liability {}",
+                    total,
+                    inputCurrency,
+                    effectiveTotal,
+                    liability.getCurrency(),
+                    liabilityId);
+        }
 
         BigDecimal balance = orZero(decryptAmount(liability.getCurrentBalance()));
         BigDecimal rate = orZero(decryptAmount(liability.getInterestRate()));
@@ -1802,10 +1842,13 @@ public class LiabilityService {
         BigDecimal principal =
                 interestOnly
                         ? BigDecimal.ZERO
-                        : total.subtract(interest).subtract(insurance).max(BigDecimal.ZERO);
+                        : effectiveTotal
+                                .subtract(interest)
+                                .subtract(insurance)
+                                .max(BigDecimal.ZERO);
 
         return RepaymentPreviewResponse.builder()
-                .total(total)
+                .total(effectiveTotal)
                 .principal(principal)
                 .interest(interest)
                 .insurance(insurance)

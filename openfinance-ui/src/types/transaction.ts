@@ -44,6 +44,8 @@ export interface Category {
   mccCode?: string;
   isSystem?: boolean;
   subcategoryCount?: number;
+  /** i18n key of a system category's name (e.g. "category.interest.expense") */
+  nameKey?: string;
 }
 
 /**
@@ -177,6 +179,12 @@ export interface TransactionRequest {
   paymentMethod?: PaymentMethod;
   // Requirement 3.1: Optional link to a liability for EXPENSE transactions
   liabilityId?: number;
+  // Optional instrument links: tranche (repayment allocation), property/asset
+  // (improvement & maintenance movements) — at most one instrument per transaction.
+  trancheId?: number;
+  realEstateId?: number;
+  assetId?: number;
+  movementType?: MovementType;
   // Original (pre-conversion) values, submitted together when a conversion was applied.
   originalAmount?: number;
   originalCurrency?: string;

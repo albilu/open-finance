@@ -57,6 +57,11 @@ public class LiabilityTrancheService {
      * Principal allocated to a tranche by its non-deleted REPAYMENT transactions. Each repayment
      * contributes its principal leg (total minus categorized splits); the sum is capped at the
      * drawn amount.
+     *
+     * <p>FX rows (Task 9): a repayment stored with conversion fields carries its total in the
+     * liability currency ({@code originalAmount}) while its splits stay in the account currency —
+     * {@link #principalLeg(Transaction, List)} handles the conversion. The liability guard
+     * guarantees {@code originalCurrency} equals the liability (and tranche) currency.
      */
     @Transactional(readOnly = true)
     public BigDecimal allocatedPrincipal(LiabilityTranche tranche) {
@@ -72,7 +77,7 @@ public class LiabilityTrancheService {
             }
             List<TransactionSplitResponse> splits =
                     transactionSplitService.getSplitsForTransaction(tx.getId());
-            allocated = allocated.add(principalLeg(tx.getAmount(), splits));
+            allocated = allocated.add(principalLeg(tx, splits));
         }
         return allocated.min(tranche.getDrawnAmount()).max(BigDecimal.ZERO);
     }
@@ -272,8 +277,7 @@ public class LiabilityTrancheService {
             if (tx.getMovementType() != MovementType.REPAYMENT) {
                 continue;
             }
-            BigDecimal principal =
-                    principalLeg(tx.getAmount(), splitsByTx.getOrDefault(tx.getId(), List.of()));
+            BigDecimal principal = principalLeg(tx, splitsByTx.getOrDefault(tx.getId(), List.of()));
             allocatedByTranche.merge(tx.getTrancheId(), principal, BigDecimal::add);
         }
 
@@ -299,8 +303,12 @@ public class LiabilityTrancheService {
      * Computes a movement's principal leg from stored splits: the total minus the sum of split
      * amounts carrying a categoryId, floored at zero. The arithmetic itself lives in {@link
      * PrincipalLegs} — the single shared source.
+     *
+     * <p>FX rows (Task 9): when the transaction carries conversion fields the total is the {@code
+     * originalAmount} (liability currency) and the account-currency splits are converted by the
+     * stored rate first.
      */
-    private BigDecimal principalLeg(BigDecimal total, List<TransactionSplitResponse> splits) {
+    private BigDecimal principalLeg(Transaction tx, List<TransactionSplitResponse> splits) {
         BigDecimal categorized = BigDecimal.ZERO;
         if (splits != null) {
             for (TransactionSplitResponse split : splits) {
@@ -309,7 +317,11 @@ public class LiabilityTrancheService {
                 }
             }
         }
-        return PrincipalLegs.of(total, categorized);
+        if (tx.getOriginalCurrency() != null && tx.getConversionRate() != null) {
+            return PrincipalLegs.ofConverted(
+                    tx.getOriginalAmount(), categorized, tx.getConversionRate());
+        }
+        return PrincipalLegs.of(tx.getAmount(), categorized);
     }
 
     /** Pre-computed-allocation variant of {@link #remainingOf(LiabilityTranche)}. */

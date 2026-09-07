@@ -17,6 +17,7 @@ import org.openfinance.entity.Liability;
 import org.openfinance.entity.PropertyType;
 import org.openfinance.entity.RealEstateProperty;
 import org.openfinance.entity.RealEstateValueHistory;
+import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.exception.LiabilityNotFoundException;
 import org.openfinance.exception.RealEstatePropertyNotFoundException;
 import org.openfinance.mapper.RealEstateMapper;
@@ -1082,13 +1083,23 @@ public class RealEstateService {
      * the improvement amount, records a value history entry and invalidates net worth snapshots
      * from the movement date onward.
      *
+     * <p>Currency guard (Task 6/9): {@code movementCurrency} — the currency the user actually
+     * moved, i.e. {@code originalCurrency} when a conversion was applied, else the transaction
+     * currency — must match the property's currency, mirroring the liability guard. The caller
+     * passes the amount already expressed in the property's currency.
+     *
      * @param propertyId the ID of the property being improved
      * @param userId the owner's ID
      * @param amount the improvement amount in the property's currency
      * @param movementDate the movement date (history effective date, snapshot invalidation start)
+     * @param movementCurrency the currency the movement is expressed in (must match the property's)
      */
     public void applyCapitalImprovement(
-            Long propertyId, Long userId, BigDecimal amount, LocalDate movementDate) {
+            Long propertyId,
+            Long userId,
+            BigDecimal amount,
+            LocalDate movementDate,
+            String movementCurrency) {
         RealEstateProperty property =
                 realEstateRepository
                         .findByIdAndUserId(propertyId, userId)
@@ -1096,6 +1107,12 @@ public class RealEstateService {
                                 () ->
                                         RealEstatePropertyNotFoundException.byIdAndUser(
                                                 propertyId, userId));
+        if (movementCurrency != null
+                && property.getCurrency() != null
+                && !property.getCurrency().equalsIgnoreCase(movementCurrency)) {
+            throw InvalidTransactionException.improvementCurrencyMismatch(
+                    movementCurrency, property.getCurrency(), propertyId, "property");
+        }
         BigDecimal current = property.getCurrentValueDecimal();
         BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(amount);
         property.setCurrentValue(updated.toPlainString());

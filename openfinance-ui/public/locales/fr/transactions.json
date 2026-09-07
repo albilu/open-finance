@@ -82,6 +82,7 @@
     "repaymentPreviewPrincipal": "Capital",
     "repaymentPreviewInterest": "Intérêts",
     "repaymentPreviewInsurance": "Assurance",
+    "repaymentApplySplit": "Appliquer la répartition",
     "autoFilledFrom": "Rempli automatiquement depuis le bénéficiaire :",
     "dismissAutoFill": "Ignorer la suggestion de remplissage automatique",
     "createTransaction": "Créer la transaction",
@@ -97,7 +98,8 @@
       "descriptionTooLong": "La description est trop longue",
       "notesTooLong": "Les notes sont trop longues",
       "payeeTooLong": "Le bénéficiaire est trop long",
-      "sameAccount": "Les comptes source et destination doivent être différents"
+      "sameAccount": "Les comptes source et destination doivent être différents",
+      "liabilityCurrencyUnsupported": "Saisissez le montant dans la devise du compte ou du passif."
     },
     "types": {
       "INCOME": "Revenu",

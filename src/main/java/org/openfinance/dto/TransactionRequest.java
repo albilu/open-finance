@@ -262,4 +262,29 @@ public class TransactionRequest {
         }
         return true;
     }
+
+    /**
+     * Validates that a transaction links to at most ONE instrument (liability, property or asset) —
+     * a movement cannot simultaneously hit a liability balance and a property/asset cost basis
+     * (Task 6 deferred minor; mirrored service-side in {@code
+     * TransactionService.validateTransactionRequest}).
+     *
+     * <p>Called by Jakarta Bean Validation during full-request validation.
+     *
+     * @return true when at most one of liabilityId / realEstateId / assetId is set
+     */
+    @AssertTrue(message = "{transaction.movement.singleInstrument}")
+    private boolean isSingleInstrumentCoherent() {
+        int linked = 0;
+        if (liabilityId != null) {
+            linked++;
+        }
+        if (realEstateId != null) {
+            linked++;
+        }
+        if (assetId != null) {
+            linked++;
+        }
+        return linked <= 1;
+    }
 }

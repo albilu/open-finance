@@ -24,6 +24,7 @@ import org.openfinance.entity.AssetType;
 import org.openfinance.exception.AccountNotFoundException;
 import org.openfinance.exception.AssetNotFoundException;
 import org.openfinance.exception.InvalidAssetStateException;
+import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.mapper.AssetMapper;
 import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.AssetRepository;
@@ -349,14 +350,27 @@ public class AssetService {
      * when {@code quantity} is 1, otherwise {@code amount / quantity} rounded to 2 decimals
      * HALF_UP). Non-physical assets are rejected with {@link InvalidAssetStateException}.
      *
+     * <p>Currency guard (Task 6/9): {@code movementCurrency} — the currency the user actually
+     * moved, i.e. {@code originalCurrency} when a conversion was applied, else the transaction
+     * currency — must match the asset's currency, mirroring the liability guard in {@code
+     * TransactionService.applyLinkedMovements}. The caller passes the amount already expressed in
+     * the asset's currency (the liability-currency-style total from the conversion fields).
+     *
      * @param assetId the ID of the physical asset being improved
      * @param userId the owner's ID
      * @param amount the improvement amount in the asset's currency
      * @param movementDate the movement date (used for net worth snapshot invalidation)
+     * @param movementCurrency the currency the movement is expressed in (must match the asset's)
      */
     public void applyCapitalImprovement(
-            Long assetId, Long userId, BigDecimal amount, LocalDate movementDate) {
+            Long assetId,
+            Long userId,
+            BigDecimal amount,
+            LocalDate movementDate,
+            String movementCurrency) {
         Asset asset = findPhysicalAsset(assetId, userId);
+        assertImprovementCurrencyMatches(
+                "asset", asset.getId(), asset.getCurrency(), movementCurrency);
         BigDecimal updated =
                 asset.getCurrentPrice().add(improvementPerUnit(amount, asset.getQuantity()));
         asset.setCurrentPrice(updated);
@@ -368,6 +382,23 @@ public class AssetService {
                 amount,
                 assetId,
                 updated);
+    }
+
+    /**
+     * Rejects an improvement whose movement currency does not match the improved instrument's
+     * currency (Task 6 deferred minor — mirrors the liability currency guard).
+     */
+    private void assertImprovementCurrencyMatches(
+            String instrumentType,
+            Long instrumentId,
+            String instrumentCurrency,
+            String movementCurrency) {
+        if (movementCurrency != null
+                && instrumentCurrency != null
+                && !instrumentCurrency.equalsIgnoreCase(movementCurrency)) {
+            throw InvalidTransactionException.improvementCurrencyMismatch(
+                    movementCurrency, instrumentCurrency, instrumentId, instrumentType);
+        }
     }
 
     /**

@@ -169,6 +169,27 @@ public class InvalidTransactionException extends RuntimeException implements Loc
                         transactionCurrency, liabilityCurrency, liabilityId));
     }
 
+    /**
+     * Factory method for currency mismatch between a linked property/asset improvement and a
+     * transaction (mirrors {@link #liabilityCurrencyMismatch}).
+     *
+     * @param movementCurrency the transaction (movement) currency
+     * @param instrumentCurrency the property/asset currency
+     * @param instrumentId the property/asset ID
+     * @param instrumentType "property" or "asset"
+     * @return a new InvalidTransactionException
+     */
+    public static InvalidTransactionException improvementCurrencyMismatch(
+            String movementCurrency,
+            String instrumentCurrency,
+            Long instrumentId,
+            String instrumentType) {
+        return new InvalidTransactionException(
+                String.format(
+                        "Transaction currency %s does not match currency %s of the linked %s %d",
+                        movementCurrency, instrumentCurrency, instrumentType, instrumentId));
+    }
+
     @Override
     public String getMessageKey() {
         return messageKey;

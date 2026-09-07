@@ -198,6 +198,8 @@ const mockCategories: Category[] = [
   { id: 10, userId: 1, name: 'Shopping', type: 'EXPENSE' },
   { id: 20, userId: 1, name: 'Salary', type: 'INCOME' },
   { id: 30, userId: 1, name: 'Entertainment', type: 'EXPENSE' },
+  { id: 77, userId: 1, name: 'Interest', type: 'EXPENSE', nameKey: 'category.interest.expense' },
+  { id: 88, userId: 1, name: 'Insurance', type: 'EXPENSE', nameKey: 'category.insurance' },
 ];
 
 /** Payee that has a default category (Shopping = id 10) */
@@ -968,7 +970,7 @@ describe('TransactionForm', () => {
       }
     });
 
-    it('hides the preview when the input currency differs from the liability currency', async () => {
+    it('blocks submit when the input currency is neither the account nor the liability currency', async () => {
       mockUseLiabilities.mockReturnValue({
         data: [mortgageLiability],
         isLoading: false,
@@ -976,15 +978,264 @@ describe('TransactionForm', () => {
       } as any);
       mockPreviewData();
 
-      renderForm();
+      const { onSubmit } = renderForm();
 
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
       await selectLiability('1');
       await act(async () => {
         fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
         fireEvent.change(screen.getByTestId('currency-selector'), { target: { value: 'USD' } });
       });
 
+      // Liability EUR + account EUR + USD input: no coherent liability view exists —
+      // the preview stays hidden and the submit is blocked with a currency error.
       expect(screen.queryByTestId('repayment-preview')).not.toBeInTheDocument();
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/enter the amount/i)).toBeInTheDocument();
+      });
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    // ── Repayment FX (Task 9) ─────────────────────────────────────────────────
+
+    it('converts the preview to the liability currency and submits liability-view conversion fields', async () => {
+      const usdLiability = { ...mortgageLiability, currency: 'USD' };
+      mockUseLiabilities.mockReturnValue({
+        data: [usdLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      // EUR account → USD liability rate
+      mockUseLatestExchangeRate.mockReturnValue({
+        data: { rate: 1.0917 },
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 1310.04,
+          principal: 1091.29,
+          interest: 218.75,
+          insurance: 0,
+          interestOnly: false,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+
+      // The preview total passed to the hook is the liability-currency equivalent
+      await waitFor(() => {
+        expect(mockUseRepaymentPreview).toHaveBeenCalledWith(1, 1310.04, '2024-06-15');
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      // Account leg stays account-native; conversion fields carry the liability view
+      expect(payload.amount).toBe(1200);
+      expect(payload.currency).toBe('EUR');
+      expect(payload.originalAmount).toBe(1310.04);
+      expect(payload.originalCurrency).toBe('USD');
+      expect(payload.conversionRate).toBeCloseTo(1 / 1.0917, 6);
+    });
+
+    it('reuses the account-conversion payload when the input currency equals the liability currency', async () => {
+      const usdLiability = { ...mortgageLiability, currency: 'USD' };
+      mockUseLiabilities.mockReturnValue({
+        data: [usdLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      // USD input → EUR account rate
+      mockUseLatestExchangeRate.mockReturnValue({
+        data: { rate: 0.9 },
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 1200,
+          principal: 981.25,
+          interest: 218.75,
+          insurance: 0,
+          interestOnly: false,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+        fireEvent.change(screen.getByTestId('currency-selector'), { target: { value: 'USD' } });
+      });
+
+      // Input == liability: the preview total is the entered amount as-is
+      await waitFor(() => {
+        expect(mockUseRepaymentPreview).toHaveBeenCalledWith(1, 1200, '2024-06-15');
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      expect(payload.amount).toBe(1080); // 1200 USD × 0.9 in the EUR account
+      expect(payload.currency).toBe('EUR');
+      expect(payload.originalAmount).toBe(1200);
+      expect(payload.originalCurrency).toBe('USD');
+      expect(payload.conversionRate).toBe(0.9);
+    });
+
+    // ── Repayment auto-split payload (Task 9) ────────────────────────────────
+
+    it('includes preview-matching splits when Apply split is on (default)', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockPreviewData();
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      expect(payload.splits).toEqual([
+        { amount: 981.25, categoryId: undefined, description: undefined },
+        { amount: 218.75, categoryId: 77, description: undefined },
+      ]);
+    });
+
+    it('omits splits when the user turns Apply split off', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockPreviewData();
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+
+      const toggle = screen.getByLabelText(/apply split/i) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.click(toggle);
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      expect(payload.splits).toBeUndefined();
+    });
+
+    it('converts auto-split legs into the account currency on the FX path', async () => {
+      const usdLiability = { ...mortgageLiability, currency: 'USD' };
+      mockUseLiabilities.mockReturnValue({
+        data: [usdLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseLatestExchangeRate.mockReturnValue({
+        data: { rate: 1.0917 },
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 1310.04,
+          principal: 1091.29,
+          interest: 218.75,
+          insurance: 0,
+          interestOnly: false,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      // Interest 218.75 USD × (1/1.0917) ≈ 200.38 EUR; principal absorbs the remainder
+      const interest = payload.splits.find((s: any) => s.categoryId === 77)?.amount;
+      const principal = payload.splits.find((s: any) => s.categoryId == null)?.amount;
+      expect(interest).toBeCloseTo(200.38, 2);
+      expect(principal).toBeCloseTo(999.62, 2);
+      expect(payload.splits.reduce((a: number, s: any) => a + s.amount, 0)).toBeCloseTo(1200, 6);
     });
 
     it('still renders and submits when the preview query fails', async () => {

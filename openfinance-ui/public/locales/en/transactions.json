@@ -82,6 +82,7 @@
     "repaymentPreviewPrincipal": "Principal",
     "repaymentPreviewInterest": "Interest",
     "repaymentPreviewInsurance": "Insurance",
+    "repaymentApplySplit": "Apply split",
     "autoFilledFrom": "Auto-filled from payee:",
     "dismissAutoFill": "Dismiss auto-fill suggestion",
     "createTransaction": "Create Transaction",
@@ -97,7 +98,8 @@
       "descriptionTooLong": "Description is too long",
       "notesTooLong": "Notes are too long",
       "payeeTooLong": "Payee is too long",
-      "sameAccount": "Source and destination accounts must be different"
+      "sameAccount": "Source and destination accounts must be different",
+      "liabilityCurrencyUnsupported": "Enter the amount in the account or liability currency."
     },
     "types": {
       "INCOME": "Income",

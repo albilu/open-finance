@@ -599,6 +599,302 @@ class TransactionLiabilitySyncTest {
                 .isEqualByComparingTo(new BigDecimal("45000.00"));
     }
 
+    // ---------- FX liability legs (Task 9) ----------
+
+    @Test
+    @DisplayName(
+            "FX REPAYMENT from an EUR account to a USD liability debits the account natively and"
+                    + " reduces the liability by the liability-currency principal")
+    void fxRepaymentReducesLiabilityByLiabilityCurrencyPrincipal() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("1200.00"), MovementType.REPAYMENT, "EUR");
+        request.setOriginalAmount(new BigDecimal("1310.04"));
+        request.setOriginalCurrency("USD");
+        request.setConversionRate(new BigDecimal("0.9160"));
+        stubCreate(
+                request,
+                linkedEntity(null, new BigDecimal("1200.00"), MovementType.REPAYMENT, "EUR"),
+                linkedEntity(TX_ID, new BigDecimal("1200.00"), MovementType.REPAYMENT, "EUR"));
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("5000.00", "USD")));
+
+        transactionService.createTransaction(USER_ID, request);
+
+        // Account debit stays account-native: 1000 − 1200 EUR
+        ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
+        verify(accountRepository).save(accountCaptor.capture());
+        assertThat(accountCaptor.getValue().getBalance())
+                .isEqualByComparingTo(new BigDecimal("-200.00"));
+
+        // Liability leg moves in the liability currency: 5000 − 1310.04 USD
+        ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentBalance()).isEqualTo("3689.96");
+    }
+
+    @Test
+    @DisplayName(
+            "FX REPAYMENT converts categorized split legs to the liability currency before"
+                    + " extracting the principal leg")
+    void fxRepaymentConvertsSplitsToLiabilityCurrency() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("500.00"), MovementType.REPAYMENT, "EUR");
+        request.setOriginalAmount(new BigDecimal("1000.00"));
+        request.setOriginalCurrency("USD");
+        request.setConversionRate(new BigDecimal("0.5000"));
+        request.setSplits(
+                List.of(
+                        split(new BigDecimal("350.00"), null),
+                        split(new BigDecimal("100.00"), 5L),
+                        split(new BigDecimal("50.00"), 6L)));
+        stubCreate(
+                request,
+                linkedEntity(null, new BigDecimal("500.00"), MovementType.REPAYMENT, "EUR"),
+                linkedEntity(TX_ID, new BigDecimal("500.00"), MovementType.REPAYMENT, "EUR"));
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("5000.00", "USD")));
+
+        transactionService.createTransaction(USER_ID, request);
+
+        // Principal leg = 1000 − (100 + 50) / 0.5 = 700 USD → 5000 − 700
+        ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentBalance()).isEqualTo("4300.00");
+    }
+
+    @Test
+    @DisplayName("FX DISBURSEMENT increases the liability by the liability-currency total")
+    void fxDisbursementIncreasesLiabilityByLiabilityCurrencyTotal() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("600.00"), MovementType.DISBURSEMENT, "EUR");
+        request.setOriginalAmount(new BigDecimal("1200.00"));
+        request.setOriginalCurrency("USD");
+        request.setConversionRate(new BigDecimal("0.5000"));
+        stubCreate(
+                request,
+                linkedEntity(null, new BigDecimal("600.00"), MovementType.DISBURSEMENT, "EUR"),
+                linkedEntity(TX_ID, new BigDecimal("600.00"), MovementType.DISBURSEMENT, "EUR"));
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("5000.00", "USD")));
+
+        transactionService.createTransaction(USER_ID, request);
+
+        ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentBalance()).isEqualTo("6200.00");
+    }
+
+    @Test
+    @DisplayName("FX REPAYMENT on a staged loan allocates the converted principal to the tranche")
+    void fxRepaymentOnStagedLoanAllocatesConvertedPrincipal() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("600.00"), MovementType.REPAYMENT, "EUR");
+        request.setOriginalAmount(new BigDecimal("1200.00"));
+        request.setOriginalCurrency("USD");
+        request.setConversionRate(new BigDecimal("0.5000"));
+        request.setSplits(
+                List.of(
+                        split(new BigDecimal("500.00"), null),
+                        split(new BigDecimal("100.00"), 5L)));
+        Transaction mapped =
+                linkedEntity(null, new BigDecimal("600.00"), MovementType.REPAYMENT, "EUR");
+        Transaction saved =
+                linkedEntity(TX_ID, new BigDecimal("600.00"), MovementType.REPAYMENT, "EUR");
+        // The service persists the conversion fields before saving (applyConversionFields)
+        saved.setOriginalAmount(new BigDecimal("1200.00"));
+        saved.setOriginalCurrency("USD");
+        saved.setConversionRate(new BigDecimal("0.5000"));
+        stubCreate(request, mapped, saved);
+        LiabilityTranche tranche = drawnTrancheFixture(new BigDecimal("5000.00"));
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("4200.00", "USD")));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(List.of(tranche));
+        when(transactionRepository.findByTrancheIdAndUserId(TRANCHE_ID, USER_ID))
+                .thenReturn(List.of(saved));
+        // saveSplits persisted the request splits — later reads return them
+        when(transactionSplitService.getSplitsForTransaction(TX_ID))
+                .thenReturn(
+                        List.of(
+                                storedSplit(new BigDecimal("500.00"), null),
+                                storedSplit(new BigDecimal("100.00"), 5L)));
+        when(liabilityTrancheRepository.save(any(LiabilityTranche.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        transactionService.createTransaction(USER_ID, request);
+
+        // Principal leg = 1200 − 100/0.5 = 1000 USD; tranche remaining 5000 − 1000 = 4000
+        assertThat(saved.getTrancheId()).isEqualTo(TRANCHE_ID);
+        ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentBalance()).isEqualTo("4000.00");
+    }
+
+    @Test
+    @DisplayName("Deleting an FX REPAYMENT restores the liability-currency principal")
+    void deleteFxRepaymentRestoresConvertedPrincipal() {
+        Transaction existing =
+                linkedEntity(TX_ID, new BigDecimal("1200.00"), MovementType.REPAYMENT, "EUR");
+        existing.setOriginalAmount(new BigDecimal("1310.04"));
+        existing.setOriginalCurrency("USD");
+        existing.setConversionRate(new BigDecimal("0.9160"));
+        when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
+                .thenReturn(Optional.of(existing));
+        when(transactionRepository.save(any(Transaction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
+                .thenReturn(Optional.of(accountFixture("EUR")));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(transactionSplitService.getSplitsForTransaction(TX_ID)).thenReturn(List.of());
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(Optional.of(liabilityFixture("3689.96", "USD")));
+        when(liabilityRepository.save(any(Liability.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        transactionService.deleteTransaction(TX_ID, USER_ID);
+
+        ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentBalance()).isEqualTo("5000.00");
+    }
+
+    // ---------- multi-instrument guard (Task 6 deferred minor) ----------
+
+    @Test
+    @DisplayName("Linking more than one instrument on a single transaction is rejected")
+    void multiInstrumentLinkIsRejected() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("100.00"), MovementType.REPAYMENT, "USD");
+        request.setRealEstateId(PROPERTY_ID);
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
+                .thenReturn(Optional.of(accountFixture("USD")));
+
+        assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
+                .isInstanceOf(InvalidTransactionException.class)
+                .hasMessageContaining("at most one");
+    }
+
+    // ---------- improvement currency guard (Task 6 deferred minor) ----------
+
+    @Test
+    @DisplayName("CAPITAL_IMPROVEMENT currency mismatch with the property is rejected")
+    void capitalImprovementPropertyCurrencyMismatchIsRejected() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("5000.00"), MovementType.CAPITAL_IMPROVEMENT, "EUR");
+        stubCreate(
+                request,
+                linkedEntity(
+                        null, new BigDecimal("5000.00"), MovementType.CAPITAL_IMPROVEMENT, "EUR"),
+                linkedEntity(
+                        TX_ID, new BigDecimal("5000.00"), MovementType.CAPITAL_IMPROVEMENT, "EUR"));
+        when(realEstateRepository.findByIdAndUserId(PROPERTY_ID, USER_ID))
+                .thenReturn(Optional.of(propertyFixture("200000.00")));
+
+        assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
+                .isInstanceOf(InvalidTransactionException.class)
+                .hasMessageContaining("EUR")
+                .hasMessageContaining("USD");
+    }
+
+    @Test
+    @DisplayName(
+            "FX CAPITAL_IMPROVEMENT applies the property-currency total from the conversion fields")
+    void fxCapitalImprovementAppliesPropertyCurrencyTotal() {
+        TransactionRequest request =
+                linkedRequest(new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT, "EUR");
+        request.setOriginalAmount(new BigDecimal("1000.00"));
+        request.setOriginalCurrency("USD");
+        request.setConversionRate(new BigDecimal("0.5000"));
+        stubCreate(
+                request,
+                linkedEntity(
+                        null, new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT, "EUR"),
+                linkedEntity(
+                        TX_ID, new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT, "EUR"));
+        when(realEstateRepository.findByIdAndUserId(PROPERTY_ID, USER_ID))
+                .thenReturn(Optional.of(propertyFixture("200000.00")));
+
+        transactionService.createTransaction(USER_ID, request);
+
+        ArgumentCaptor<RealEstateProperty> propertyCaptor =
+                ArgumentCaptor.forClass(RealEstateProperty.class);
+        verify(realEstateRepository).save(propertyCaptor.capture());
+        assertThat(propertyCaptor.getValue().getCurrentValue()).isEqualTo("201000.00");
+    }
+
+    // ---------- update reverse leg derives from OLD values (Task 7 deferred minor) ----------
+
+    @Test
+    @DisplayName(
+            "Updating a staged-loan REPAYMENT reverses the old principal without the reconciler"
+                    + " re-deriving from the new persisted splits (single WARN-free reconcile)")
+    void updateReversesOldPrincipalWithoutReconcileOverrideFromNewState() {
+        LiabilityTranche tranche = drawnTrancheFixture(new BigDecimal("5000.00"));
+        Transaction existing =
+                linkedEntity(TX_ID, new BigDecimal("1200.00"), MovementType.REPAYMENT, "USD");
+        existing.setTrancheId(TRANCHE_ID);
+        when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
+                .thenReturn(Optional.of(existing));
+        when(transactionRepository.save(any(Transaction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
+                .thenReturn(Optional.of(accountFixture("USD")));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(transactionMapper.toResponse(any(Transaction.class)))
+                .thenReturn(new TransactionResponse());
+        // Call #1: the before-update response snapshot, call #2: the OLD-splits capture for the
+        // reverse leg — both see the old state; afterwards the (already replaced) NEW splits are
+        // what the reconciler sees — exactly the production persistence ordering.
+        when(transactionSplitService.getSplitsForTransaction(TX_ID))
+                .thenReturn(
+                        List.of(
+                                storedSplit(new BigDecimal("800.00"), null),
+                                storedSplit(new BigDecimal("300.00"), 5L),
+                                storedSplit(new BigDecimal("100.00"), 6L)),
+                        List.of(
+                                storedSplit(new BigDecimal("800.00"), null),
+                                storedSplit(new BigDecimal("300.00"), 5L),
+                                storedSplit(new BigDecimal("100.00"), 6L)))
+                .thenReturn(
+                        List.of(
+                                storedSplit(new BigDecimal("600.00"), null),
+                                storedSplit(new BigDecimal("300.00"), 5L)));
+        when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenAnswer(inv -> Optional.of(liabilityFixture("4200.00", "USD")));
+        when(liabilityRepository.save(any(Liability.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
+                .thenReturn(List.of(tranche));
+        when(transactionRepository.findByTrancheIdAndUserId(TRANCHE_ID, USER_ID))
+                .thenReturn(List.of(existing));
+        when(liabilityTrancheRepository.save(any(LiabilityTranche.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        org.mockito.Mockito.doAnswer(
+                        inv -> {
+                            TransactionRequest r = inv.getArgument(0);
+                            Transaction t = inv.getArgument(1);
+                            t.setAmount(r.getAmount());
+                            return null;
+                        })
+                .when(transactionMapper)
+                .updateEntityFromRequest(any(TransactionRequest.class), any(Transaction.class));
+
+        TransactionRequest update =
+                linkedRequest(new BigDecimal("900.00"), MovementType.REPAYMENT, "USD");
+        update.setTrancheId(TRANCHE_ID);
+        update.setSplits(
+                List.of(
+                        split(new BigDecimal("600.00"), null),
+                        split(new BigDecimal("300.00"), 5L)));
+
+        transactionService.updateTransaction(TX_ID, USER_ID, update);
+
+        // Reverse leg: stored 4200 + old principal 800, NOT overridden by the reconciler (which
+        // already sees the new 600 principal). Apply leg: 5000 − 600 with the single reconcile.
+        ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues().get(0).getCurrentBalance()).isEqualTo("5000.00");
+        assertThat(captor.getAllValues().get(1).getCurrentBalance()).isEqualTo("4400.00");
+    }
+
     @Test
     @DisplayName(
             "Creating a DISBURSEMENT with trancheId marks the tranche DRAWN before the balance "

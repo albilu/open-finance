@@ -3,6 +3,7 @@ package org.openfinance.controller;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -774,6 +775,10 @@ public class LiabilityController {
      *
      * <pre>GET /api/v1/liabilities/1/repayment-preview?total=1200.00&amp;date=2026-03-01</pre>
      *
+     * <p>Optional {@code inputCurrency} (Task 9 FX): when provided and different from the
+     * liability's currency, {@code total} is interpreted in that currency and converted first; the
+     * returned breakdown is always in the liability currency.
+     *
      * <p><strong>Success Response (HTTP 200 OK):</strong>
      *
      * <pre>{@code
@@ -789,6 +794,8 @@ public class LiabilityController {
      * @param liabilityId liability ID to preview the repayment for
      * @param total total repayment amount (must be positive)
      * @param date repayment date (ISO yyyy-MM-dd), used for the interest-only window check
+     * @param inputCurrency optional ISO 4217 code the total is entered in (null = liability
+     *     currency)
      * @param authentication Spring Security authentication object
      * @return HTTP 200 OK with RepaymentPreviewResponse
      */
@@ -803,16 +810,19 @@ public class LiabilityController {
                             message = "Total supports at most 2 decimal places")
                     BigDecimal total,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) @Size(min = 3, max = 3) String inputCurrency,
             Authentication authentication) {
 
         log.info(
-                "Previewing repayment for liability {}: total={}, date={}",
+                "Previewing repayment for liability {}: total={}, date={}, inputCurrency={}",
                 liabilityId,
                 total,
-                date);
+                date,
+                inputCurrency);
         User user = (User) authentication.getPrincipal();
         RepaymentPreviewResponse preview =
-                liabilityService.getRepaymentPreview(user.getId(), liabilityId, total, date);
+                liabilityService.getRepaymentPreview(
+                        user.getId(), liabilityId, total, date, inputCurrency);
 
         return ResponseEntity.ok(preview);
     }

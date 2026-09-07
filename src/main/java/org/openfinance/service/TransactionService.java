@@ -935,16 +935,19 @@ public class TransactionService {
         Long oldAccountId = transaction.getAccountId();
         LocalDate oldDate = transaction.getDate();
 
-        // Capture old linked-instrument legs before the mapper overwrites them (Task 3)
+        // Capture old linked-instrument legs before the mapper overwrites them (Task 3). The
+        // snapshot also carries the OLD conversion fields so the FX reverse legs derive from the
+        // pre-update values (Task 9).
         Long oldLiabilityId = transaction.getLiabilityId();
         Long oldRealEstateId = transaction.getRealEstateId();
         Long oldAssetId = transaction.getAssetId();
         Long oldTrancheId = transaction.getTrancheId();
-        MovementType oldMovementType = transaction.getMovementType();
-        List<TransactionSplitResponse> oldSplits =
-                oldLiabilityId != null
-                        ? transactionSplitService.getSplitsForTransaction(transactionId)
-                        : List.of();
+        ReversibleMovement oldMovement =
+                snapshotOf(
+                        transaction,
+                        oldLiabilityId != null
+                                ? transactionSplitService.getSplitsForTransaction(transactionId)
+                                : List.of());
 
         // Validate the transaction request
         validateTransactionRequest(userId, request);
@@ -1043,17 +1046,19 @@ public class TransactionService {
             accountRepository.save(account);
         }
 
-        // Reverse old linked liability / property legs, then apply the new ones (Task 3)
+        // Reverse old linked liability / property legs, then apply the new ones (Task 3). The
+        // reverse leg skips the tranche reconciler: the NEW row/splits are already persisted, so a
+        // reconcile here would re-derive from the new state and WARN about the not-yet-applied new
+        // leg — the single reconcile inside applyLinkedMovements lands on the final state (Task 7
+        // deferred minor).
         reverseLinkedMovements(
                 userId,
                 oldLiabilityId,
                 oldRealEstateId,
                 oldAssetId,
                 oldTrancheId,
-                oldMovementType,
-                oldAmount,
-                oldDate,
-                oldSplits);
+                oldMovement,
+                false);
         applyLinkedMovements(userId, transaction, request);
 
         log.info(
@@ -1199,19 +1204,20 @@ public class TransactionService {
             }
             accountRepository.save(account);
 
-            // Reverse linked liability / property movements (Task 3)
+            // Reverse linked liability / property movements (Task 3). The soft-deleted row no
+            // longer contributes to the re-derived invariant, so the reverse leg reconciles.
             reverseLinkedMovements(
                     userId,
                     transaction.getLiabilityId(),
                     transaction.getRealEstateId(),
                     transaction.getAssetId(),
                     transaction.getTrancheId(),
-                    transaction.getMovementType(),
-                    transaction.getAmount(),
-                    transaction.getDate(),
-                    transaction.getLiabilityId() != null
-                            ? transactionSplitService.getSplitsForTransaction(transactionId)
-                            : List.of());
+                    snapshotOf(
+                            transaction,
+                            transaction.getLiabilityId() != null
+                                    ? transactionSplitService.getSplitsForTransaction(transactionId)
+                                    : List.of()),
+                    true);
 
             log.info(
                     "Transaction soft-deleted successfully: id={}, userId={}, balance reversed",
@@ -1610,6 +1616,24 @@ public class TransactionService {
         // already enforced this)
         if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             throw InvalidTransactionException.invalidAmount(String.valueOf(request.getAmount()));
+        }
+
+        // Task 6 (deferred minor): a transaction may link to at most ONE instrument — a movement
+        // cannot simultaneously hit a liability balance and a property/asset cost basis.
+        int linkedInstruments = 0;
+        if (request.getLiabilityId() != null) {
+            linkedInstruments++;
+        }
+        if (request.getRealEstateId() != null) {
+            linkedInstruments++;
+        }
+        if (request.getAssetId() != null) {
+            linkedInstruments++;
+        }
+        if (linkedInstruments > 1) {
+            throw new InvalidTransactionException(
+                    "A transaction can link to at most one of liabilityId, realEstateId or"
+                            + " assetId — split the movement into separate transactions instead.");
         }
 
         // Validate currency matches source account currency. For all transaction types
@@ -2197,6 +2221,16 @@ public class TransactionService {
      * movement reduces it by the principal leg only (total minus categorized splits). {@code
      * CAPITAL_IMPROVEMENT} movements increase the property's current value.
      *
+     * <p><strong>FX legs (Task 9 decision):</strong> when the paying account's currency differs
+     * from the liability's currency, the transaction row stays account-native (amount/currency in
+     * the account currency — the existing account machinery is untouched) and the conversion fields
+     * carry the liability-currency view: {@code originalCurrency} = liability currency (enforced by
+     * the guard inside), {@code originalAmount} = movement total in the liability currency, {@code
+     * conversionRate} = liability→account rate ({@code originalAmount × rate ≈ amount}). The
+     * liability leg therefore moves by the principal computed from {@code originalAmount}, with
+     * categorized splits converted by the stored rate via {@link PrincipalLegs#ofConverted}.
+     * Improvement legs apply the instrument-currency total the same way.
+     *
      * @param userId the owner's ID
      * @param transaction the transaction carrying the (post-mapper) instrument links
      * @param request the request carrying amounts, splits and currencies
@@ -2225,11 +2259,24 @@ public class TransactionService {
                         movementCurrency, liability.getCurrency(), liability.getId());
             }
 
+            // FX legs (Task 9): on a converted movement the liability-currency total is the
+            // originalAmount (originalCurrency == liability currency, enforced by the guard
+            // above); splits stay account-native and are converted by the stored rate inside
+            // principalLegOf.
+            boolean converted = isConvertedMovement(request);
+            BigDecimal liabilityTotal =
+                    converted ? request.getOriginalAmount() : request.getAmount();
+
             BigDecimal delta;
             if (transaction.getMovementType() == MovementType.DISBURSEMENT) {
-                delta = request.getAmount();
+                delta = roundMoney(liabilityTotal);
             } else {
-                delta = extractPrincipalLeg(request.getAmount(), request.getSplits()).negate();
+                delta =
+                        principalLegOf(
+                                        liabilityTotal,
+                                        request.getSplits(),
+                                        request.getConversionRate())
+                                .negate();
             }
 
             // Mirror LiabilityService.disburse's fail-fast: on a staged loan (tranches exist) the
@@ -2250,8 +2297,7 @@ public class TransactionService {
             // drawn only after the clamp would let the clamp destroy the new balance.
             if (transaction.getMovementType() == MovementType.DISBURSEMENT
                     && transaction.getTrancheId() != null) {
-                markTrancheDrawn(
-                        userId, transaction.getTrancheId(), request.getAmount(), request.getDate());
+                markTrancheDrawn(userId, transaction.getTrancheId(), delta, request.getDate());
             }
 
             // Task 7: repayments allocate their principal leg to a tranche (explicit target or
@@ -2266,39 +2312,139 @@ public class TransactionService {
             adjustLiabilityBalance(liability, delta);
         }
 
-        if (transaction.getRealEstateId() != null
-                && transaction.getMovementType() == MovementType.CAPITAL_IMPROVEMENT) {
+        applyImprovementLeg(userId, transaction.getRealEstateId(), true, request);
+        applyImprovementLeg(userId, transaction.getAssetId(), false, request);
+    }
+
+    /**
+     * Applies a CAPITAL_IMPROVEMENT leg to a property or asset: the improvement amount is the
+     * instrument-currency total ({@code originalAmount} on a converted movement) and the movement
+     * currency ({@code originalCurrency}-if-present) is guard-checked against the instrument's
+     * currency inside {@link RealEstateService}/{@link AssetService} (Task 6 deferred minor).
+     */
+    private void applyImprovementLeg(
+            Long userId, Long instrumentId, boolean property, TransactionRequest request) {
+        if (instrumentId == null || request.getMovementType() != MovementType.CAPITAL_IMPROVEMENT) {
+            return;
+        }
+        String movementCurrency =
+                request.getOriginalCurrency() != null
+                        ? request.getOriginalCurrency()
+                        : request.getCurrency();
+        BigDecimal instrumentTotal =
+                isConvertedMovement(request) ? request.getOriginalAmount() : request.getAmount();
+        if (property) {
             realEstateService.applyCapitalImprovement(
-                    transaction.getRealEstateId(), userId, request.getAmount(), request.getDate());
-        }
-        if (transaction.getAssetId() != null
-                && transaction.getMovementType() == MovementType.CAPITAL_IMPROVEMENT) {
+                    instrumentId, userId, instrumentTotal, request.getDate(), movementCurrency);
+        } else {
             assetService.applyCapitalImprovement(
-                    transaction.getAssetId(), userId, request.getAmount(), request.getDate());
+                    instrumentId, userId, instrumentTotal, request.getDate(), movementCurrency);
         }
+    }
+
+    /** True when the request carries a full conversion triple (FX movement). */
+    private boolean isConvertedMovement(TransactionRequest request) {
+        return request.getOriginalCurrency() != null && request.getConversionRate() != null;
+    }
+
+    /**
+     * Principal leg of a movement total: plain subtraction, or rate-converted when the total is
+     * expressed in the linked instrument's currency while the splits are account-native. The
+     * arithmetic lives in {@link PrincipalLegs} — the single shared source.
+     */
+    private BigDecimal principalLegOf(
+            BigDecimal total, List<TransactionSplitRequest> splits, BigDecimal conversionRate) {
+        if (total == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal categorized = BigDecimal.ZERO;
+        if (splits != null) {
+            for (TransactionSplitRequest split : splits) {
+                if (split.getCategoryId() != null) {
+                    categorized = categorized.add(split.getAmount());
+                }
+            }
+        }
+        if (conversionRate != null) {
+            return PrincipalLegs.ofConverted(total, categorized, conversionRate);
+        }
+        return PrincipalLegs.of(total, categorized);
+    }
+
+    /** Rounds a monetary value to 2 decimals HALF_UP (balance-write scale). */
+    private BigDecimal roundMoney(BigDecimal value) {
+        return value != null ? value.setScale(2, java.math.RoundingMode.HALF_UP) : BigDecimal.ZERO;
+    }
+
+    /**
+     * Pre-update snapshot of a persisted movement's linked-leg inputs, captured BEFORE the mapper
+     * overwrites the row — the reverse legs must always derive from the OLD values.
+     *
+     * @param movementType the old movement classification
+     * @param amount the old transaction amount (account currency)
+     * @param originalAmount the old original amount (linked-instrument currency, nullable)
+     * @param originalCurrency the old original currency (nullable)
+     * @param conversionRate the old conversion rate (nullable)
+     * @param date the old movement date
+     * @param splits the old stored split lines (account currency)
+     */
+    private record ReversibleMovement(
+            MovementType movementType,
+            BigDecimal amount,
+            BigDecimal originalAmount,
+            String originalCurrency,
+            BigDecimal conversionRate,
+            LocalDate date,
+            List<TransactionSplitResponse> splits) {}
+
+    /**
+     * Builds a {@link ReversibleMovement} snapshot from a persisted transaction entity.
+     *
+     * @param transaction the persisted (still-old on the update path) transaction
+     * @param splits its stored split lines (account currency, empty list when unlinked)
+     */
+    private ReversibleMovement snapshotOf(
+            Transaction transaction, List<TransactionSplitResponse> splits) {
+        return new ReversibleMovement(
+                transaction.getMovementType(),
+                transaction.getAmount(),
+                transaction.getOriginalAmount(),
+                transaction.getOriginalCurrency(),
+                transaction.getConversionRate(),
+                transaction.getDate(),
+                splits);
     }
 
     /**
      * Reverses the liability / property balance effects of a transaction that is being deleted or
-     * replaced by an update.
+     * replaced by an update. All legs derive from the {@link ReversibleMovement} snapshot (OLD
+     * values), including FX rows where the instrument-currency total is the snapshot's {@code
+     * originalAmount} and the account-native splits are converted by the stored rate.
      *
      * <p>For a DISBURSEMENT linked to a tranche, the tranche is reverted to PLANNED (drawnAmount
      * and drawnDate cleared) <em>before</em> the balance delta is applied: the reconciler inside
-     * {@link #adjustLiabilityBalance} re-derives the balance from the tranches, so it must already
-     * see the reverted state — reverting afterwards would leave the stale DRAWN sum as the balance
-     * with no drawn tranche backing it (invariant broken). In the update flow the new legs are
-     * applied right after, re-marking the tranche DRAWN so the final reconcile lands on the new
-     * amount.
+     * {@link #adjustLiabilityBalance(Liability, BigDecimal, boolean)} re-derives the balance from
+     * the tranches, so it must already see the reverted state — reverting afterwards would leave
+     * the stale DRAWN sum as the balance with no drawn tranche backing it (invariant broken). In
+     * the update flow the new legs are applied right after, re-marking the tranche DRAWN so the
+     * final reconcile lands on the new amount.
+     *
+     * <p><strong>Update-path reconcile suppression (Task 7 deferred minor):</strong> on update the
+     * new transaction row and splits are already persisted when this reverse runs, so a reconcile
+     * here would re-derive from the NEW state and WARN about "untracked money" that is simply the
+     * not-yet-applied new leg — a false positive on every amount change. The update path therefore
+     * skips the reverse-leg reconcile; the single reconcile inside the subsequent {@link
+     * #applyLinkedMovements} sees the final state and WARNs only on genuine drift. The delete path
+     * keeps the reverse-leg reconcile (the soft-deleted row no longer contributes).
      *
      * @param userId the owner's ID
      * @param liabilityId the old liability link (nullable)
      * @param realEstateId the old property link (nullable)
      * @param assetId the old asset link (nullable)
      * @param trancheId the old tranche link (nullable)
-     * @param movementType the old movement classification
-     * @param amount the old transaction amount
-     * @param movementDate the old movement date
-     * @param splits the old stored split lines (used to recover the principal leg)
+     * @param old the OLD movement snapshot
+     * @param reconcileTranches whether the reverse leg runs the staged-loan reconciler (delete:
+     *     true, update: false)
      */
     private void reverseLinkedMovements(
             Long userId,
@@ -2306,10 +2452,9 @@ public class TransactionService {
             Long realEstateId,
             Long assetId,
             Long trancheId,
-            MovementType movementType,
-            BigDecimal amount,
-            LocalDate movementDate,
-            List<TransactionSplitResponse> splits) {
+            ReversibleMovement old,
+            boolean reconcileTranches) {
+        MovementType movementType = old.movementType();
         if (liabilityId != null) {
             Liability liability =
                     liabilityRepository
@@ -2318,25 +2463,51 @@ public class TransactionService {
                                     () ->
                                             LiabilityNotFoundException.byIdAndUser(
                                                     liabilityId, userId));
+            boolean converted = old.originalCurrency() != null && old.conversionRate() != null;
+            BigDecimal instrumentTotal = converted ? old.originalAmount() : old.amount();
             BigDecimal delta;
             if (movementType == MovementType.DISBURSEMENT) {
-                delta = amount.negate();
+                delta = roundMoney(instrumentTotal).negate();
             } else {
-                delta = extractPrincipalLegFromStored(amount, splits);
+                BigDecimal categorized = BigDecimal.ZERO;
+                if (old.splits() != null) {
+                    for (TransactionSplitResponse split : old.splits()) {
+                        if (split.getCategoryId() != null) {
+                            categorized = categorized.add(split.getAmount());
+                        }
+                    }
+                }
+                delta =
+                        converted
+                                ? PrincipalLegs.ofConverted(
+                                        instrumentTotal, categorized, old.conversionRate())
+                                : PrincipalLegs.of(instrumentTotal, categorized);
             }
 
             if (movementType == MovementType.DISBURSEMENT && trancheId != null) {
                 revertDisbursedTranche(userId, trancheId);
             }
-            adjustLiabilityBalance(liability, delta);
+            adjustLiabilityBalance(liability, delta, reconcileTranches);
         }
 
         if (realEstateId != null && movementType == MovementType.CAPITAL_IMPROVEMENT) {
-            realEstateService.reverseCapitalImprovement(realEstateId, userId, amount, movementDate);
+            realEstateService.reverseCapitalImprovement(
+                    realEstateId,
+                    userId,
+                    old.originalCurrency() != null && old.conversionRate() != null
+                            ? old.originalAmount()
+                            : old.amount(),
+                    old.date());
         }
 
         if (assetId != null && movementType == MovementType.CAPITAL_IMPROVEMENT) {
-            assetService.reverseCapitalImprovement(assetId, userId, amount, movementDate);
+            assetService.reverseCapitalImprovement(
+                    assetId,
+                    userId,
+                    old.originalCurrency() != null && old.conversionRate() != null
+                            ? old.originalAmount()
+                            : old.amount(),
+                    old.date());
         }
     }
 
@@ -2382,32 +2553,10 @@ public class TransactionService {
     /**
      * Computes the principal leg of a movement from request splits: the total minus the sum of
      * split amounts that carry a categoryId, floored at zero. The arithmetic itself lives in {@link
-     * PrincipalLegs} — the single shared source.
+     * PrincipalLegs} — the single shared source. Delegates to {@link #principalLegOf}.
      */
     private BigDecimal extractPrincipalLeg(BigDecimal total, List<TransactionSplitRequest> splits) {
-        BigDecimal categorized = BigDecimal.ZERO;
-        if (splits != null) {
-            for (TransactionSplitRequest split : splits) {
-                if (split.getCategoryId() != null) {
-                    categorized = categorized.add(split.getAmount());
-                }
-            }
-        }
-        return PrincipalLegs.of(total, categorized);
-    }
-
-    /** Stored-split variant of {@link #extractPrincipalLeg(BigDecimal, List)}. */
-    private BigDecimal extractPrincipalLegFromStored(
-            BigDecimal total, List<TransactionSplitResponse> splits) {
-        BigDecimal categorized = BigDecimal.ZERO;
-        if (splits != null) {
-            for (TransactionSplitResponse split : splits) {
-                if (split.getCategoryId() != null) {
-                    categorized = categorized.add(split.getAmount());
-                }
-            }
-        }
-        return PrincipalLegs.of(total, categorized);
+        return principalLegOf(total, splits, null);
     }
 
     /**
@@ -2418,17 +2567,31 @@ public class TransactionService {
      * INFO log reports the final post-reconcile balance, never the intermediate.
      */
     private void adjustLiabilityBalance(Liability liability, BigDecimal delta) {
+        adjustLiabilityBalance(liability, delta, true);
+    }
+
+    /**
+     * Flagged variant of {@link #adjustLiabilityBalance(Liability, BigDecimal)}: {@code
+     * reconcileTranches=false} skips the staged-loan reconciler. Used solely by the update path's
+     * reverse leg, where the already-persisted NEW row would make the reconciler WARN about the
+     * not-yet-applied new leg (Task 7 deferred minor — double-WARN false positive).
+     */
+    private void adjustLiabilityBalance(
+            Liability liability, BigDecimal delta, boolean reconcileTranches) {
         BigDecimal previous = parseEncryptedAmount(liability.getCurrentBalance());
         BigDecimal updated = previous.add(delta).max(BigDecimal.ZERO);
         liability.setCurrentBalance(updated.toPlainString());
-        liabilityTrancheService.reconcile(liability);
+        if (reconcileTranches) {
+            liabilityTrancheService.reconcile(liability);
+        }
         liabilityRepository.save(liability);
         log.info(
-                "Liability {} balance adjusted by {} from {} to {} (final after reconcile)",
+                "Liability {} balance adjusted by {} from {} to {} (reconcile={})",
                 liability.getId(),
                 delta,
                 previous.toPlainString(),
-                liability.getCurrentBalance());
+                liability.getCurrentBalance(),
+                reconcileTranches);
     }
 
     /** Parses an encrypted BigDecimal amount string (null/blank resolves to zero). */

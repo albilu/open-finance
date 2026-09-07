@@ -309,4 +309,60 @@ class AssetImprovementSyncTest {
         assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
                 .isInstanceOf(InvalidAssetStateException.class);
     }
+
+    // ---------- (f) currency guard mirrors the liability guard (Task 6 deferred minor) ----------
+
+    @Test
+    @DisplayName("CAPITAL_IMPROVEMENT currency mismatch with the asset is rejected")
+    void capitalImprovementAssetCurrencyMismatchIsRejected() {
+        TransactionRequest request =
+                assetRequest(new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT);
+        request.setCurrency("EUR");
+        stubCreate(
+                request,
+                assetEntity(null, new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT),
+                assetEntity(TX_ID, new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT));
+        when(assetRepository.findByIdAndUserId(ASSET_ID, USER_ID))
+                .thenReturn(
+                        Optional.of(
+                                assetFixture(
+                                        AssetType.VEHICLE,
+                                        BigDecimal.ONE,
+                                        new BigDecimal("20000.00"))));
+
+        assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
+                .isInstanceOf(org.openfinance.exception.InvalidTransactionException.class)
+                .hasMessageContaining("EUR")
+                .hasMessageContaining("USD");
+    }
+
+    @Test
+    @DisplayName(
+            "FX CAPITAL_IMPROVEMENT applies the asset-currency total from the conversion fields")
+    void fxCapitalImprovementAppliesAssetCurrencyTotal() {
+        TransactionRequest request =
+                assetRequest(new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT);
+        request.setCurrency("EUR");
+        request.setOriginalAmount(new BigDecimal("1000.00"));
+        request.setOriginalCurrency("USD");
+        request.setConversionRate(new BigDecimal("0.5000"));
+        stubCreate(
+                request,
+                assetEntity(null, new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT),
+                assetEntity(TX_ID, new BigDecimal("500.00"), MovementType.CAPITAL_IMPROVEMENT));
+        when(assetRepository.findByIdAndUserId(ASSET_ID, USER_ID))
+                .thenReturn(
+                        Optional.of(
+                                assetFixture(
+                                        AssetType.VEHICLE,
+                                        BigDecimal.ONE,
+                                        new BigDecimal("20000.00"))));
+
+        transactionService.createTransaction(USER_ID, request);
+
+        ArgumentCaptor<Asset> captor = ArgumentCaptor.forClass(Asset.class);
+        verify(assetRepository).save(captor.capture());
+        assertThat(captor.getValue().getCurrentPrice())
+                .isEqualByComparingTo(new BigDecimal("21000.00"));
+    }
 }

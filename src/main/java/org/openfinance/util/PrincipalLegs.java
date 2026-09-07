@@ -1,6 +1,7 @@
 package org.openfinance.util;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
  * Single source of the <em>principal leg</em> computation shared by {@code TransactionService}
@@ -13,6 +14,12 @@ import java.math.BigDecimal;
  * has no principal leg.
  */
 public final class PrincipalLegs {
+
+    /** Intermediate scale used when converting split legs across the stored conversion rate. */
+    private static final int CONVERSION_SCALE = 6;
+
+    /** Final monetary scale of a computed principal leg. */
+    private static final int MONEY_SCALE = 2;
 
     private PrincipalLegs() {}
 
@@ -28,5 +35,33 @@ public final class PrincipalLegs {
         BigDecimal safeTotal = total != null ? total : BigDecimal.ZERO;
         BigDecimal safeCategorized = categorizedSum != null ? categorizedSum : BigDecimal.ZERO;
         return safeTotal.subtract(safeCategorized).max(BigDecimal.ZERO);
+    }
+
+    /**
+     * Principal leg of a <em>converted</em> movement (Task 9 FX legs).
+     *
+     * <p>The stored convention: {@code total} is expressed in the linked instrument's currency
+     * ({@code originalAmount}, e.g. the liability currency) while the categorized splits are
+     * expressed in the account currency. Each categorized split is converted to the instrument
+     * currency by dividing by the stored rate ({@code 1 originalCurrency = rate × currency}), then
+     * the plain subtraction applies. The result is rounded to 2 decimals HALF_UP so balance writes
+     * and tranche ledgers stay on monetary scale.
+     *
+     * @param total the movement total in the linked instrument's currency
+     * @param categorizedSum the sum of categorized split amounts in the account currency
+     * @param conversionRate the stored conversion rate (positive)
+     * @return {@code max(total − categorizedSum / rate, 0)} rounded to 2 decimals
+     */
+    public static BigDecimal ofConverted(
+            BigDecimal total, BigDecimal categorizedSum, BigDecimal conversionRate) {
+        BigDecimal safeRate =
+                conversionRate != null && conversionRate.signum() > 0
+                        ? conversionRate
+                        : BigDecimal.ONE;
+        BigDecimal converted =
+                categorizedSum != null
+                        ? categorizedSum.divide(safeRate, CONVERSION_SCALE, RoundingMode.HALF_UP)
+                        : BigDecimal.ZERO;
+        return of(total, converted).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
     }
 }
