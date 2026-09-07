@@ -23,6 +23,7 @@ import org.openfinance.dto.LiabilityRequest;
 import org.openfinance.dto.LiabilityResponse;
 import org.openfinance.dto.LiabilityTrancheRequest;
 import org.openfinance.dto.LiabilityTrancheResponse;
+import org.openfinance.dto.RepaymentPreviewResponse;
 import org.openfinance.dto.TransactionRequest;
 import org.openfinance.entity.Account;
 import org.openfinance.entity.Liability;
@@ -1736,6 +1737,96 @@ public class LiabilityService {
                 .notes(tranche.getNotes())
                 .currency(tranche.getCurrency())
                 .build();
+    }
+
+    // ===========================
+    // Repayment preview (Task 5)
+    // ===========================
+
+    /**
+     * Previews how a repayment of {@code total} on {@code date} splits into interest, insurance and
+     * principal components.
+     *
+     * <p>Monthly interest = currentBalance × interestRate / 1200 and monthly insurance = principal
+     * × insurancePercentage / 1200, both rounded half-up to 2 decimals. When a tranche with {@code
+     * interestOnly=true} is active on the given date ({@code interestOnlyUntil} null or not before
+     * the date), the principal component is zero; otherwise principal = total − interest −
+     * insurance, floored at zero. Missing rate/insurance fields are treated as zero.
+     *
+     * @param userId the ID of the user requesting the preview (for authorization)
+     * @param liabilityId the ID of the liability being repaid
+     * @param total the total repayment amount
+     * @param date the repayment date used for the interest-only window check
+     * @return the repayment breakdown preview
+     * @throws LiabilityNotFoundException if the liability does not belong to the user
+     */
+    @Transactional(readOnly = true)
+    public RepaymentPreviewResponse getRepaymentPreview(
+            Long userId, Long liabilityId, BigDecimal total, LocalDate date) {
+        if (liabilityId == null) {
+            throw new IllegalArgumentException("Liability ID cannot be null");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null");
+        }
+        if (total == null) {
+            throw new IllegalArgumentException("Total cannot be null");
+        }
+        if (date == null) {
+            throw new IllegalArgumentException("Date cannot be null");
+        }
+        log.debug(
+                "Previewing repayment for liability {}: userId={}, total={}, date={}",
+                liabilityId,
+                userId,
+                total,
+                date);
+
+        Liability liability =
+                liabilityRepository
+                        .findByIdAndUserId(liabilityId, userId)
+                        .orElseThrow(
+                                () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
+
+        BigDecimal balance = orZero(decryptAmount(liability.getCurrentBalance()));
+        BigDecimal rate = orZero(decryptAmount(liability.getInterestRate()));
+        BigDecimal principalAmt = orZero(decryptAmount(liability.getPrincipal()));
+        BigDecimal insurancePct = orZero(decryptAmount(liability.getInsurancePercentage()));
+
+        BigDecimal interest =
+                balance.multiply(rate)
+                        .divide(BigDecimal.valueOf(MONTHS_PER_YEAR * 100), 2, RoundingMode.HALF_UP);
+        BigDecimal insurance =
+                principalAmt
+                        .multiply(insurancePct)
+                        .divide(BigDecimal.valueOf(MONTHS_PER_YEAR * 100), 2, RoundingMode.HALF_UP);
+
+        boolean interestOnly =
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
+                        .anyMatch(
+                                t ->
+                                        t.isInterestOnly()
+                                                && (t.getInterestOnlyUntil() == null
+                                                        || !date.isAfter(
+                                                                t.getInterestOnlyUntil())));
+
+        BigDecimal principal =
+                interestOnly
+                        ? BigDecimal.ZERO
+                        : total.subtract(interest).subtract(insurance).max(BigDecimal.ZERO);
+
+        return RepaymentPreviewResponse.builder()
+                .total(total)
+                .principal(principal)
+                .interest(interest)
+                .insurance(insurance)
+                .interestOnly(interestOnly)
+                .build();
+    }
+
+    /** Null-safe BigDecimal accessor defaulting to zero. */
+    private static BigDecimal orZero(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     // ===========================

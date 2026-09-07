@@ -35,11 +35,7 @@ beforeAll(() => {
 
 vi.mock('@/components/ui/AccountSelector', () => ({
   AccountSelector: ({ onValueChange }: { onValueChange: (v: number | undefined) => void }) => (
-    <button
-      type="button"
-      data-testid="account-selector"
-      onClick={() => onValueChange(1)}
-    >
+    <button type="button" data-testid="account-selector" onClick={() => onValueChange(1)}>
       Account Selector
     </button>
   ),
@@ -56,7 +52,7 @@ vi.mock('@/components/ui/PayeeSelector', () => ({
     <select
       data-testid="payee-selector"
       value={value ?? ''}
-      onChange={(e) => onValueChange(e.target.value || undefined)}
+      onChange={e => onValueChange(e.target.value || undefined)}
     >
       <option value="">-- no payee --</option>
       <option value="Amazon">Amazon</option>
@@ -77,7 +73,7 @@ vi.mock('@/components/ui/CategorySelect', () => ({
     <select
       data-testid="category-select"
       value={value ?? ''}
-      onChange={(e) => onValueChange(e.target.value ? Number(e.target.value) : undefined)}
+      onChange={e => onValueChange(e.target.value ? Number(e.target.value) : undefined)}
     >
       <option value="">-- no category --</option>
       <option value="10">Shopping (EXPENSE)</option>
@@ -98,7 +94,11 @@ vi.mock('./TagInput', () => ({
 
 vi.mock('@/components/ui/LiabilitySelector', () => ({
   LiabilitySelector: ({ value, onValueChange }: any) => (
-    <select data-testid="liability-selector" value={value ?? ''} onChange={(e: any) => onValueChange(e.target.value ? Number(e.target.value) : undefined)}>
+    <select
+      data-testid="liability-selector"
+      value={value ?? ''}
+      onChange={(e: any) => onValueChange(e.target.value ? Number(e.target.value) : undefined)}
+    >
       <option value="">-- no liability --</option>
       <option value="1">Mortgage</option>
     </select>
@@ -116,7 +116,7 @@ vi.mock('@/components/ui/CurrencySelector', () => ({
     <select
       data-testid="currency-selector"
       value={value ?? ''}
-      onChange={(e) => onValueChange(e.target.value)}
+      onChange={e => onValueChange(e.target.value)}
     >
       <option value="EUR">EUR</option>
       <option value="USD">USD</option>
@@ -143,29 +143,29 @@ vi.mock('./SplitTransactionForm', () => ({
 
 // ── Mock hooks ────────────────────────────────────────────────────────────────
 
-vi.mock('@/hooks/usePayees', async (importOriginal) => {
+vi.mock('@/hooks/usePayees', async importOriginal => {
   const actual = await importOriginal<typeof usePayeesModule>();
   return { ...actual, useActivePayees: vi.fn() };
 });
 
-vi.mock('@/hooks/useTransactionTags', async (importOriginal) => {
+vi.mock('@/hooks/useTransactionTags', async importOriginal => {
   const actual = await importOriginal<typeof useTransactionTagsModule>();
   return { ...actual, usePopularTags: vi.fn() };
 });
 
 // CategorySelect uses useCategoryTree internally (already mocked at component level,
 // but the hook module mock is kept to prevent any stray real network calls)
-vi.mock('@/hooks/useTransactions', async (importOriginal) => {
+vi.mock('@/hooks/useTransactions', async importOriginal => {
   const actual = await importOriginal<typeof useTransactionsModule>();
   return { ...actual, useCategoryTree: vi.fn() };
 });
 
-vi.mock('@/hooks/useLiabilities', async (importOriginal) => {
+vi.mock('@/hooks/useLiabilities', async importOriginal => {
   const actual = await importOriginal<typeof useLiabilitiesModule>();
-  return { ...actual, useLiabilities: vi.fn() };
+  return { ...actual, useLiabilities: vi.fn(), useRepaymentPreview: vi.fn() };
 });
 
-vi.mock('@/hooks/useCurrency', async (importOriginal) => {
+vi.mock('@/hooks/useCurrency', async importOriginal => {
   const actual = await importOriginal<typeof useCurrencyModule>();
   return { ...actual, useLatestExchangeRate: vi.fn() };
 });
@@ -176,6 +176,7 @@ const mockUseActivePayees = vi.mocked(usePayeesModule.useActivePayees);
 const mockUsePopularTags = vi.mocked(useTransactionTagsModule.usePopularTags);
 const mockUseCategoryTree = vi.mocked(useTransactionsModule.useCategoryTree);
 const mockUseLiabilities = vi.mocked(useLiabilitiesModule.useLiabilities);
+const mockUseRepaymentPreview = vi.mocked(useLiabilitiesModule.useRepaymentPreview);
 const mockUseLatestExchangeRate = vi.mocked(useCurrencyModule.useLatestExchangeRate);
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -238,7 +239,11 @@ interface RenderFormOptions {
   onCancel?: ReturnType<typeof vi.fn>;
 }
 
-function renderForm({ transaction, onSubmit = vi.fn(), onCancel = vi.fn() }: RenderFormOptions = {}) {
+function renderForm({
+  transaction,
+  onSubmit = vi.fn(),
+  onCancel = vi.fn(),
+}: RenderFormOptions = {}) {
   renderWithProviders(
     <TransactionForm
       accounts={mockAccounts}
@@ -296,6 +301,12 @@ describe('TransactionForm', () => {
 
     mockUseLiabilities.mockReturnValue({
       data: [],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    mockUseRepaymentPreview.mockReturnValue({
+      data: undefined,
       isLoading: false,
       isError: false,
     } as any);
@@ -785,7 +796,20 @@ describe('TransactionForm', () => {
   describe('Liability Selector', () => {
     it('shows liability selector for EXPENSE when liabilities exist', () => {
       mockUseLiabilities.mockReturnValue({
-        data: [{ id: 1, name: 'Mortgage', userId: 1, type: 'MORTGAGE', currentBalance: 100000, currency: 'EUR', interestRate: 3.5, startDate: '2020-01-01', isActive: true, createdAt: '2020-01-01' }],
+        data: [
+          {
+            id: 1,
+            name: 'Mortgage',
+            userId: 1,
+            type: 'MORTGAGE',
+            currentBalance: 100000,
+            currency: 'EUR',
+            interestRate: 3.5,
+            startDate: '2020-01-01',
+            isActive: true,
+            createdAt: '2020-01-01',
+          },
+        ],
         isLoading: false,
         isError: false,
       } as any);
@@ -803,7 +827,20 @@ describe('TransactionForm', () => {
 
     it('hides liability selector for INCOME type even with liabilities', () => {
       mockUseLiabilities.mockReturnValue({
-        data: [{ id: 1, name: 'Mortgage', userId: 1, type: 'MORTGAGE', currentBalance: 100000, currency: 'EUR', interestRate: 3.5, startDate: '2020-01-01', isActive: true, createdAt: '2020-01-01' }],
+        data: [
+          {
+            id: 1,
+            name: 'Mortgage',
+            userId: 1,
+            type: 'MORTGAGE',
+            currentBalance: 100000,
+            currency: 'EUR',
+            interestRate: 3.5,
+            startDate: '2020-01-01',
+            isActive: true,
+            createdAt: '2020-01-01',
+          },
+        ],
         isLoading: false,
         isError: false,
       } as any);
@@ -814,6 +851,77 @@ describe('TransactionForm', () => {
       fireEvent.change(typeSelect, { target: { value: 'INCOME' } });
 
       expect(screen.queryByTestId('liability-selector')).not.toBeInTheDocument();
+    });
+  });
+
+  // ── Repayment Preview ──────────────────────────────────────────────────────
+
+  describe('Repayment Preview', () => {
+    const mortgageLiability = {
+      id: 1,
+      name: 'Mortgage',
+      userId: 1,
+      type: 'MORTGAGE',
+      currentBalance: 50000,
+      currency: 'EUR',
+      interestRate: 5.25,
+      startDate: '2020-01-01',
+      isActive: true,
+      createdAt: '2020-01-01',
+    };
+
+    /** Simulate the user selecting the liability via the mocked <select> */
+    async function selectLiability(value: string) {
+      const liabSelect = screen.getByTestId('liability-selector') as HTMLSelectElement;
+      await act(async () => {
+        liabSelect.value = value;
+        liabSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    it('shows principal/interest/insurance preview rows when a liability is selected', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 1200,
+          principal: 981.25,
+          interest: 218.75,
+          insurance: 0,
+          interestOnly: false,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+
+      renderForm();
+
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+      expect(screen.getByText('981.25')).toBeInTheDocument();
+      expect(screen.getByText('218.75')).toBeInTheDocument();
+      expect(screen.getByText('0.00')).toBeInTheDocument();
+    });
+
+    it('does not show preview rows when no liability is selected', () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+
+      renderForm();
+
+      expect(screen.queryByTestId('repayment-preview')).not.toBeInTheDocument();
     });
   });
 
@@ -1132,7 +1240,20 @@ describe('TransactionForm', () => {
 
     it('excludes liabilityId for non-EXPENSE transactions', async () => {
       mockUseLiabilities.mockReturnValue({
-        data: [{ id: 1, name: 'Mortgage', userId: 1, type: 'MORTGAGE', currentBalance: 100000, currency: 'EUR', interestRate: 3.5, startDate: '2020-01-01', isActive: true, createdAt: '2020-01-01' }],
+        data: [
+          {
+            id: 1,
+            name: 'Mortgage',
+            userId: 1,
+            type: 'MORTGAGE',
+            currentBalance: 100000,
+            currency: 'EUR',
+            interestRate: 3.5,
+            startDate: '2020-01-01',
+            isActive: true,
+            createdAt: '2020-01-01',
+          },
+        ],
         isLoading: false,
         isError: false,
       } as any);
@@ -1233,7 +1354,7 @@ describe('TransactionForm', () => {
           originalAmount: 100,
           originalCurrency: 'USD',
           conversionRate: 0.9,
-        }),
+        })
       );
     });
 
@@ -1287,7 +1408,7 @@ describe('TransactionForm', () => {
         ],
       } as any;
       const rows = reconstructInitialSplits(txn);
-      expect(rows.map((r) => r.amount)).toEqual([30, 60]);
+      expect(rows.map(r => r.amount)).toEqual([30, 60]);
     });
 
     it('reconstructs original split amounts summing exactly to originalAmount', () => {

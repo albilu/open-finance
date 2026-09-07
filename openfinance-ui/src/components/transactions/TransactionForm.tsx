@@ -26,8 +26,15 @@ import { LiabilitySelector } from '@/components/ui/LiabilitySelector';
 import { SplitTransactionForm } from './SplitTransactionForm';
 import { usePopularTags } from '@/hooks/useTransactionTags';
 import { useActivePayees } from '@/hooks/usePayees';
-import { useLiabilities } from '@/hooks/useLiabilities';
-import type { Transaction, TransactionRequest, TransactionType, Category, PaymentMethod, TransactionSplitRequest } from '@/types/transaction';
+import { useLiabilities, useRepaymentPreview } from '@/hooks/useLiabilities';
+import type {
+  Transaction,
+  TransactionRequest,
+  TransactionType,
+  Category,
+  PaymentMethod,
+  TransactionSplitRequest,
+} from '@/types/transaction';
 import type { Account } from '@/types/account';
 import { formatDateForInput, getToday } from '@/utils/date';
 import { DEFAULT_CURRENCY, getCurrencyDecimals } from '@/utils/currency';
@@ -36,47 +43,80 @@ import { ExchangeRateInline } from '@/components/ui/ExchangeRateDisplay';
 import { useLatestExchangeRate } from '@/hooks/useCurrency';
 import { multiply, roundToDecimals, sumToDecimals } from '@/utils/money';
 
-const optionalNumber = z.preprocess((value) => {
-  if (value === '' || value === null || value === undefined) {
-    return undefined;
-  }
-  if (typeof value === 'number' && Number.isNaN(value)) {
-    return undefined;
-  }
-  return value;
-}, z.number().optional()).optional() as z.ZodType<number | undefined>;
+const optionalNumber = z
+  .preprocess(value => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    if (typeof value === 'number' && Number.isNaN(value)) {
+      return undefined;
+    }
+    return value;
+  }, z.number().optional())
+  .optional() as z.ZodType<number | undefined>;
 
-const transactionSchema = (tValidation: (key: string) => string) => z.object({
-  accountId: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val))) ? undefined : val,
-    z.number({ error: tValidation('form.validation.selectAccount') }).min(1, tValidation('form.validation.selectAccount'))
-  ),
-  toAccountId: optionalNumber,
-  type: z.preprocess(
-    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
-    z.enum(['INCOME', 'EXPENSE', 'TRANSFER'])
-  ),
-  amount: z.coerce.number().positive(tValidation('form.validation.amountPositive')),
-  currency: z.string().length(3, tValidation('form.validation.currencyCode')),
-  categoryId: optionalNumber,
-  date: z.string().min(1, tValidation('form.validation.dateRequired')),
-  description: z.string().max(200, tValidation('form.validation.descriptionTooLong')).optional(),
-  notes: z.string().max(1000, tValidation('form.validation.notesTooLong')).optional(),
-  payee: z.string().max(100, tValidation('form.validation.payeeTooLong')).optional(),
-  tags: z.array(z.string()).optional(),
-  paymentMethod: z.enum(['CASH', 'CHEQUE', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'DEPOSIT', 'STANDING_ORDER', 'DIRECT_DEBIT', 'ONLINE', 'OTHER']).optional(),
-  // Requirement 3.1: Optional link to a liability (EXPENSE transactions only)
-  liabilityId: optionalNumber,
-}).superRefine((data, ctx) => {
-  // Transfers must move funds between two different accounts.
-  if (data.type === 'TRANSFER' && data.toAccountId !== undefined && data.accountId === data.toAccountId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['toAccountId'],
-      message: tValidation('form.validation.sameAccount'),
+const transactionSchema = (tValidation: (key: string) => string) =>
+  z
+    .object({
+      accountId: z.preprocess(
+        val =>
+          val === '' ||
+          val === null ||
+          val === undefined ||
+          (typeof val === 'number' && Number.isNaN(val))
+            ? undefined
+            : val,
+        z
+          .number({ error: tValidation('form.validation.selectAccount') })
+          .min(1, tValidation('form.validation.selectAccount'))
+      ),
+      toAccountId: optionalNumber,
+      type: z.preprocess(
+        val => (typeof val === 'string' ? val.toUpperCase() : val),
+        z.enum(['INCOME', 'EXPENSE', 'TRANSFER'])
+      ),
+      amount: z.coerce.number().positive(tValidation('form.validation.amountPositive')),
+      currency: z.string().length(3, tValidation('form.validation.currencyCode')),
+      categoryId: optionalNumber,
+      date: z.string().min(1, tValidation('form.validation.dateRequired')),
+      description: z
+        .string()
+        .max(200, tValidation('form.validation.descriptionTooLong'))
+        .optional(),
+      notes: z.string().max(1000, tValidation('form.validation.notesTooLong')).optional(),
+      payee: z.string().max(100, tValidation('form.validation.payeeTooLong')).optional(),
+      tags: z.array(z.string()).optional(),
+      paymentMethod: z
+        .enum([
+          'CASH',
+          'CHEQUE',
+          'CREDIT_CARD',
+          'DEBIT_CARD',
+          'BANK_TRANSFER',
+          'DEPOSIT',
+          'STANDING_ORDER',
+          'DIRECT_DEBIT',
+          'ONLINE',
+          'OTHER',
+        ])
+        .optional(),
+      // Requirement 3.1: Optional link to a liability (EXPENSE transactions only)
+      liabilityId: optionalNumber,
+    })
+    .superRefine((data, ctx) => {
+      // Transfers must move funds between two different accounts.
+      if (
+        data.type === 'TRANSFER' &&
+        data.toAccountId !== undefined &&
+        data.accountId === data.toAccountId
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['toAccountId'],
+          message: tValidation('form.validation.sameAccount'),
+        });
+      }
     });
-  }
-});
 
 type TransactionFormData = z.infer<ReturnType<typeof transactionSchema>>;
 
@@ -91,8 +131,17 @@ interface TransactionFormProps {
 
 const TRANSACTION_TYPES: TransactionType[] = ['INCOME', 'EXPENSE', 'TRANSFER'];
 const PAYMENT_METHOD_VALUES: Array<PaymentMethod | ''> = [
-  '', 'CASH', 'CHEQUE', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER',
-  'DEPOSIT', 'STANDING_ORDER', 'DIRECT_DEBIT', 'ONLINE', 'OTHER',
+  '',
+  'CASH',
+  'CHEQUE',
+  'CREDIT_CARD',
+  'DEBIT_CARD',
+  'BANK_TRANSFER',
+  'DEPOSIT',
+  'STANDING_ORDER',
+  'DIRECT_DEBIT',
+  'ONLINE',
+  'OTHER',
 ];
 
 /**
@@ -103,7 +152,7 @@ const PAYMENT_METHOD_VALUES: Array<PaymentMethod | ''> = [
  */
 export function reconstructInitialSplits(transaction?: Transaction): TransactionSplitRequest[] {
   const rows: TransactionSplitRequest[] =
-    transaction?.splits?.map((s) => ({
+    transaction?.splits?.map(s => ({
       categoryId: s.categoryId,
       amount: s.amount,
       description: s.description,
@@ -118,11 +167,11 @@ export function reconstructInitialSplits(transaction?: Transaction): Transaction
 
   const decimals = getCurrencyDecimals(originalCurrency);
   const reconstructed = rows.map((s, i) =>
-    i < rows.length - 1 ? { ...s, amount: roundToDecimals(s.amount / rate, decimals) } : { ...s },
+    i < rows.length - 1 ? { ...s, amount: roundToDecimals(s.amount / rate, decimals) } : { ...s }
   );
   const sumOthers = sumToDecimals(
-    reconstructed.slice(0, -1).map((s) => s.amount),
-    decimals,
+    reconstructed.slice(0, -1).map(s => s.amount),
+    decimals
   );
   reconstructed[reconstructed.length - 1] = {
     ...reconstructed[reconstructed.length - 1],
@@ -150,10 +199,10 @@ export function TransactionForm({
 
   // State for split mode — REQ-SPL-1.5, REQ-SPL-3.1
   const [splitMode, setSplitMode] = useState<boolean>(
-    !!(transaction?.hasSplits && transaction.splits && transaction.splits.length > 0),
+    !!(transaction?.hasSplits && transaction.splits && transaction.splits.length > 0)
   );
   const [splits, setSplits] = useState<TransactionSplitRequest[]>(() =>
-    reconstructInitialSplits(transaction),
+    reconstructInitialSplits(transaction)
   );
 
   // State for auto-filled category from payee
@@ -177,37 +226,37 @@ export function TransactionForm({
     mode: 'onChange',
     defaultValues: transaction
       ? {
-        accountId: transaction.accountId,
-        toAccountId: transaction.toAccountId,
-        type: transaction.type,
-        amount: transaction.originalCurrency
-          ? (transaction.originalAmount ?? transaction.amount)
-          : transaction.amount,
-        currency: transaction.originalCurrency ?? transaction.currency,
-        categoryId: transaction.categoryId,
-        date: formatDateForInput(transaction.date),
-        description: transaction.description || '',
-        notes: transaction.notes || '',
-        payee: transaction.payee || '',
-        tags: transaction.tags || [],
-        paymentMethod: transaction.paymentMethod || undefined,
-        liabilityId: transaction.liabilityId,
-      }
+          accountId: transaction.accountId,
+          toAccountId: transaction.toAccountId,
+          type: transaction.type,
+          amount: transaction.originalCurrency
+            ? (transaction.originalAmount ?? transaction.amount)
+            : transaction.amount,
+          currency: transaction.originalCurrency ?? transaction.currency,
+          categoryId: transaction.categoryId,
+          date: formatDateForInput(transaction.date),
+          description: transaction.description || '',
+          notes: transaction.notes || '',
+          payee: transaction.payee || '',
+          tags: transaction.tags || [],
+          paymentMethod: transaction.paymentMethod || undefined,
+          liabilityId: transaction.liabilityId,
+        }
       : {
-        accountId: undefined as any,
-        toAccountId: undefined,
-        type: 'EXPENSE',
-        amount: 0,
-        currency: DEFAULT_CURRENCY,
-        categoryId: undefined,
-        date: getToday(),
-        description: '',
-        notes: '',
-        payee: '',
-        tags: [],
-        paymentMethod: undefined,
-        liabilityId: undefined,
-      },
+          accountId: undefined as any,
+          toAccountId: undefined,
+          type: 'EXPENSE',
+          amount: 0,
+          currency: DEFAULT_CURRENCY,
+          categoryId: undefined,
+          date: getToday(),
+          description: '',
+          notes: '',
+          payee: '',
+          tags: [],
+          paymentMethod: undefined,
+          liabilityId: undefined,
+        },
   });
 
   // Log validation errors for debugging
@@ -224,7 +273,16 @@ export function TransactionForm({
   const inputCurrency = watch('currency');
   const amountValue = watch('amount');
 
-  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
+  // Repayment auto-split preview (Task 5): fetched when an EXPENSE is linked to a liability
+  // and amount/date are filled. Preview amounts are in the liability currency only (no FX).
+  const liabilityIdValue = selectedType === 'EXPENSE' ? watch('liabilityId') : undefined;
+  const { data: repaymentPreview } = useRepaymentPreview(
+    liabilityIdValue,
+    Number(amountValue) > 0 ? Number(amountValue) : 0,
+    watch('date')
+  );
+
+  const selectedAccount = accounts.find(a => a.id === selectedAccountId);
   const accountCurrency = selectedAccount?.currency ?? DEFAULT_CURRENCY;
 
   // TRANSFER always keeps its current behavior (amount in the source account currency).
@@ -250,7 +308,7 @@ export function TransactionForm({
     inputCurrency,
     accountCurrency,
     needsConversion && !useStoredRate ? 1 : 0,
-    needsConversion && !useStoredRate,
+    needsConversion && !useStoredRate
   );
 
   const effectiveRate = useStoredRate ? storedConversionRate : liveExchangeRate?.rate;
@@ -295,14 +353,23 @@ export function TransactionForm({
       setAutoFilledFromPayee(null);
       setValue('categoryId', undefined, { shouldValidate: true });
     }
-  }, [selectedPayeeName, selectedPayee, selectedType, categories, setValue, transaction, autoFilledCategory, currentCategoryId]);
+  }, [
+    selectedPayeeName,
+    selectedPayee,
+    selectedType,
+    categories,
+    setValue,
+    transaction,
+    autoFilledCategory,
+    currentCategoryId,
+  ]);
 
   // Default the input currency to the selected account's currency, but only when the account
   // actually changes — so a manual currency choice is not clobbered on unrelated re-renders.
   const prevAccountIdRef = useRef<number | undefined>(selectedAccountId);
   useEffect(() => {
     if (selectedAccountId && selectedAccountId !== prevAccountIdRef.current) {
-      const account = accounts.find((a) => a.id === selectedAccountId);
+      const account = accounts.find(a => a.id === selectedAccountId);
       if (account) {
         setValue('currency', account.currency);
       }
@@ -327,14 +394,17 @@ export function TransactionForm({
 
     const inSplit = splitMode && splits.length > 0;
     const submitSplits = inSplit
-      ? splits.map((s) => ({ ...s, amount: convert(s.amount) }))
+      ? splits.map(s => ({ ...s, amount: convert(s.amount) }))
       : undefined;
     // On the conversion path, set the parent to the sum of converted splits so they reconcile
     // exactly with the parent (the backend requires an exact split sum). Otherwise keep today's
     // behavior of submitting the (converted) entered amount.
     const submitAmount =
       needsConversion && rate && inSplit
-        ? sumToDecimals(submitSplits!.map((s) => s.amount), decimals)
+        ? sumToDecimals(
+            submitSplits!.map(s => s.amount),
+            decimals
+          )
         : convert(data.amount);
 
     // The user-entered (pre-conversion) total, in the input currency, persisted for edit restore.
@@ -342,8 +412,8 @@ export function TransactionForm({
       needsConversion && rate
         ? inSplit
           ? sumToDecimals(
-              splits.map((s) => Number(s.amount) || 0),
-              getCurrencyDecimals(inputCurrency),
+              splits.map(s => Number(s.amount) || 0),
+              getCurrencyDecimals(inputCurrency)
             )
           : Number(data.amount)
         : undefined;
@@ -392,13 +462,17 @@ export function TransactionForm({
             aria-describedby={errors.type ? 'type-error' : undefined}
             className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
           >
-            {TRANSACTION_TYPES.map((type) => (
+            {TRANSACTION_TYPES.map(type => (
               <option key={type} value={type}>
                 {t(`form.types.${type}`)}
               </option>
             ))}
           </select>
-          {errors.type && <p id="type-error" className="mt-1 text-sm text-error" role="alert">{errors.type.message}</p>}
+          {errors.type && (
+            <p id="type-error" className="mt-1 text-sm text-error" role="alert">
+              {errors.type.message}
+            </p>
+          )}
         </div>
 
         {/* Date */}
@@ -427,7 +501,10 @@ export function TransactionForm({
         {/* Currency — hidden for TRANSFER (amount stays in the source account currency) */}
         {selectedType !== 'TRANSFER' && (
           <div>
-            <label htmlFor="currency" className="block text-sm font-medium text-text-primary mb-1.5">
+            <label
+              htmlFor="currency"
+              className="block text-sm font-medium text-text-primary mb-1.5"
+            >
               {t('form.currency')} <span aria-label="required">*</span>
             </label>
             <Controller
@@ -443,7 +520,9 @@ export function TransactionForm({
               )}
             />
             {errors.currency && (
-              <p className="mt-1 text-sm text-error" role="alert">{errors.currency.message}</p>
+              <p className="mt-1 text-sm text-error" role="alert">
+                {errors.currency.message}
+              </p>
             )}
             {needsConversion && (
               <div className="mt-1.5">
@@ -469,8 +548,10 @@ export function TransactionForm({
             render={({ field }) => (
               <NumberInput
                 id="amount"
-                value={field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''}
-                onChange={(val) => field.onChange(val === '' ? 0 : Number(val))}
+                value={
+                  field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''
+                }
+                onChange={val => field.onChange(val === '' ? 0 : Number(val))}
                 onBlur={field.onBlur}
                 placeholder="0.00"
                 error={errors.amount?.message}
@@ -481,8 +562,7 @@ export function TransactionForm({
           />
           {convertedPreview !== undefined && (
             <p className="text-xs text-text-secondary mt-1">
-              ≈{' '}
-              <ConvertedAmount amount={convertedPreview} currency={accountCurrency} inline />
+              ≈ <ConvertedAmount amount={convertedPreview} currency={accountCurrency} inline />
             </p>
           )}
         </div>
@@ -493,7 +573,8 @@ export function TransactionForm({
         {/* Account */}
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1.5">
-            {selectedType === 'TRANSFER' ? t('form.fromAccount') : t('form.account')} <span aria-label="required">*</span>
+            {selectedType === 'TRANSFER' ? t('form.fromAccount') : t('form.account')}{' '}
+            <span aria-label="required">*</span>
           </label>
           <Controller
             name="accountId"
@@ -508,7 +589,11 @@ export function TransactionForm({
               />
             )}
           />
-          {errors.accountId && <p id="accountId-error" className="mt-1 text-sm text-error" role="alert">{errors.accountId.message}</p>}
+          {errors.accountId && (
+            <p id="accountId-error" className="mt-1 text-sm text-error" role="alert">
+              {errors.accountId.message}
+            </p>
+          )}
         </div>
 
         {/* To Account (for transfers) */}
@@ -530,7 +615,11 @@ export function TransactionForm({
                 />
               )}
             />
-            {errors.toAccountId && <p id="toAccountId-error" className="mt-1 text-sm text-error" role="alert">{errors.toAccountId.message}</p>}
+            {errors.toAccountId && (
+              <p id="toAccountId-error" className="mt-1 text-sm text-error" role="alert">
+                {errors.toAccountId.message}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -577,9 +666,11 @@ export function TransactionForm({
                 onChange={field.onChange}
                 className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
-                {PAYMENT_METHOD_VALUES.map((method) => (
+                {PAYMENT_METHOD_VALUES.map(method => (
                   <option key={method} value={method}>
-                    {method === '' ? t('form.selectPaymentMethod') : t(`form.paymentMethods.${method}`)}
+                    {method === ''
+                      ? t('form.selectPaymentMethod')
+                      : t(`form.paymentMethods.${method}`)}
                   </option>
                 ))}
               </select>
@@ -600,10 +691,11 @@ export function TransactionForm({
               type="button"
               variant="ghost"
               size="sm"
-              className={`flex items-center gap-1.5 text-xs ${splitMode
-                ? 'text-primary bg-primary/10 hover:bg-primary/20'
-                : 'text-text-secondary hover:text-primary'
-                }`}
+              className={`flex items-center gap-1.5 text-xs ${
+                splitMode
+                  ? 'text-primary bg-primary/10 hover:bg-primary/20'
+                  : 'text-text-secondary hover:text-primary'
+              }`}
               onClick={() => {
                 const entering = !splitMode;
                 setSplitMode(entering);
@@ -618,7 +710,11 @@ export function TransactionForm({
                 }
               }}
               aria-pressed={splitMode}
-              title={splitMode ? 'Switch back to single category' : 'Split this transaction across categories'}
+              title={
+                splitMode
+                  ? 'Switch back to single category'
+                  : 'Split this transaction across categories'
+              }
             >
               <Scissors className="h-3.5 w-3.5" />
               {splitMode ? t('form.removeSplit') : t('form.splitTransaction')}
@@ -634,7 +730,7 @@ export function TransactionForm({
                 render={({ field }) => (
                   <CategorySelect
                     value={field.value}
-                    onValueChange={(value) => {
+                    onValueChange={value => {
                       // Clear auto-fill indicator if user manually changes category
                       if (autoFilledCategory && value !== autoFilledCategory) {
                         setAutoFilledCategory(null);
@@ -660,7 +756,8 @@ export function TransactionForm({
                 <div className="mt-1.5 flex items-center gap-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   <p className="text-xs text-emerald-500 flex-1">
-                    {t('form.autoFilledFrom')} <span className="font-medium">{autoFilledFromPayee}</span>
+                    {t('form.autoFilledFrom')}{' '}
+                    <span className="font-medium">{autoFilledFromPayee}</span>
                   </p>
                   <button
                     type="button"
@@ -721,11 +818,40 @@ export function TransactionForm({
         </div>
       )}
 
+      {/* Repayment auto-split preview (Task 5) — read-only breakdown of the repayment total.
+          Auto-split payload wiring (splits array on submit) is deferred: CategorySeeder has no
+          Interest expense category, so the interest leg cannot be categorized yet (Task 9). */}
+      {selectedType === 'EXPENSE' && liabilityIdValue && repaymentPreview && (
+        <div
+          data-testid="repayment-preview"
+          className="rounded-lg border border-border bg-surface p-3 space-y-1.5"
+        >
+          <p className="text-sm font-medium text-text-primary">{t('form.repaymentPreviewTitle')}</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-text-secondary">
+            <span>{t('form.repaymentPreviewPrincipal')}</span>
+            <span className="text-right text-text-primary">
+              {(repaymentPreview.principal ?? 0).toFixed(2)}
+            </span>
+            <span>{t('form.repaymentPreviewInterest')}</span>
+            <span className="text-right text-text-primary">
+              {(repaymentPreview.interest ?? 0).toFixed(2)}
+            </span>
+            <span>{t('form.repaymentPreviewInsurance')}</span>
+            <span className="text-right text-text-primary">
+              {(repaymentPreview.insurance ?? 0).toFixed(2)}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Row 5: Description and Tags */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Description */}
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-text-primary mb-1.5">
+          <label
+            htmlFor="description"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
             {t('form.description')}
           </label>
           <Input
@@ -739,9 +865,7 @@ export function TransactionForm({
         {/* Tags */}
         <div>
           <div className="flex items-center gap-1 mb-1.5">
-            <label className="block text-sm font-medium text-text-primary">
-              {t('form.tags')}
-            </label>
+            <label className="block text-sm font-medium text-text-primary">{t('form.tags')}</label>
             <HelpTooltip text={t('form.tagsHint')} side="right" />
           </div>
           <TagInput
@@ -769,7 +893,11 @@ export function TransactionForm({
           aria-describedby={errors.notes ? 'notes-error' : undefined}
           className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
         />
-        {errors.notes && <p id="notes-error" className="mt-1 text-sm text-error" role="alert">{errors.notes.message}</p>}
+        {errors.notes && (
+          <p id="notes-error" className="mt-1 text-sm text-error" role="alert">
+            {errors.notes.message}
+          </p>
+        )}
       </div>
 
       {/* Actions */}

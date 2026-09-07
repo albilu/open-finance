@@ -1,7 +1,9 @@
 package org.openfinance.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import org.openfinance.dto.LiabilityBreakdownResponse;
 import org.openfinance.dto.LiabilityRequest;
 import org.openfinance.dto.LiabilityResponse;
 import org.openfinance.dto.LiabilityTrancheResponse;
+import org.openfinance.dto.RepaymentPreviewResponse;
 import org.openfinance.dto.TransactionResponse;
 import org.openfinance.entity.LiabilityType;
 import org.openfinance.entity.User;
@@ -20,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -51,6 +55,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>GET /api/v1/liabilities/{id}/total-interest - Get projected total interest
  *   <li>GET /api/v1/liabilities/{id}/tranches - List liability tranches
  *   <li>POST /api/v1/liabilities/{id}/disburse - Disburse a liability tranche
+ *   <li>GET /api/v1/liabilities/{id}/repayment-preview - Preview a repayment split
  *   <li>GET /api/v1/liabilities/total - Get total liabilities by currency
  * </ul>
  *
@@ -759,6 +764,51 @@ public class LiabilityController {
                 response.getCurrentBalance());
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Previews how a repayment total splits into interest, insurance and principal components.
+     *
+     * <p><strong>Example Request:</strong>
+     *
+     * <pre>GET /api/v1/liabilities/1/repayment-preview?total=1200.00&amp;date=2026-03-01</pre>
+     *
+     * <p><strong>Success Response (HTTP 200 OK):</strong>
+     *
+     * <pre>{@code
+     * {
+     * "total": 1200.00,
+     * "principal": 981.25,
+     * "interest": 218.75,
+     * "insurance": 0.00,
+     * "interestOnly": false
+     * }
+     * }</pre>
+     *
+     * @param liabilityId liability ID to preview the repayment for
+     * @param total total repayment amount (must be positive)
+     * @param date repayment date (ISO yyyy-MM-dd), used for the interest-only window check
+     * @param authentication Spring Security authentication object
+     * @return HTTP 200 OK with RepaymentPreviewResponse
+     */
+    @GetMapping("/{id}/repayment-preview")
+    public ResponseEntity<RepaymentPreviewResponse> getRepaymentPreview(
+            @PathVariable("id") Long liabilityId,
+            @RequestParam @DecimalMin(value = "0.01", message = "Total must be positive")
+                    BigDecimal total,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            Authentication authentication) {
+
+        log.info(
+                "Previewing repayment for liability {}: total={}, date={}",
+                liabilityId,
+                total,
+                date);
+        User user = (User) authentication.getPrincipal();
+        RepaymentPreviewResponse preview =
+                liabilityService.getRepaymentPreview(user.getId(), liabilityId, total, date);
+
+        return ResponseEntity.ok(preview);
     }
 
     /**

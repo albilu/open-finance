@@ -722,6 +722,43 @@ class LiabilityDisburseApiTest {
                 .andExpect(jsonPath("$[0].realEstateId").doesNotExist());
     }
 
+    // ---------- GET /{id}/repayment-preview ----------
+
+    @Test
+    @DisplayName("Repayment preview splits a total into interest and principal")
+    void repaymentPreviewSplitsTotal() throws Exception {
+        // balance 50000, rate 4.5 → monthly interest = 50000 × 4.5 / 1200 = 187.50
+        Long liabilityId = createLiabilityWithBalance(new BigDecimal("50000.00"));
+
+        mockMvc.perform(
+                        get("/api/v1/liabilities/" + liabilityId + "/repayment-preview")
+                                .param("total", "1200.00")
+                                .param("date", LocalDate.now().toString())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Encryption-Session", encKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1200.00))
+                .andExpect(jsonPath("$.interest").value(187.50))
+                .andExpect(jsonPath("$.insurance").value(0.00))
+                .andExpect(jsonPath("$.principal").value(1012.50))
+                .andExpect(jsonPath("$.interestOnly").value(false));
+    }
+
+    @Test
+    @DisplayName("Repayment preview of another user's liability is rejected")
+    void repaymentPreviewOfForeignLiabilityIsRejected() throws Exception {
+        Long liabilityId = createLiabilityWithBalance(new BigDecimal("50000.00"));
+        Session bob = registerAndLogin("bob");
+
+        mockMvc.perform(
+                        get("/api/v1/liabilities/" + liabilityId + "/repayment-preview")
+                                .param("total", "1200.00")
+                                .param("date", LocalDate.now().toString())
+                                .header("Authorization", "Bearer " + bob.token())
+                                .header("X-Encryption-Session", bob.encKey()))
+                .andExpect(status().isNotFound());
+    }
+
     // ---------- assertion helper ----------
 
     private void assertThatBalanceIs(Long liabilityId, String disburseResponse, String expected)

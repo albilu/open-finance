@@ -1,7 +1,7 @@
 /**
  * Liability management hooks
  * Task 6.2.5: Create useLiabilities hooks
- * 
+ *
  * Provides React Query hooks for liability CRUD operations
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -194,17 +194,17 @@ export function useAmortizationSchedule(liability: Liability | null) {
       const entries = response.data;
 
       // Map backend field names to frontend field names
-      const payments: import('@/types/liability').AmortizationPayment[] = entries.map((e) => ({
+      const payments: import('@/types/liability').AmortizationPayment[] = entries.map(e => ({
         paymentNumber: e.paymentNumber,
         paymentDate: e.paymentDate,
         paymentAmount: e.paymentAmount,
-        principalPayment: e.principalPortion,  // renamed from backend
-        interestPayment: e.interestPortion,    // renamed from backend
+        principalPayment: e.principalPortion, // renamed from backend
+        interestPayment: e.interestPortion, // renamed from backend
         remainingBalance: e.remainingBalance,
       }));
 
-      const totalInterest = sum(payments.map((p) => p.interestPayment));
-      const totalAmount = sum(payments.map((p) => p.paymentAmount));
+      const totalInterest = sum(payments.map(p => p.interestPayment));
+      const totalAmount = sum(payments.map(p => p.paymentAmount));
       const monthlyPayment = payments.length > 0 ? payments[0].paymentAmount : 0;
 
       return {
@@ -279,6 +279,45 @@ export function useLiabilityTransactions(liabilityId: number | null) {
       return response.data;
     },
     enabled: !!liabilityId,
+  });
+}
+
+/**
+ * Repayment breakdown preview returned by the backend repayment-preview endpoint.
+ */
+export interface RepaymentPreview {
+  total: number;
+  principal: number;
+  interest: number;
+  insurance: number;
+  interestOnly: boolean;
+}
+
+/**
+ * Preview how a repayment total splits into principal, interest and insurance
+ * components for a liability (Task 5). The query runs only when the liability,
+ * a positive total and the date are all present.
+ */
+export function useRepaymentPreview(
+  liabilityId: number | undefined,
+  total: number,
+  date: string | undefined
+) {
+  return useQuery<RepaymentPreview>({
+    queryKey: ['liabilities', liabilityId, 'repayment-preview', total, date],
+    queryFn: async () => {
+      if (!liabilityId) throw new Error('Liability ID is required');
+
+      const response = await apiClient.get<RepaymentPreview>(
+        `/liabilities/${liabilityId}/repayment-preview`,
+        {
+          params: { total, date },
+          headers: buildEncryptionHeaders(),
+        }
+      );
+      return response.data;
+    },
+    enabled: liabilityId != null && total > 0 && !!date,
   });
 }
 
