@@ -218,6 +218,58 @@ describe('AmortizationSchedule', () => {
     });
   });
 
+  describe('Two-Phase Schedule (interest-only tranches)', () => {
+    const twoPhasePayments = [
+      {
+        paymentNumber: 1,
+        paymentDate: '2026-10-01',
+        paymentAmount: 239.58,
+        principalPayment: 0,
+        interestPayment: 218.75,
+        remainingBalance: 50000,
+        interestOnlyPhase: true,
+      },
+      {
+        paymentNumber: 2,
+        paymentDate: '2026-11-01',
+        paymentAmount: 239.58,
+        principalPayment: 0,
+        interestPayment: 218.75,
+        remainingBalance: 50000,
+        interestOnlyPhase: true,
+      },
+      {
+        paymentNumber: 3,
+        paymentDate: '2026-12-01',
+        paymentAmount: 1200,
+        principalPayment: 981.25,
+        interestPayment: 218.75,
+        remainingBalance: 49018.75,
+        interestOnlyPhase: false,
+      },
+    ];
+    const twoPhaseSchedule = { ...mockSchedule, payments: twoPhasePayments };
+
+    it('renders a Phase 1 group labelled with the interest-only end date plus a Phase 2 group', () => {
+      renderWithProviders(<AmortizationSchedule schedule={twoPhaseSchedule} />);
+
+      const phaseOneLabels = screen.getAllByTestId('phase-interest-only');
+      const phaseTwoLabels = screen.getAllByTestId('phase-amortizing');
+      // Rendered once in the desktop table and once in the mobile card view
+      expect(phaseOneLabels.length).toBeGreaterThanOrEqual(1);
+      expect(phaseTwoLabels.length).toBeGreaterThanOrEqual(1);
+      expect(phaseOneLabels[0]).toHaveTextContent(/interest-only until 2026-11-01/i);
+      expect(phaseTwoLabels[0]).toHaveTextContent(/amortizing/i);
+    });
+
+    it('renders no phase labels for a plain single-phase schedule', () => {
+      renderWithProviders(<AmortizationSchedule schedule={mockSchedule} />);
+
+      expect(screen.queryByTestId('phase-interest-only')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('phase-amortizing')).not.toBeInTheDocument();
+    });
+  });
+
   describe('CSV Export', () => {
     it('renders export button', () => {
       renderWithProviders(<AmortizationSchedule schedule={mockSchedule} />);

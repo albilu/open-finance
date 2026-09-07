@@ -4,7 +4,7 @@
  * 
  * Shows detailed breakdown of each payment: principal, interest, remaining balance
  */
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
@@ -50,6 +50,33 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
   const displayedPayments = showExpandButton && !isExpanded
     ? filteredPayments.slice(0, 12)
     : filteredPayments;
+
+  // Two-phase schedules (interest-only tranches): group consecutive payments by phase and label
+  // each group's first row. Computed from the FULL payment list so a truncated view still gets
+  // the right interest-only end date (or the open-ended label when the phase never ends).
+  const phaseLabelsByNumber = new Map<number, { testId: string; label: string }>();
+  if (schedule.payments.some(p => p.interestOnlyPhase)) {
+    let i = 0;
+    while (i < schedule.payments.length) {
+      const phase = !!schedule.payments[i].interestOnlyPhase;
+      let j = i;
+      while (j < schedule.payments.length && !!schedule.payments[j].interestOnlyPhase === phase) {
+        j++;
+      }
+      const label = phase
+        ? j >= schedule.payments.length
+          ? t('schedule.interestOnlyPhaseOpen')
+          : t('schedule.interestOnlyPhase', { date: schedule.payments[j - 1].paymentDate })
+        : t('amortization.phaseAmortizing');
+      phaseLabelsByNumber.set(schedule.payments[i].paymentNumber, {
+        testId: phase ? 'phase-interest-only' : 'phase-amortizing',
+        label,
+      });
+      i = j;
+    }
+  }
+
+  const phaseLabelFor = (paymentNumber: number) => phaseLabelsByNumber.get(paymentNumber);
 
   // Export to CSV
   const handleExportCSV = () => {
@@ -217,62 +244,74 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
             {displayedPayments.map((payment, index) => {
               const principalPercent = (payment.principalPayment / payment.paymentAmount) * 100;
               const interestPercent = (payment.interestPayment / payment.paymentAmount) * 100;
+              const phaseLabel = phaseLabelFor(payment.paymentNumber);
 
               return (
-                <tr
-                  key={payment.paymentNumber}
-                  className={`border-b border-border hover:bg-surface-elevated transition-colors ${index % 2 === 0 ? 'bg-surface' : 'bg-background'
-                    }`}
-                >
-                  <td className="py-3 px-4 text-sm font-medium text-text-primary">
-                    {payment.paymentNumber}
-                  </td>
-                  <td className="py-3 px-4 text-sm text-text-secondary">
-                    {new Date(payment.paymentDate).toLocaleDateString(i18n.language, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    })}
-                  </td>
-                  <td className="py-3 px-4 text-sm font-mono text-right text-text-primary">
-                    <ConvertedAmount
-                      amount={payment.paymentAmount}
-                      currency={schedule.currency}
-                      inline
-                    />
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="text-sm font-mono text-success">
+                <Fragment key={payment.paymentNumber}>
+                  {phaseLabel && (
+                    <tr data-testid={phaseLabel.testId}>
+                      <td
+                        colSpan={6}
+                        className="py-2 px-4 text-xs font-semibold uppercase tracking-wide bg-info/10 border-y border-info/30 text-info"
+                      >
+                        {phaseLabel.label}
+                      </td>
+                    </tr>
+                  )}
+                  <tr
+                    className={`border-b border-border hover:bg-surface-elevated transition-colors ${index % 2 === 0 ? 'bg-surface' : 'bg-background'
+                      }`}
+                  >
+                    <td className="py-3 px-4 text-sm font-medium text-text-primary">
+                      {payment.paymentNumber}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-text-secondary">
+                      {new Date(payment.paymentDate).toLocaleDateString(i18n.language, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </td>
+                    <td className="py-3 px-4 text-sm font-mono text-right text-text-primary">
                       <ConvertedAmount
-                        amount={payment.principalPayment}
+                        amount={payment.paymentAmount}
                         currency={schedule.currency}
                         inline
                       />
-                    </div>
-                    <div className="text-xs text-text-tertiary">
-                      {principalPercent.toFixed(1)}%
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="text-sm font-mono text-warning">
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="text-sm font-mono text-success">
+                        <ConvertedAmount
+                          amount={payment.principalPayment}
+                          currency={schedule.currency}
+                          inline
+                        />
+                      </div>
+                      <div className="text-xs text-text-tertiary">
+                        {principalPercent.toFixed(1)}%
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="text-sm font-mono text-warning">
+                        <ConvertedAmount
+                          amount={payment.interestPayment}
+                          currency={schedule.currency}
+                          inline
+                        />
+                      </div>
+                      <div className="text-xs text-text-tertiary">
+                        {interestPercent.toFixed(1)}%
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm font-mono text-right text-text-secondary">
                       <ConvertedAmount
-                        amount={payment.interestPayment}
+                        amount={payment.remainingBalance}
                         currency={schedule.currency}
                         inline
                       />
-                    </div>
-                    <div className="text-xs text-text-tertiary">
-                      {interestPercent.toFixed(1)}%
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-sm font-mono text-right text-text-secondary">
-                    <ConvertedAmount
-                      amount={payment.remainingBalance}
-                      currency={schedule.currency}
-                      inline
-                    />
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                </Fragment>
               );
             })}
           </tbody>
@@ -308,12 +347,19 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
         {displayedPayments.map((payment) => {
           const principalPercent = (payment.principalPayment / payment.paymentAmount) * 100;
           const interestPercent = (payment.interestPayment / payment.paymentAmount) * 100;
+          const phaseLabel = phaseLabelFor(payment.paymentNumber);
 
           return (
-            <div
-              key={payment.paymentNumber}
-              className="bg-surface border border-border rounded-lg p-4 space-y-3"
-            >
+            <Fragment key={payment.paymentNumber}>
+              {phaseLabel && (
+                <p
+                  data-testid={phaseLabel.testId}
+                  className="px-3 py-1.5 rounded-md bg-info/10 border border-info/30 text-info text-xs font-semibold uppercase tracking-wide"
+                >
+                  {phaseLabel.label}
+                </p>
+              )}
+              <div className="bg-surface border border-border rounded-lg p-4 space-y-3">
               {/* Header */}
               <div className="flex justify-between items-center pb-2 border-b border-border">
                 <div>
@@ -381,6 +427,7 @@ export function AmortizationSchedule({ schedule, onClose }: AmortizationSchedule
                 </div>
               </div>
             </div>
+            </Fragment>
           );
         })}
 

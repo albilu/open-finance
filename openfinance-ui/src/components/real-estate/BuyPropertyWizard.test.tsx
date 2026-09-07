@@ -319,4 +319,80 @@ describe('BuyPropertyWizard', () => {
       expect.objectContaining({ amount: 300000, realEstateId: 55 })
     );
   });
+
+  it('skips re-creating the liability and property when retrying after a disbursement failure', async () => {
+    const liabilityMutation = mockMutation();
+    const propertyMutation = mockMutation<{ id: number }>();
+    propertyMutation.mock.mutateAsync.mockResolvedValue({ id: 55 } as { id: number });
+    const disburseMutation = mockMutation();
+    // First attempt fails, retry succeeds
+    disburseMutation.mock.mutateAsync
+      .mockRejectedValueOnce(new Error('disbursement failed'))
+      .mockResolvedValue({ id: 77 });
+    const txMutation = mockMutation();
+
+    mockUseCreateLiability.mockReturnValue(liabilityMutation.mock as any);
+    mockUseCreateProperty.mockReturnValue(propertyMutation.mock as any);
+    mockUseDisburse.mockReturnValue(disburseMutation.mock as any);
+    mockUseCreateTransaction.mockReturnValue(txMutation.mock as any);
+
+    const { onClose } = renderWizard();
+
+    await fillPropertyStep();
+
+    fireEvent.change(screen.getByLabelText(/funding source/i), { target: { value: 'new' } });
+    fireEvent.change(screen.getByLabelText(/mortgage name/i), { target: { value: 'Home loan' } });
+    fireEvent.change(screen.getByLabelText(/loan amount/i), { target: { value: '240000' } });
+    fireEvent.change(screen.getByLabelText(/disbursement route/i), { target: { value: 'direct' } });
+    await act(async () => {
+      screen.getByRole('button', { name: /next/i }).click();
+    });
+
+    // First confirm: the disbursement fails and the wizard shows the error
+    await act(async () => {
+      screen.getByRole('button', { name: /confirm/i }).click();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/disbursement failed/i);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Retry: the already-created liability and property are reused (no duplicates)
+    await act(async () => {
+      screen.getByRole('button', { name: /confirm/i }).click();
+    });
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
+    expect(liabilityMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(propertyMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(disburseMutation.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(disburseMutation.mutateAsync).toHaveBeenLastCalledWith({
+      liabilityId: 77,
+      request: expect.objectContaining({ directRealEstateId: 55, amount: 240000 }),
+    });
+  });
+
+  it('blocks advancing to review when the account route has no account selected', async () => {
+    renderWizard();
+
+    await fillPropertyStep();
+
+    fireEvent.change(screen.getByLabelText(/funding source/i), { target: { value: 'new' } });
+    fireEvent.change(screen.getByLabelText(/mortgage name/i), { target: { value: 'Home loan' } });
+    fireEvent.change(screen.getByLabelText(/loan amount/i), { target: { value: '240000' } });
+    fireEvent.change(screen.getByLabelText(/disbursement route/i), { target: { value: 'account' } });
+
+    // No down payment account selected: Next is disabled and a validation message is shown
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    expect(nextButton).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/select the account/i);
+
+    // Selecting the account clears the error and re-enables Next
+    await act(async () => {
+      screen.getByTestId('wizard-account').click();
+    });
+    expect(screen.getByRole('button', { name: /next/i })).toBeEnabled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });

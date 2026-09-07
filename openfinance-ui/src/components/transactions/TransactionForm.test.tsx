@@ -1238,6 +1238,142 @@ describe('TransactionForm', () => {
       expect(payload.splits.reduce((a: number, s: any) => a + s.amount, 0)).toBeCloseTo(1200, 6);
     });
 
+    it('submits a plain transaction with no splits when the interest-only preview yields a single categorized leg', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      // Interest-only tranche: principal 0, interest 400, insurance 0 → one categorized row
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 400,
+          principal: 0,
+          interest: 400,
+          insurance: 0,
+          interestOnly: true,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '400' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      // A single categorized row must be submitted as a plain transaction (no splits[]), with
+      // the interest category applied at the parent level.
+      expect(payload.splits).toBeUndefined();
+      expect(payload.amount).toBe(400);
+      expect(payload.categoryId).toBe(77);
+    });
+
+    it('submits without splits on underpayment when only one leg survives (amount < interest)', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 400,
+          principal: 0,
+          interest: 400,
+          insurance: 0,
+          interestOnly: true,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '300' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      // Underpayment leaves a single interest row after the principal is skipped → the
+      // no-splits path kicks in so the backend never rejects a split-sum mismatch.
+      expect(payload.splits).toBeUndefined();
+      expect(payload.amount).toBe(300);
+    });
+
+    it('clamps the largest categorized leg so splits sum exactly to the submitted amount on underpayment', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability],
+        isLoading: false,
+        isError: false,
+      } as any);
+      // Interest-only with insurance: two legs (400 + 20.83) but only 300 submitted
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 420.83,
+          principal: 0,
+          interest: 400,
+          insurance: 20.83,
+          interestOnly: true,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '300' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      const payload = onSubmit.mock.calls[0][0];
+      // Principal is 0 → the largest categorized leg (interest) absorbs the remainder so the
+      // split sum matches the parent amount exactly.
+      expect(payload.splits).toHaveLength(2);
+      const interest = payload.splits.find((s: any) => s.categoryId === 77)?.amount;
+      const insurance = payload.splits.find((s: any) => s.categoryId === 88)?.amount;
+      expect(interest).toBeCloseTo(279.17, 2);
+      expect(insurance).toBeCloseTo(20.83, 2);
+      expect(payload.splits.reduce((a: number, s: any) => a + s.amount, 0)).toBeCloseTo(300, 6);
+    });
+
     it('still renders and submits when the preview query fails', async () => {
       mockUseLiabilities.mockReturnValue({
         data: [mortgageLiability],

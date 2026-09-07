@@ -1,0 +1,40 @@
+{
+    "name": "@types/react-simple-maps",
+    "version": "3.0.6",
+    "description": "TypeScript definitions for react-simple-maps",
+    "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react-simple-maps",
+    "license": "MIT",
+    "contributors": [
+        {
+            "name": "Novikov Mihail",
+            "githubUsername": "thepocp",
+            "url": "https://github.com/thepocp"
+        },
+        {
+            "name": "Andrej Mihajlov",
+            "githubUsername": "pronebird",
+            "url": "https://github.com/pronebird"
+        },
+        {
+            "name": "Kouame Komenan ",
+            "githubUsername": "komenank",
+            "url": "https://github.com/komenank"
+        }
+    ],
+    "main": "",
+    "types": "index.d.ts",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/react-simple-maps"
+    },
+    "scripts": {},
+    "dependencies": {
+        "@types/d3-geo": "^2",
+        "@types/d3-zoom": "^2",
+        "@types/geojson": "*",
+        "@types/react": "*"
+    },
+    "typesPublisherContentHash": "03085fd045556def09e0701ed68df4b590576bc95fdaf55295fd3455374397cc",
+    "typeScriptVersion": "4.8"
+}

@@ -144,6 +144,7 @@
     "totalPayment": "Paiement total",
     "remainingBalance": "Solde restant",
     "paymentNumber": "Paiement n°{{number}}",
+    "phaseAmortizing": "Amortissement (capital et intérêts)",
     "col": {
       "paymentNumber": "Paiement n°",
       "date": "Date",

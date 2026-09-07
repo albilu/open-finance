@@ -643,6 +643,7 @@
       "direct": "La banque paie le vendeur directement",
       "account": "La banque verse sur mon compte"
     },
+    "routeAccountRequired": "Sélectionnez le compte sur lequel la banque doit verser les fonds avant de continuer.",
     "steps": {
       "property": "Bien",
       "funding": "Financement",

@@ -61,6 +61,12 @@ interface FundingStepState {
   downPaymentAccountId?: number;
 }
 
+/** IDs of resources already created by a previous confirm attempt (retry dedupe). */
+interface CreatedIdsState {
+  liabilityId?: number;
+  propertyId?: number;
+}
+
 const PROPERTY_TYPE_OPTIONS = [
   'RESIDENTIAL',
   'COMMERCIAL',
@@ -100,6 +106,10 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
     downPaymentAccountId: undefined,
   });
 
+  // Memoized creation results: when a confirm attempt fails after the liability/property were
+  // created, a retry must reuse them instead of creating duplicates.
+  const [createdIds, setCreatedIds] = useState<CreatedIdsState>({});
+
   const { data: liabilities = [] } = useLiabilities();
   const createLiability = useCreateLiability();
   const createProperty = useCreateProperty();
@@ -115,24 +125,37 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
   const loan = Number(funding.loanAmount);
   const down = Number(funding.downPaymentAmount);
 
+  // The 'account' disbursement route sends the funds to a checking account — one must be
+  // selected, otherwise the request would go out with an undefined toAccountId.
+  const accountRouteMissingAccount =
+    funding.source !== 'none' &&
+    funding.route === 'account' &&
+    funding.downPaymentAccountId == null;
+
+  const fundingStepValid =
+    funding.source === 'new'
+      ? funding.mortgageName.trim() !== '' && loan > 0
+      : funding.source === 'existing'
+        ? funding.existingMortgageId != null && loan > 0
+        : true;
+
   const stepValid =
     step === 0
       ? property.name.trim() !== '' &&
         property.address.trim() !== '' &&
         price > 0 &&
         Number(property.currentValue) > 0
-      : funding.source === 'new'
-        ? funding.mortgageName.trim() !== '' && loan > 0
-        : funding.source === 'existing'
-          ? funding.existingMortgageId != null && loan > 0
-          : true;
+      : step === 1
+        ? fundingStepValid && !accountRouteMissingAccount
+        : true;
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
     setError(null);
     try {
-      let mortgageId = funding.existingMortgageId;
-      if (funding.source === 'new') {
+      // Reuse resources from a previous attempt so a retry never duplicates them.
+      let mortgageId = funding.existingMortgageId ?? createdIds.liabilityId;
+      if (funding.source === 'new' && mortgageId == null) {
         const liability = await createLiability.mutateAsync({
           name: funding.mortgageName.trim(),
           type: 'MORTGAGE',
@@ -143,30 +166,36 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
           currency: property.currency,
         });
         mortgageId = liability.id;
+        setCreatedIds(prev => ({ ...prev, liabilityId: liability.id }));
       }
 
-      const created = await createProperty.mutateAsync({
-        name: property.name.trim(),
-        address: property.address.trim(),
-        propertyType: property.propertyType as RealEstatePropertyRequest['propertyType'],
-        purchasePrice: property.purchasePrice,
-        purchaseDate: property.purchaseDate,
-        currentValue: property.currentValue,
-        currency: property.currency,
-        mortgageId: mortgageId ?? null,
-        rentalIncome: null,
-        notes: null,
-        documents: null,
-        latitude: null,
-        longitude: null,
-        isActive: true,
-      });
+      let propertyId = createdIds.propertyId;
+      if (propertyId == null) {
+        const created = await createProperty.mutateAsync({
+          name: property.name.trim(),
+          address: property.address.trim(),
+          propertyType: property.propertyType as RealEstatePropertyRequest['propertyType'],
+          purchasePrice: property.purchasePrice,
+          purchaseDate: property.purchaseDate,
+          currentValue: property.currentValue,
+          currency: property.currency,
+          mortgageId: mortgageId ?? null,
+          rentalIncome: null,
+          notes: null,
+          documents: null,
+          latitude: null,
+          longitude: null,
+          isActive: true,
+        });
+        propertyId = created.id;
+        setCreatedIds(prev => ({ ...prev, propertyId: created.id }));
+      }
 
       if (mortgageId != null && loan > 0) {
         await disburse.mutateAsync({
           liabilityId: mortgageId,
           request: {
-            directRealEstateId: funding.route === 'direct' ? created.id : undefined,
+            directRealEstateId: funding.route === 'direct' ? propertyId : undefined,
             toAccountId: funding.route === 'account' ? funding.downPaymentAccountId : undefined,
             amount: loan,
             date: property.purchaseDate,
@@ -184,7 +213,7 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
           date: property.purchaseDate,
           description: t('wizard.downPaymentDescription', { name: property.name }),
           movementType: 'CAPITAL_IMPROVEMENT',
-          realEstateId: created.id,
+          realEstateId: propertyId,
         };
         await createTransaction.mutateAsync(request);
       }
@@ -434,6 +463,12 @@ export function BuyPropertyWizard({ accounts, onClose }: { accounts: Account[]; 
               />
             </div>
           </div>
+
+          {accountRouteMissingAccount && (
+            <p role="alert" className="text-sm text-error">
+              {t('wizard.routeAccountRequired')}
+            </p>
+          )}
         </div>
       )}
 

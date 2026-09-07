@@ -210,6 +210,7 @@ interface RawAmortizationEntry {
   principalPortion: number;
   interestPortion: number;
   remainingBalance: number;
+  interestOnlyPhase?: boolean;
 }
 
 /**
@@ -241,6 +242,7 @@ export function useAmortizationSchedule(liability: Liability | null) {
         principalPayment: e.principalPortion, // renamed from backend
         interestPayment: e.interestPortion, // renamed from backend
         remainingBalance: e.remainingBalance,
+        interestOnlyPhase: e.interestOnlyPhase ?? false,
       }));
 
       const totalInterest = sum(payments.map(p => p.interestPayment));

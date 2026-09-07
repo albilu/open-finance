@@ -643,6 +643,7 @@
       "direct": "Bank pays the seller directly",
       "account": "Bank pays my account"
     },
+    "routeAccountRequired": "Select the account the bank should pay into before continuing.",
     "steps": {
       "property": "Property",
       "funding": "Funding",

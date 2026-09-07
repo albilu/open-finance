@@ -144,6 +144,7 @@
     "totalPayment": "Total Payment",
     "remainingBalance": "Remaining Balance",
     "paymentNumber": "Payment #{{number}}",
+    "phaseAmortizing": "Amortizing (principal & interest)",
     "col": {
       "paymentNumber": "Payment #",
       "date": "Date",

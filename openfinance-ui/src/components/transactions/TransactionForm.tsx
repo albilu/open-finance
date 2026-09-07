@@ -525,9 +525,11 @@ export function TransactionForm({
 
     // Repayment auto-split payload (Task 9): when the preview is loaded, the toggle is on and the
     // user did not enter manual splits, submit the preview legs — interest/insurance categorized,
-    // the (uncategorized) principal leg absorbing the rounding remainder so the split sum matches
-    // the parent amount exactly.
+    // the (uncategorized) principal leg absorbing the remainder so the split sum matches the
+    // parent amount exactly. A single surviving categorized row is submitted as a plain
+    // transaction (no splits[]) with its category applied at the parent level.
     let finalSplits = submitSplits;
+    let autoSplitCategoryId: number | undefined;
     if (!inSplit && applyRepaymentSplit && repaymentPreview && linkedLiability) {
       const liabToAccount =
         needsLiabilityFx && conversionRateForSubmit ? conversionRateForSubmit : 1;
@@ -550,8 +552,10 @@ export function TransactionForm({
         'assurances',
       ]);
       const rows: TransactionSplitRequest[] = [];
+      let principalRow: TransactionSplitRequest | undefined;
       if (principalLeg > 0) {
-        rows.push({ amount: principalLeg, categoryId: undefined, description: undefined });
+        principalRow = { amount: principalLeg, categoryId: undefined, description: undefined };
+        rows.push(principalRow);
       }
       if (interestLeg > 0 && interestCategoryId != null) {
         rows.push({ amount: interestLeg, categoryId: interestCategoryId, description: undefined });
@@ -563,8 +567,34 @@ export function TransactionForm({
           description: undefined,
         });
       }
-      if (rows.length > 0 && rows.some(r => r.categoryId != null)) {
+
+      if (rows.length >= 2 && rows.some(r => r.categoryId != null)) {
+        // Clamp so Σsplits == submitAmount exactly: the principal leg absorbs the remainder when
+        // present, otherwise the largest categorized leg does (underpayment with principal 0).
+        const sumRows = roundToDecimals(
+          rows.reduce((acc, r) => acc + r.amount, 0),
+          decimals
+        );
+        const remainder = roundToDecimals(submitAmount - sumRows, decimals);
+        if (remainder !== 0) {
+          let absorbIndex = principalRow ? rows.indexOf(principalRow) : -1;
+          if (absorbIndex < 0) {
+            absorbIndex = rows.reduce(
+              (maxIdx, r, i) => (r.amount > rows[maxIdx].amount ? i : maxIdx),
+              0
+            );
+          }
+          rows[absorbIndex] = {
+            ...rows[absorbIndex],
+            amount: roundToDecimals(
+              Math.max(rows[absorbIndex].amount + remainder, 0),
+              decimals
+            ),
+          };
+        }
         finalSplits = rows;
+      } else if (rows.length === 1 && rows[0].categoryId != null) {
+        autoSplitCategoryId = rows[0].categoryId;
       }
     }
 
@@ -580,8 +610,9 @@ export function TransactionForm({
       originalAmount: originalAmountForSubmit,
       originalCurrency: originalCurrencyForSubmit,
       conversionRate: conversionRateForSubmit,
-      // REQ-SPL-1.5: hide parent category when split mode is active
-      categoryId: finalSplits ? undefined : data.categoryId,
+      // REQ-SPL-1.5: hide parent category when split mode is active; a lone auto-split
+      // categorized leg is applied at the parent level when the user picked no category
+      categoryId: finalSplits ? undefined : (data.categoryId ?? autoSplitCategoryId),
       date: data.date,
       description: data.description || '',
       notes: data.notes || '',
