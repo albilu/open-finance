@@ -153,6 +153,22 @@ public class InvalidTransactionException extends RuntimeException implements Loc
                         + " originalCurrency (3 letters), and conversionRate (> 0).");
     }
 
+    /**
+     * Factory method for currency mismatch between a linked liability and a transaction.
+     *
+     * @param transactionCurrency the transaction (movement) currency
+     * @param liabilityCurrency the liability currency
+     * @param liabilityId the liability ID
+     * @return a new InvalidTransactionException
+     */
+    public static InvalidTransactionException liabilityCurrencyMismatch(
+            String transactionCurrency, String liabilityCurrency, Long liabilityId) {
+        return new InvalidTransactionException(
+                String.format(
+                        "Transaction currency %s does not match currency %s of liability %d",
+                        transactionCurrency, liabilityCurrency, liabilityId));
+    }
+
     @Override
     public String getMessageKey() {
         return messageKey;

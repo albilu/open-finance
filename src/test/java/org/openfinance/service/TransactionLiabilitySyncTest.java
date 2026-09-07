@@ -3,6 +3,8 @@ package org.openfinance.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -32,6 +34,7 @@ import org.openfinance.entity.RealEstateValueHistory;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
+import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.mapper.TransactionMapper;
 import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.CategoryRepository;
@@ -204,7 +207,7 @@ class TransactionLiabilitySyncTest {
         transactionService.createTransaction(USER_ID, request);
 
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
-        org.mockito.Mockito.verify(liabilityRepository).save(captor.capture());
+        verify(liabilityRepository).save(captor.capture());
         assertThat(captor.getValue().getCurrentBalance()).isEqualTo("7000.00");
     }
 
@@ -231,7 +234,7 @@ class TransactionLiabilitySyncTest {
         transactionService.createTransaction(USER_ID, request);
 
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
-        org.mockito.Mockito.verify(liabilityRepository).save(captor.capture());
+        verify(liabilityRepository).save(captor.capture());
         assertThat(captor.getValue().getCurrentBalance()).isEqualTo("4200.00");
     }
 
@@ -262,7 +265,7 @@ class TransactionLiabilitySyncTest {
         transactionService.deleteTransaction(TX_ID, USER_ID);
 
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
-        org.mockito.Mockito.verify(liabilityRepository).save(captor.capture());
+        verify(liabilityRepository).save(captor.capture());
         assertThat(captor.getValue().getCurrentBalance()).isEqualTo("5000.00");
     }
 
@@ -303,8 +306,7 @@ class TransactionLiabilitySyncTest {
 
         // Reverse +800 (4200 → 5000) then apply −600 principal (5000 → 4400)
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
-        org.mockito.Mockito.verify(liabilityRepository, org.mockito.Mockito.times(2))
-                .save(captor.capture());
+        verify(liabilityRepository, times(2)).save(captor.capture());
         assertThat(captor.getValue().getCurrentBalance()).isEqualTo("4400.00");
     }
 
@@ -328,12 +330,12 @@ class TransactionLiabilitySyncTest {
 
         ArgumentCaptor<RealEstateProperty> propertyCaptor =
                 ArgumentCaptor.forClass(RealEstateProperty.class);
-        org.mockito.Mockito.verify(realEstateRepository).save(propertyCaptor.capture());
+        verify(realEstateRepository).save(propertyCaptor.capture());
         assertThat(propertyCaptor.getValue().getCurrentValue()).isEqualTo("205000.00");
 
         ArgumentCaptor<RealEstateValueHistory> historyCaptor =
                 ArgumentCaptor.forClass(RealEstateValueHistory.class);
-        org.mockito.Mockito.verify(realEstateValueHistoryRepository).save(historyCaptor.capture());
+        verify(realEstateValueHistoryRepository).save(historyCaptor.capture());
         assertThat(historyCaptor.getValue().getRecordedValue()).isEqualTo("205000.00");
         assertThat(historyCaptor.getValue().getPropertyId()).isEqualTo(PROPERTY_ID);
     }
@@ -341,7 +343,7 @@ class TransactionLiabilitySyncTest {
     // ---------- currency guard ----------
 
     @Test
-    @DisplayName("Liability currency mismatch is rejected with IllegalArgumentException")
+    @DisplayName("Liability currency mismatch is rejected with InvalidTransactionException")
     void liabilityCurrencyMismatchIsRejected() {
         TransactionRequest request =
                 linkedRequest(new BigDecimal("100.00"), MovementType.REPAYMENT, "EUR");
@@ -353,7 +355,9 @@ class TransactionLiabilitySyncTest {
                 .thenReturn(Optional.of(liabilityFixture("5000.00", "USD")));
 
         assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvalidTransactionException.class)
+                .hasMessageContaining("EUR")
+                .hasMessageContaining("USD");
     }
 
     // ---------- tranche clamp guard ----------
@@ -396,7 +400,7 @@ class TransactionLiabilitySyncTest {
         transactionService.createTransaction(USER_ID, request);
 
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
-        org.mockito.Mockito.verify(liabilityRepository).save(captor.capture());
+        verify(liabilityRepository).save(captor.capture());
         assertThat(captor.getValue().getCurrentBalance()).isEqualTo("6000.00");
     }
 }

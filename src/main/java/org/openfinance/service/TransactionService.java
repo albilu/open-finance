@@ -2212,10 +2212,8 @@ public class TransactionService {
             if (movementCurrency != null
                     && liability.getCurrency() != null
                     && !liability.getCurrency().equalsIgnoreCase(movementCurrency)) {
-                throw new IllegalArgumentException(
-                        String.format(
-                                "Liability %d currency %s does not match transaction currency %s",
-                                liability.getId(), liability.getCurrency(), movementCurrency));
+                throw InvalidTransactionException.liabilityCurrencyMismatch(
+                        movementCurrency, liability.getCurrency(), liability.getId());
             }
 
             BigDecimal delta;
@@ -2231,7 +2229,8 @@ public class TransactionService {
                 && transaction.getMovementType() == MovementType.CAPITAL_IMPROVEMENT) {
             applyCapitalImprovement(userId, transaction.getRealEstateId(), request.getAmount());
         }
-        // Asset balance sync is owned by Task 6 (RealEstateService.applyCapitalImprovement).
+        // Asset balance sync is not handled here; it is owned by
+        // RealEstateService.applyCapitalImprovement.
     }
 
     /**
@@ -2314,7 +2313,7 @@ public class TransactionService {
         liability.setCurrentBalance(updated.toPlainString());
         reconcileTranches(liability);
         liabilityRepository.save(liability);
-        log.debug(
+        log.info(
                 "Liability {} balance adjusted by {} to {}",
                 liability.getId(),
                 delta,
@@ -2379,7 +2378,6 @@ public class TransactionService {
                 amount,
                 realEstateId,
                 updated);
-        // Asset balance sync is owned by Task 6 (RealEstateService.applyCapitalImprovement).
     }
 
     /** Reverses a capital improvement previously applied to a property. */
@@ -2415,7 +2413,7 @@ public class TransactionService {
                             .propertyId(property.getId())
                             .userId(property.getUserId())
                             .effectiveDate(LocalDate.now())
-                            .recordedValue(plainValue.toString())
+                            .recordedValue(plainValue.toPlainString())
                             .currency(property.getCurrency())
                             .currencyId(property.getCurrencyId())
                             .build();
