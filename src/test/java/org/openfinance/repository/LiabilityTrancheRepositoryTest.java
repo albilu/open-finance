@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.openfinance.entity.Liability;
 import org.openfinance.entity.LiabilityTranche;
 import org.openfinance.entity.LiabilityType;
+import org.openfinance.entity.PropertyType;
+import org.openfinance.entity.RealEstateProperty;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,7 @@ class LiabilityTrancheRepositoryTest {
 
     private User testUser;
     private Liability testLiability;
+    private RealEstateProperty testProperty;
 
     @BeforeEach
     void setUp() {
@@ -57,6 +60,20 @@ class LiabilityTrancheRepositoryTest {
         testLiability.setCurrency("USD");
         entityManager.persist(testLiability);
 
+        testProperty =
+                RealEstateProperty.builder()
+                        .userId(testUser.getId())
+                        .name("encrypted-MainResidence")
+                        .address("encrypted-123MainSt")
+                        .propertyType(PropertyType.RESIDENTIAL)
+                        .purchasePrice("encrypted-400000")
+                        .purchaseDate(LocalDate.of(2020, 1, 15))
+                        .currentValue("encrypted-500000")
+                        .currency("USD")
+                        .isActive(true)
+                        .build();
+        entityManager.persist(testProperty);
+
         entityManager.flush();
     }
 
@@ -74,7 +91,7 @@ class LiabilityTrancheRepositoryTest {
                         .plannedDate(LocalDate.of(2024, 1, 15))
                         .drawnDate(LocalDate.of(2024, 1, 20))
                         .status(TrancheStatus.DRAWN)
-                        .realEstateId(12L)
+                        .realEstateId(testProperty.getId())
                         .currency("USD")
                         .build();
 
@@ -88,7 +105,7 @@ class LiabilityTrancheRepositoryTest {
         // Then
         assertThat(found).isPresent();
         assertThat(found.get().getStatus()).isEqualTo(TrancheStatus.DRAWN);
-        assertThat(found.get().getRealEstateId()).isEqualTo(12L);
+        assertThat(found.get().getRealEstateId()).isEqualTo(testProperty.getId());
         assertThat(found.get().getPlannedAmount()).isEqualByComparingTo(new BigDecimal("50000.00"));
         assertThat(found.get().getDrawnAmount()).isEqualByComparingTo(new BigDecimal("50000.00"));
         assertThat(found.get().getLiabilityId()).isEqualTo(testLiability.getId());
@@ -108,7 +125,7 @@ class LiabilityTrancheRepositoryTest {
                         .trancheNo(1)
                         .plannedAmount(new BigDecimal("50000.00"))
                         .status(TrancheStatus.DRAWN)
-                        .realEstateId(12L)
+                        .realEstateId(testProperty.getId())
                         .currency("USD")
                         .build());
         entityManager.flush();
@@ -146,5 +163,40 @@ class LiabilityTrancheRepositoryTest {
                         liabilityTrancheRepository.existsByLiabilityIdAndUserIdAndTrancheNo(
                                 testLiability.getId(), testUser.getId(), 2))
                 .isFalse();
+    }
+
+    @Test
+    @DisplayName(
+            "Should null realEstateId when the linked property is deleted (ON DELETE SET NULL)")
+    void shouldNullRealEstateIdWhenPropertyDeleted() {
+        // Given a tranche linked to a real persisted property.
+        // Slice tests run against SQLite with foreign_keys=on (see application-test.yml),
+        // so the DB-level ON DELETE SET NULL declared in V79 is enforced here. If this
+        // ever runs on a store without FK enforcement, equivalent service-level nulling
+        // must cover the same semantics.
+        LiabilityTranche saved =
+                liabilityTrancheRepository.save(
+                        LiabilityTranche.builder()
+                                .userId(testUser.getId())
+                                .liabilityId(testLiability.getId())
+                                .trancheNo(1)
+                                .plannedAmount(new BigDecimal("50000.00"))
+                                .status(TrancheStatus.DRAWN)
+                                .realEstateId(testProperty.getId())
+                                .currency("USD")
+                                .build());
+        entityManager.flush();
+
+        // When the parent property is deleted
+        RealEstateProperty managed =
+                entityManager.find(RealEstateProperty.class, testProperty.getId());
+        entityManager.remove(managed);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Then the tranche survives with a nulled property link
+        Optional<LiabilityTranche> found = liabilityTrancheRepository.findById(saved.getId());
+        assertThat(found).isPresent();
+        assertThat(found.get().getRealEstateId()).isNull();
     }
 }
