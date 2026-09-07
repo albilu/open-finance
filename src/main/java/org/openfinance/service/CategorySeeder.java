@@ -1049,6 +1049,19 @@ public class CategorySeeder {
                         insurance.getId(),
                         "category.disability.insurance"));
 
+        // ========== INTEREST ==========
+        // Interest paid on loans/mortgages (Task 9: repayment auto-split interest legs)
+        expenseCategories.add(
+                buildCategory(
+                        userId,
+                        "Interest",
+                        CategoryType.EXPENSE,
+                        "％",
+                        "#F59E0B",
+                        null,
+                        null,
+                        "category.interest.expense"));
+
         // ========== EDUCATION ==========
         // Education (MCC 8220 - Colleges)
         Category education =

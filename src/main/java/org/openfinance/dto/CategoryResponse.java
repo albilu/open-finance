@@ -57,6 +57,13 @@ public class CategoryResponse {
     /** Icon identifier for UI display (optional). */
     private String icon;
 
+    /**
+     * i18n message key of a system category's name (e.g. {@code category.interest.expense}); null
+     * for user-created categories. Exposed so clients can resolve seeded categories
+     * locale-independently (the {@code name} field itself is localized).
+     */
+    private String nameKey;
+
     /** Color code for UI display (optional). */
     private String color;
 
