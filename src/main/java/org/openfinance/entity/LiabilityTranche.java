@@ -1,0 +1,110 @@
+package org.openfinance.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+/**
+ * Entity representing a single tranche (planned drawdown) of a liability such as a construction
+ * loan or a mortgage released in stages.
+ *
+ * <p>Monetary amounts are stored as plain {@link BigDecimal} values (no encrypted converter).
+ */
+@Entity
+@Table(
+        name = "liability_tranches",
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uq_liability_tranche_no",
+                        columnNames = {"liability_id", "tranche_no"}),
+        indexes = {
+            @Index(name = "idx_liability_tranche_user_id", columnList = "user_id"),
+            @Index(name = "idx_liability_tranche_liability_id", columnList = "liability_id"),
+            @Index(name = "idx_liability_tranche_status", columnList = "status")
+        })
+@Data
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+public class LiabilityTranche {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotNull(message = "{liabilityTranche.userId.notnull}")
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @NotNull(message = "{liabilityTranche.liabilityId.notnull}")
+    @Column(name = "liability_id", nullable = false)
+    private Long liabilityId;
+
+    @NotNull(message = "{liabilityTranche.trancheNo.notnull}")
+    @Column(name = "tranche_no", nullable = false)
+    private Integer trancheNo;
+
+    @NotNull(message = "{liabilityTranche.plannedAmount.notnull}")
+    @Column(name = "planned_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal plannedAmount;
+
+    @Column(name = "drawn_amount", precision = 19, scale = 2)
+    private BigDecimal drawnAmount;
+
+    @Column(name = "planned_date")
+    private LocalDate plannedDate;
+
+    @Column(name = "drawn_date")
+    private LocalDate drawnDate;
+
+    @Column(name = "fee", precision = 19, scale = 2)
+    private BigDecimal fee;
+
+    @Builder.Default
+    @Column(name = "interest_only", nullable = false)
+    private boolean interestOnly = false;
+
+    @Column(name = "interest_only_until")
+    private LocalDate interestOnlyUntil;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private TrancheStatus status = TrancheStatus.PLANNED;
+
+    @Column(name = "real_estate_id")
+    private Long realEstateId;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
+    @NotNull(message = "{liabilityTranche.currency.notnull}")
+    @Column(name = "currency", nullable = false, length = 3)
+    private String currency;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+}
