@@ -148,6 +148,8 @@ export function useDisburseLiability() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['networth'] });
+      // Direct disbursements bump property value + value history server-side
+      queryClient.invalidateQueries({ queryKey: ['realEstate'] });
     },
   });
 }
