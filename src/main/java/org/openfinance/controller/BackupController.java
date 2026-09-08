@@ -116,15 +116,17 @@ public class BackupController {
      */
     @PostMapping("/restore/{id}")
     public ResponseEntity<String> restoreBackup(
-            @PathVariable("id") Long backupId, Authentication authentication) {
+            @PathVariable("id") Long backupId,
+            @RequestBody(required = false) org.openfinance.dto.BackupRestoreRequest request,
+            Authentication authentication) {
 
         log.info("Restoring backup ID: {}", backupId);
 
         Long userId = ControllerUtil.extractUserId(authentication);
-        backupService.restoreBackup(userId, backupId);
+        backupService.restoreBackup(
+                userId, backupId, request == null ? null : request.masterPassword());
 
-        return ResponseEntity.ok(
-                "Backup restored successfully. Application restart may be required.");
+        return ResponseEntity.ok("Backup restored successfully.");
     }
 
     /**
@@ -146,15 +148,16 @@ public class BackupController {
      */
     @PostMapping("/restore/upload")
     public ResponseEntity<String> restoreBackupFromFile(
-            @RequestParam("file") MultipartFile file, Authentication authentication) {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "masterPassword", required = false) String masterPassword,
+            Authentication authentication) {
 
         log.info("Restoring backup from uploaded file: {}", file.getOriginalFilename());
 
         Long userId = ControllerUtil.extractUserId(authentication);
-        backupService.restoreBackupFromFile(userId, file);
+        backupService.restoreBackupFromFile(userId, file, masterPassword);
 
-        return ResponseEntity.ok(
-                "Backup restored successfully from uploaded file. Application restart may be required.");
+        return ResponseEntity.ok("Backup restored successfully from uploaded file.");
     }
 
     /**

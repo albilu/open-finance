@@ -20,6 +20,8 @@ import org.openfinance.entity.OperationType;
 @AllArgsConstructor
 public class OperationHistoryResponse {
 
+    private boolean canUndo;
+    private boolean canRedo;
     private Long id;
     private EntityType entityType;
     private Long entityId;

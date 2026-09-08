@@ -1,10 +1,11 @@
 package org.openfinance.service;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -77,7 +78,7 @@ public class FileStorageService {
      * @return Unique upload ID for later retrieval
      * @throws IOException if file storage fails
      */
-    public String storeFile(MultipartFile file) throws IOException {
+    public String storeFile(MultipartFile file, Long userId) throws IOException {
         Objects.requireNonNull(file, "File cannot be null");
 
         String uploadId = UUID.randomUUID().toString();
@@ -86,7 +87,9 @@ public class FileStorageService {
         // Sanitize filename to prevent directory traversal attacks
         if (originalFilename == null
                 || originalFilename.isBlank()
-                || originalFilename.contains("..")) {
+                || originalFilename.contains("..")
+                || originalFilename.contains("/")
+                || originalFilename.contains("\\")) {
             throw new IllegalArgumentException("Invalid file name");
         }
 
@@ -98,10 +101,14 @@ public class FileStorageService {
         }
 
         // Create file path: uploadId + extension
-        Path targetLocation = tempDirectory.resolve(uploadId + extension);
+        Path directory = ownerDirectory(userId);
+        Files.createDirectories(directory);
+        Path targetLocation = directory.resolve(uploadId + extension);
 
         // Copy file to target location
-        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+        try (InputStream input = file.getInputStream()) {
+            Files.copy(input, targetLocation);
+        }
 
         log.debug("Stored file '{}' with upload ID: {}", originalFilename, uploadId);
         return uploadId;
@@ -114,12 +121,29 @@ public class FileStorageService {
      * @return Path to the stored file
      * @throws IOException if file cannot be found
      */
-    public Path getFile(String uploadId) throws IOException {
-        Objects.requireNonNull(uploadId, "Upload ID cannot be null");
+    private Path ownerDirectory(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("A valid upload owner is required");
+        }
+        return tempDirectory.resolve(userId.toString());
+    }
 
-        // Find file with matching upload ID (any extension)
-        try (Stream<Path> paths = Files.list(tempDirectory)) {
-            return paths.filter(path -> path.getFileName().toString().startsWith(uploadId))
+    public Path getFile(String uploadId, Long userId) throws IOException {
+        Objects.requireNonNull(uploadId, "Upload ID cannot be null");
+        Path directory = ownerDirectory(userId);
+        if (!uploadId.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("File not found for upload ID: " + uploadId);
+        }
+        try (Stream<Path> paths = Files.list(directory)) {
+            return paths.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(
+                            path -> {
+                                String filename = path.getFileName().toString();
+                                int dot = filename.indexOf('.');
+                                return (dot < 0 ? filename : filename.substring(0, dot))
+                                        .equals(uploadId);
+                            })
                     .findFirst()
                     .orElseThrow(
                             () -> new IOException("File not found for upload ID: " + uploadId));
@@ -132,8 +156,8 @@ public class FileStorageService {
      * @param uploadId Unique upload identifier
      * @throws IOException if file cannot be deleted
      */
-    public void deleteFile(String uploadId) throws IOException {
-        Path filePath = getFile(uploadId);
+    public void deleteFile(String uploadId, Long userId) throws IOException {
+        Path filePath = getFile(uploadId, userId);
         Files.deleteIfExists(filePath);
         log.debug("Deleted file for upload ID: {}", uploadId);
     }
@@ -150,8 +174,9 @@ public class FileStorageService {
         LocalDateTime cutoffTime = LocalDateTime.now().minus(cleanupAfterHours, ChronoUnit.HOURS);
         int deletedCount = 0;
 
-        try (Stream<Path> paths = Files.list(tempDirectory)) {
-            for (Path path : paths.toList()) {
+        try (Stream<Path> paths = Files.walk(tempDirectory)) {
+            for (Path path :
+                    paths.filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)).toList()) {
                 try {
                     LocalDateTime lastModified =
                             LocalDateTime.ofInstant(
@@ -190,12 +215,11 @@ public class FileStorageService {
      * @param uploadId the upload ID (UUID)
      * @return true if file exists, false otherwise
      */
-    public boolean fileExists(String uploadId) {
-        Objects.requireNonNull(uploadId, "Upload ID cannot be null");
-        try (Stream<Path> paths = Files.list(tempDirectory)) {
-            return paths.anyMatch(path -> path.getFileName().toString().startsWith(uploadId));
+    public boolean fileExists(String uploadId, Long userId) {
+        try {
+            getFile(uploadId, userId);
+            return true;
         } catch (IOException e) {
-            log.error("Error checking file existence for: {}", uploadId, e);
             return false;
         }
     }
@@ -212,19 +236,12 @@ public class FileStorageService {
      * @return the stored filename including its extension (e.g. {@code abc123.qif})
      * @throws IllegalArgumentException if no file is found for the given upload ID
      */
-    public String getOriginalFileName(String uploadId) {
-        Objects.requireNonNull(uploadId, "Upload ID cannot be null");
-        try (Stream<Path> paths = Files.list(tempDirectory)) {
-            return paths.filter(path -> path.getFileName().toString().startsWith(uploadId))
-                    .findFirst()
-                    .map(path -> path.getFileName().toString())
-                    .orElseThrow(
-                            () ->
-                                    new IllegalArgumentException(
-                                            "No stored file found for upload ID: " + uploadId));
+    public String getOriginalFileName(String uploadId, Long userId) {
+        try {
+            return getFile(uploadId, userId).getFileName().toString();
         } catch (IOException e) {
-            log.error("Error retrieving filename for upload ID: {}", uploadId, e);
-            throw new IllegalStateException("Could not read upload directory", e);
+            throw new IllegalArgumentException(
+                    "No stored file found for upload ID: " + uploadId, e);
         }
     }
 
@@ -235,8 +252,8 @@ public class FileStorageService {
      * @return InputStream of the file content
      * @throws IOException if file cannot be read
      */
-    public java.io.InputStream getFileContent(String uploadId) throws IOException {
+    public java.io.InputStream getFileContent(String uploadId, Long userId) throws IOException {
         Objects.requireNonNull(uploadId, "Upload ID cannot be null");
-        return Files.newInputStream(getFile(uploadId));
+        return Files.newInputStream(getFile(uploadId, userId));
     }
 }

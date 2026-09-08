@@ -51,7 +51,7 @@ public class DataExportService {
      * @return Export response with metadata and download information
      */
     @Transactional(readOnly = true)
-    public DataExportResponse exportUserData(Long userId, DataExportRequest request) {
+    public DataExportFile exportUserData(Long userId, DataExportRequest request) {
         log.info("Starting data export for user {} in format {}", userId, request.getFormat());
 
         // Collect data based on request
@@ -158,23 +158,27 @@ public class DataExportService {
                 assetCount,
                 liabilityCount);
 
-        return DataExportResponse.builder()
-                .exportId(exportId)
-                .format(request.getFormat())
-                .filename(filename)
-                .fileSizeBytes(fileContent.length)
-                .accountCount(accountCount)
-                .transactionCount(transactionCount)
-                .assetCount(assetCount)
-                .liabilityCount(liabilityCount)
-                .budgetCount(budgetCount)
-                .categoryCount(categoryCount)
-                .realEstateCount(realEstateCount)
-                .generatedAt(now)
-                .expiresAt(now.plusHours(24))
-                .message("Export completed successfully")
-                .build();
+        DataExportResponse metadata =
+                DataExportResponse.builder()
+                        .exportId(exportId)
+                        .format(request.getFormat())
+                        .filename(filename)
+                        .fileSizeBytes(fileContent.length)
+                        .accountCount(accountCount)
+                        .transactionCount(transactionCount)
+                        .assetCount(assetCount)
+                        .liabilityCount(liabilityCount)
+                        .budgetCount(budgetCount)
+                        .categoryCount(categoryCount)
+                        .realEstateCount(realEstateCount)
+                        .generatedAt(now)
+                        .expiresAt(now.plusHours(24))
+                        .message("Export completed successfully")
+                        .build();
+        return new DataExportFile(metadata, fileContent);
     }
+
+    public record DataExportFile(DataExportResponse metadata, byte[] content) {}
 
     /** Build export metadata. */
     private Map<String, Object> buildExportMetadata(Long userId) {

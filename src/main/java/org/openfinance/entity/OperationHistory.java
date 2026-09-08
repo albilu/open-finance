@@ -107,6 +107,22 @@ public class OperationHistory {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** Only advertise operations backed by an actual domain mutation. */
+    public boolean canUndo() {
+        return operationType == OperationType.CREATE
+                && entityId != null
+                && entityId > 0
+                && (undoneAt == null || redoneAt != null)
+                && java.util.Set.of(
+                                EntityType.ACCOUNT,
+                                EntityType.ASSET,
+                                EntityType.LIABILITY,
+                                EntityType.REAL_ESTATE,
+                                EntityType.BUDGET,
+                                EntityType.TRANSACTION)
+                        .contains(entityType);
+    }
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

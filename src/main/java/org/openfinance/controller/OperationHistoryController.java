@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.OperationHistoryResponse;
 import org.openfinance.entity.EntityType;
 import org.openfinance.entity.OperationHistory;
-import org.openfinance.entity.OperationType;
 import org.openfinance.entity.User;
 import org.openfinance.service.OperationHistoryService;
 import org.springframework.data.domain.Page;
@@ -36,10 +35,8 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>POST /api/v1/history/{id}/redo — redo a previously undone operation
  * </ul>
  *
- * <p>Undo/Redo for CREATE operations deletes the entity; undo of DELETE restores it from the stored
- * snapshot; undo of UPDATE restores the previous field values. The actual domain restoration is
- * dispatched from this controller to the appropriate service to avoid circular dependencies in the
- * service layer.
+ * <p>Supported creation operations can be undone through their domain services. Unsupported
+ * reversal operations are rejected without changing data or history status.
  */
 @RestController
 @RequestMapping("/api/v1/history")
@@ -84,118 +81,31 @@ public class OperationHistoryController {
         return ResponseEntity.ok(page);
     }
 
-    /**
-     * Undoes the recorded operation identified by {@code historyId}.
-     *
-     * <p>The semantics depend on the original operation type:
-     *
-     * <ul>
-     *   <li>CREATE → deletes the entity (soft or hard depending on entity)
-     *   <li>UPDATE → restores the entity to its pre-update snapshot
-     *   <li>DELETE → re-creates the entity from the stored snapshot
-     * </ul>
-     */
+    /** Undo a supported creation and mark history in the same transaction. */
     @PostMapping("/{id}/undo")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<OperationHistoryResponse> undo(
             @PathVariable("id") Long historyId, Authentication authentication) {
-
         User user = (User) authentication.getPrincipal();
-        log.info("Undo requested: historyId={}, userId={}", historyId, user.getId());
-
         OperationHistory entry = historyService.getEntry(historyId, user.getId());
-
-        if (entry.getUndoneAt() != null && entry.getRedoneAt() == null) {
-            // already undone but not redone — no-op undo
-            return ResponseEntity.ok(
-                    historyService
-                            .getHistory(user.getId(), Pageable.ofSize(1))
-                            .getContent()
-                            .stream()
-                            .filter(r -> r.getId().equals(historyId))
-                            .findFirst()
-                            .orElseGet(() -> historyService.markUndone(historyId, user.getId())));
-        }
-
+        if (!entry.canUndo())
+            throw new IllegalStateException("Undo is unavailable for this operation");
         try {
             historyService.suppressRecording();
-            dispatchUndo(entry, user);
-        } catch (Exception e) {
-            log.warn("Undo dispatch failed for historyId={}: {}", historyId, e.getMessage());
-            throw new org.openfinance.exception.ResourceNotFoundException(
-                    "Undo could not be completed: " + e.getMessage());
+            dispatchDelete(entry.getEntityType(), entry.getEntityId(), user.getId());
+            return ResponseEntity.ok(historyService.markUndone(historyId, user.getId()));
         } finally {
             historyService.resumeRecording();
         }
-
-        OperationHistoryResponse result = historyService.markUndone(historyId, user.getId());
-        log.info("Undo completed: historyId={}", historyId);
-        return ResponseEntity.ok(result);
     }
 
-    /** Redoes a previously undone operation. */
+    /** Redo remains unavailable until domain restoration is implemented. */
     @PostMapping("/{id}/redo")
     public ResponseEntity<OperationHistoryResponse> redo(
             @PathVariable("id") Long historyId, Authentication authentication) {
-
         User user = (User) authentication.getPrincipal();
-        log.info("Redo requested: historyId={}, userId={}", historyId, user.getId());
-
-        OperationHistory entry = historyService.getEntry(historyId, user.getId());
-
-        if (entry.getUndoneAt() == null) {
-            throw new IllegalStateException("This operation has not been undone yet.");
-        }
-
-        try {
-            historyService.suppressRecording();
-            dispatchRedo(entry, user);
-        } catch (Exception e) {
-            log.warn("Redo dispatch failed for historyId={}: {}", historyId, e.getMessage());
-            throw new org.openfinance.exception.ResourceNotFoundException(
-                    "Redo could not be completed: " + e.getMessage());
-        } finally {
-            historyService.resumeRecording();
-        }
-
-        OperationHistoryResponse result = historyService.markRedone(historyId, user.getId());
-        log.info("Redo completed: historyId={}", historyId);
-        return ResponseEntity.ok(result);
-    }
-
-    // -------------------------------------------------------------------------
-    // Dispatch helpers
-    // -------------------------------------------------------------------------
-
-    /**
-     * Dispatches the undo action to the appropriate domain service.
-     *
-     * <p>For CREATE: soft-deletes the entity (if applicable) using the entity ID. For
-     * UPDATE/DELETE: restoration from snapshot requires the encryption key which is not available
-     * here; those entries are marked undone but no domain action is taken in phase 1 — the UI
-     * indicates the status.
-     */
-    private void dispatchUndo(OperationHistory entry, User user) {
-        if (entry.getOperationType() == OperationType.CREATE && entry.getEntityId() != null) {
-            dispatchDelete(entry.getEntityType(), entry.getEntityId(), user.getId());
-        }
-        // UPDATE and DELETE undo requires the encryption key from the client session;
-        // the history entry is still marked as undone so the UI reflects the intent.
-        // Full restore is tracked in the entity label for user awareness.
-    }
-
-    /**
-     * Dispatches the redo action after a CREATE was undone (re-creates nothing — entity was
-     * deleted). For UPDATE/DELETE, marks the intent only.
-     */
-    private void dispatchRedo(OperationHistory entry, User user) {
-        // Redo of an undone CREATE would mean re-creating the deleted entity —
-        // not implemented in phase 1 (requires full snapshot restore with enc key).
-        // The status timestamp is updated so the UI shows the redo intent.
-        log.debug(
-                "Redo intent marked for historyId={}, entityType={}, op={}",
-                entry.getId(),
-                entry.getEntityType(),
-                entry.getOperationType());
+        historyService.getEntry(historyId, user.getId());
+        throw new IllegalStateException("Redo is unavailable for this operation");
     }
 
     private void dispatchDelete(EntityType entityType, Long entityId, Long userId) {
@@ -206,7 +116,7 @@ public class OperationHistoryController {
             case REAL_ESTATE -> realEstateService.deleteProperty(entityId, userId);
             case BUDGET -> budgetService.deleteBudget(entityId, userId);
             case TRANSACTION -> transactionService.deleteTransaction(entityId, userId);
-            default -> log.warn("dispatchDelete not implemented for entityType={}", entityType);
+            default -> throw new IllegalStateException("Undo is unavailable for this entity type");
         }
     }
 }

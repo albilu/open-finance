@@ -63,6 +63,8 @@ class TransactionSplitServiceTest {
         TransactionSplit split = new TransactionSplit();
         split.setId(id);
         split.setTransactionId(transactionId);
+        split.setTransaction(
+                org.openfinance.entity.Transaction.builder().id(transactionId).userId(1L).build());
         split.setCategoryId(categoryId);
         split.setAmount(amount);
         split.setDescription(description);
@@ -395,6 +397,8 @@ class TransactionSplitServiceTest {
 
         // Simulate lazy loading by setting category on entities
         splits.get(0).setCategory(cat1);
+        when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(cat1));
+        when(categoryRepository.findByIdAndUserId(2L, 1L)).thenReturn(Optional.of(cat2));
         splits.get(1).setCategory(cat2);
 
         // Act
@@ -499,7 +503,7 @@ class TransactionSplitServiceTest {
         Category cat = createCategory(1L, "Fallback", "ic-fallback", "#ffffff");
 
         when(splitRepository.findByTransactionIdOrderById(transactionId)).thenReturn(splits);
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
+        when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(cat));
 
         // Act
         List<TransactionSplitResponse> responses =

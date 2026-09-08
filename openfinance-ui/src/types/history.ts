@@ -1,22 +1,23 @@
-export type EntityType = 
-  | 'ACCOUNT' 
-  | 'TRANSACTION' 
-  | 'ASSET' 
-  | 'LIABILITY' 
-  | 'REAL_ESTATE' 
+export type EntityType =
+  | 'ACCOUNT'
+  | 'TRANSACTION'
+  | 'ASSET'
+  | 'LIABILITY'
+  | 'REAL_ESTATE'
   | 'BUDGET'
   | 'CATEGORY';
 
 export type OperationType = 'CREATE' | 'UPDATE' | 'DELETE';
 
 export interface OperationHistoryResponse {
+  canUndo: boolean;
+  canRedo: boolean;
   id: number;
   entityType: EntityType;
   entityId: number;
   entityLabel?: string;
   operationType: OperationType;
-  operationDate: string; // ISO string Date representation
-  timestamp: string; // ISO string 
+  createdAt: string; // ISO string Date representation
   undoneAt?: string;
   redoneAt?: string;
 }

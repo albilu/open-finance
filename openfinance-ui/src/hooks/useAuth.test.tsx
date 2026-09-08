@@ -447,6 +447,9 @@ describe('useAuth hooks', () => {
     fireEvent.click(getByText('logout'));
 
     // Assert
+    expect(postMock).toHaveBeenCalledWith('/auth/logout', undefined, {
+      headers: { Authorization: 'Bearer x', 'X-Encryption-Session': 'y' },
+    });
     expect(localStorage.getItem('auth_token')).toBeNull();
     expect(sessionStorage.getItem('encryption_session')).toBeNull();
     expect(mockNavigate).toHaveBeenCalledWith('/login');

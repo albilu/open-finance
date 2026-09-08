@@ -284,9 +284,8 @@ public class UserController {
      * data. This endpoint verifies the current master password and generates a new salt for the new
      * password.
      *
-     * <p><strong>Important:</strong> This endpoint only updates the salt. Full re-encryption of all
-     * user data is not implemented yet. Users should be aware that changing the master password
-     * without re-encryption may make their data inaccessible.
+     * <p>Encrypted records, attachments, and search indexes are migrated atomically. The response
+     * includes a replacement encryption session; previous sessions are revoked after commit.
      *
      * <p><strong>Request Headers:</strong>
      *
@@ -308,7 +307,8 @@ public class UserController {
      *
      * <pre>{@code
      * {
-     * "message": "Master password updated successfully"
+     * "message": "Master password updated successfully",
+     * "encryptionKey": "replacement-opaque-session"
      * }
      * }</pre>
      *
@@ -323,8 +323,8 @@ public class UserController {
      *
      * <ul>
      *   <li>400 Bad Request - Validation errors (password too short, etc.)
-     *   <li>401 Unauthorized - Missing or invalid JWT token
-     *   <li>403 Forbidden - Current master password is incorrect
+     *   <li>401 Unauthorized - Invalid authentication, encryption session, or current master
+     *       password
      * </ul>
      *
      * <p>Requirement REQ-6.3.16: Password change functionality
@@ -343,10 +343,16 @@ public class UserController {
 
         log.info("Updating master password for user: {}", user.getUsername());
 
-        userService.updateMasterPassword(
-                user.getId(), request.currentMasterPassword(), request.newMasterPassword());
+        String session =
+                userService.updateMasterPassword(
+                        user.getId(), request.currentMasterPassword(), request.newMasterPassword());
 
-        return ResponseEntity.ok(Map.of("message", "Master password updated successfully"));
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "Master password updated successfully",
+                        "encryptionKey",
+                        session));
     }
 
     /**

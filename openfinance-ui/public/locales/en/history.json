@@ -32,5 +32,6 @@
     "active": "Active",
     "undone": "Undone",
     "redone": "Redone"
-  }
+  },
+  "unavailable": "This operation cannot currently be reversed."
 }

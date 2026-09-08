@@ -33,7 +33,11 @@ import NetWorthAllocationChart from '../components/dashboard/NetWorthAllocationC
 import DailyCashFlowCalendar from '../components/dashboard/DailyCashFlowCalendar';
 import CashflowSankeyCard from '../components/dashboard/CashflowSankeyCard';
 import EstimatedInterestCard from '../components/dashboard/EstimatedInterestCard';
-import PeriodSelector, { type Period, type DateRange, dateRangeToDays } from '../components/ui/PeriodSelector';
+import PeriodSelector, {
+  type Period,
+  type DateRange,
+  dateRangeToDays,
+} from '../components/ui/PeriodSelector';
 import BudgetProgressCard from '../components/dashboard/BudgetProgressCard';
 import RssFeedCard from '../components/dashboard/RssFeedCard';
 import BalanceVariationCard from '../components/dashboard/BalanceVariationCard';
@@ -140,7 +144,7 @@ const generateDefaultLayouts = (): Record<string, any> => ({
 
     // Row 9 (y=81 to y=91)
     { i: 'balanceVariation', x: 0, y: 81, w: 12, h: 10, minW: 6, minH: 7 },
-  ]
+  ],
 });
 
 // Default geometry per card, used as the react-grid-layout `data-grid` fallback so
@@ -157,7 +161,6 @@ const DEFAULT_LAYOUT_BY_ID: Record<string, any> = generateDefaultLayouts().lg.re
 );
 
 export default function DashboardPage() {
-
   const { t } = useTranslation('dashboard');
   useDocumentTitle(t('title'));
 
@@ -188,11 +191,10 @@ export default function DashboardPage() {
   // ── Layout / UI state ───────────────────────────────────────────────────────
   const [isCardMenuOpen, setIsCardMenuOpen] = useState(false);
   const cardMenuRef = useRef<HTMLDivElement>(null);
-  // True once the user actually drags/resizes a card. Mount-time and breakpoint
-  // auto-generation echoes from react-grid-layout must NOT overwrite the saved
-  // layout (they arrive compacted/regenerated and would clobber the user's
-  // arrangement on refresh); only genuine interactions are persisted.
-  const layoutInteractedRef = useRef(false);
+  // The grid owns automatic compaction. Only completed user gestures update
+  // controlled layouts; feeding automatic reports back creates a render cycle
+  // while cards arrive asynchronously or the mobile breakpoint is measured.
+  const [activeBreakpoint, setActiveBreakpoint] = useState('lg');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [layouts, setLayouts] = useState<Record<string, any>>(() => {
@@ -202,34 +204,34 @@ export default function DashboardPage() {
       try {
         const parsed = JSON.parse(saved);
         let repaired = false;
-        
+
         if (parsed.lg && Array.isArray(parsed.lg)) {
           const defaultLg = defaultLayouts.lg;
           const map = new Map<string, any>(parsed.lg.map((item: any) => [item.i, item]));
 
           defaultLg.forEach((defItem: any) => {
-             const existing = map.get(defItem.i);
-             if (!existing || (existing.w === 1 && existing.h === 1)) {
-                map.set(defItem.i, defItem);
-                repaired = true;
-             } else {
-                existing.minW = defItem.minW;
-                existing.minH = defItem.minH;
-                if (existing.w < defItem.minW) existing.w = defItem.minW;
-                if (existing.h < defItem.minH) existing.h = defItem.minH;
-             }
+            const existing = map.get(defItem.i);
+            if (!existing || (existing.w === 1 && existing.h === 1)) {
+              map.set(defItem.i, defItem);
+              repaired = true;
+            } else {
+              existing.minW = defItem.minW;
+              existing.minH = defItem.minH;
+              if (existing.w < defItem.minW) existing.w = defItem.minW;
+              if (existing.h < defItem.minH) existing.h = defItem.minH;
+            }
           });
-          
+
           parsed.lg = Array.from(map.values());
         }
-        
+
         // A collapsed (1x1) card in ANY non-lg breakpoint means that breakpoint was
         // generated before a late-loading card mounted. Flag it so those breakpoints
         // are dropped and regenerated from the repaired lg (data-grid keeps late
         // cards correctly sized during regeneration).
         if (!repaired) {
           repaired = Object.keys(parsed).some(
-            (k) =>
+            k =>
               k !== 'lg' &&
               Array.isArray(parsed[k]) &&
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -240,11 +242,11 @@ export default function DashboardPage() {
         if (repaired) {
           // If we repaired items, clear other breakpoints so they regenerate based on lg
           Object.keys(parsed).forEach(k => {
-             if (k !== 'lg') delete parsed[k];
+            if (k !== 'lg') delete parsed[k];
           });
           localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
         }
-        
+
         return parsed;
       } catch {
         return defaultLayouts;
@@ -254,10 +256,13 @@ export default function DashboardPage() {
   });
 
   const [cardVisibility, setCardVisibility] = useState<Record<DashboardCardId, boolean>>(() => {
-    const defaults = DEFAULT_CARD_ORDER.reduce((acc, cardId) => {
-      acc[cardId] = true;
-      return acc;
-    }, {} as Record<DashboardCardId, boolean>);
+    const defaults = DEFAULT_CARD_ORDER.reduce(
+      (acc, cardId) => {
+        acc[cardId] = true;
+        return acc;
+      },
+      {} as Record<DashboardCardId, boolean>
+    );
     const saved = localStorage.getItem(VISIBILITY_STORAGE_KEY);
     if (saved) {
       try {
@@ -284,13 +289,26 @@ export default function DashboardPage() {
       const cashFlowDays = days ?? 36500;
       let historyDays: number;
       switch (period) {
-        case '1D': historyDays = 7; break;
-        case '7D': historyDays = 30; break;
-        case '1M': historyDays = 90; break;
-        case 'YTD': historyDays = days ?? 365; break;
-        case '1Y': historyDays = 365; break;
-        case 'ALL': historyDays = 36500; break;
-        default: historyDays = 365;
+        case '1D':
+          historyDays = 7;
+          break;
+        case '7D':
+          historyDays = 30;
+          break;
+        case '1M':
+          historyDays = 90;
+          break;
+        case 'YTD':
+          historyDays = days ?? 365;
+          break;
+        case '1Y':
+          historyDays = 365;
+          break;
+        case 'ALL':
+          historyDays = 36500;
+          break;
+        default:
+          historyDays = 365;
       }
       newState = {
         selectedPeriod: period,
@@ -299,7 +317,7 @@ export default function DashboardPage() {
         activeDateRange: undefined,
       };
     }
-    
+
     setPeriodState(newState);
     sessionStorage.setItem('dashboard_period', JSON.stringify(newState));
   };
@@ -311,13 +329,20 @@ export default function DashboardPage() {
       return t('period.custom', { from: activeDateRange.from, to: activeDateRange.to });
     }
     switch (selectedPeriod) {
-      case '1D': return t('period.last1d');
-      case '7D': return t('period.last7d');
-      case '1M': return t('period.last30d');
-      case 'YTD': return t('period.ytd');
-      case '1Y': return t('period.last1y');
-      case 'ALL': return t('period.allTime');
-      default: return t('period.lastNDays', { days: periodDays });
+      case '1D':
+        return t('period.last1d');
+      case '7D':
+        return t('period.last7d');
+      case '1M':
+        return t('period.last30d');
+      case 'YTD':
+        return t('period.ytd');
+      case '1Y':
+        return t('period.last1y');
+      case 'ALL':
+        return t('period.allTime');
+      default:
+        return t('period.lastNDays', { days: periodDays });
     }
   }, [selectedPeriod, activeDateRange, periodDays, t]);
 
@@ -336,19 +361,39 @@ export default function DashboardPage() {
   // the user creates/updates/deletes accounts or transactions (see useAccounts &
   // useTransactions mutation hooks).
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useDashboardSummary();
-  const { convert, secondaryCurrency: secCurrency, secondaryExchangeRate } = useSecondaryConversion(summary?.baseCurrency);
+  const {
+    convert,
+    secondaryCurrency: secCurrency,
+    secondaryExchangeRate,
+  } = useSecondaryConversion(summary?.baseCurrency);
   const { data: cashFlow, isLoading: cashFlowLoading } = useCashFlow(periodDays, activeDateRange);
-  const { data: netWorthHistory, isLoading: historyLoading } = useNetWorthHistory(historyPeriod, activeDateRange);
+  const { data: netWorthHistory, isLoading: historyLoading } = useNetWorthHistory(
+    historyPeriod,
+    activeDateRange
+  );
   const { data: assetAllocations, isLoading: allocationLoading } = useAssetAllocation();
-  const { data: portfolioPerformances, isLoading: performanceLoading } = usePortfolioPerformance(periodDays, activeDateRange);
-  const { data: borrowingCapacity, isLoading: borrowingLoading } = useBorrowingCapacity(periodDays, activeDateRange);
-  const { data: netWorthAllocations, isLoading: netWorthAllocationLoading } = useNetWorthAllocation();
-  const { data: estimatedInterest } = useEstimatedInterest(selectedPeriod === 'CUSTOM' ? '1M' : selectedPeriod);
-  const { data: periodTransactions, isLoading: transactionsLoading } = useTransactionsByPeriod(periodDays, activeDateRange);
+  const { data: portfolioPerformances, isLoading: performanceLoading } = usePortfolioPerformance(
+    periodDays,
+    activeDateRange
+  );
+  const { data: borrowingCapacity, isLoading: borrowingLoading } = useBorrowingCapacity(
+    periodDays,
+    activeDateRange
+  );
+  const { data: netWorthAllocations, isLoading: netWorthAllocationLoading } =
+    useNetWorthAllocation();
+  const { data: estimatedInterest } = useEstimatedInterest(
+    selectedPeriod === 'CUSTOM' ? '1M' : selectedPeriod
+  );
+  const { data: periodTransactions, isLoading: transactionsLoading } = useTransactionsByPeriod(
+    periodDays,
+    activeDateRange
+  );
 
   // ── Period change computed from history chart (BUG-D1) ─────────────────────
   const periodChange = useMemo(() => {
-    if (!netWorthHistory || netWorthHistory.length < 2 || summary?.netWorth?.netWorth == null) return null;
+    if (!netWorthHistory || netWorthHistory.length < 2 || summary?.netWorth?.netWorth == null)
+      return null;
     // Find the data point closest to periodDays ago (not just the first point
     // in the history, which may span a wider window for chart context).
     // eslint-disable-next-line react-hooks/rules-of-hooks -- Date.now() is intentionally used to find closest historical data point
@@ -390,7 +435,13 @@ export default function DashboardPage() {
         label: t('cards.netWorth.label'),
         description: t('cards.netWorth.description'),
         isAvailable: true,
-        render: () => <NetWorthCard netWorth={summary.netWorth} periodLabel={periodLabel} periodChange={periodChange} />,
+        render: () => (
+          <NetWorthCard
+            netWorth={summary.netWorth}
+            periodLabel={periodLabel}
+            periodChange={periodChange}
+          />
+        ),
       },
       {
         id: 'insights',
@@ -468,68 +519,80 @@ export default function DashboardPage() {
         label: t('cards.recentTransactions.label'),
         description: t('cards.recentTransactions.description'),
         isAvailable: true,
-        render: () => <RecentTransactionsCard
-          transactions={periodTransactions ?? []}
-          periodLabel={periodLabel}
-          isLoading={transactionsLoading}
-        />,
+        render: () => (
+          <RecentTransactionsCard
+            transactions={periodTransactions ?? []}
+            periodLabel={periodLabel}
+            isLoading={transactionsLoading}
+          />
+        ),
       },
       {
         id: 'netWorthTrend',
         label: t('cards.netWorthTrend.label'),
         description: t('cards.netWorthTrend.description'),
         isAvailable: Boolean(netWorthHistory && netWorthHistory.length > 0),
-        render: () => netWorthHistory && netWorthHistory.length > 0
-          ? <NetWorthTrendChart data={netWorthHistory} currency={summary.baseCurrency} />
-          : null,
+        render: () =>
+          netWorthHistory && netWorthHistory.length > 0 ? (
+            <NetWorthTrendChart data={netWorthHistory} currency={summary.baseCurrency} />
+          ) : null,
       },
       {
         id: 'portfolioPerformance',
         label: t('cards.portfolioPerformance.label'),
         description: t('cards.portfolioPerformance.description'),
         isAvailable: Boolean(portfolioPerformances && portfolioPerformances.length > 0),
-        render: () => portfolioPerformances && portfolioPerformances.length > 0
-          ? <PortfolioPerformanceCards performances={portfolioPerformances} periodLabel={periodLabel} />
-          : null,
+        render: () =>
+          portfolioPerformances && portfolioPerformances.length > 0 ? (
+            <PortfolioPerformanceCards
+              performances={portfolioPerformances}
+              periodLabel={periodLabel}
+            />
+          ) : null,
       },
       {
         id: 'assetAllocation',
         label: t('cards.assetAllocation.label'),
         description: t('cards.assetAllocation.description'),
         isAvailable: Boolean(assetAllocations && assetAllocations.length > 0),
-        render: () => assetAllocations && assetAllocations.length > 0
-          ? <AssetAllocationChart allocations={assetAllocations} currency={summary.baseCurrency} />
-          : null,
+        render: () =>
+          assetAllocations && assetAllocations.length > 0 ? (
+            <AssetAllocationChart allocations={assetAllocations} currency={summary.baseCurrency} />
+          ) : null,
       },
       {
         id: 'borrowingCapacity',
         label: t('cards.borrowingCapacity.label'),
         description: t('cards.borrowingCapacity.description'),
         isAvailable: Boolean(borrowingCapacity),
-        render: () => borrowingCapacity
-          ? <BorrowingCapacityCard capacity={borrowingCapacity} />
-          : null,
+        render: () =>
+          borrowingCapacity ? <BorrowingCapacityCard capacity={borrowingCapacity} /> : null,
       },
       {
         id: 'netWorthAllocation',
         label: t('cards.netWorthAllocation.label'),
         description: t('cards.netWorthAllocation.description'),
         isAvailable: Boolean(netWorthAllocations && netWorthAllocations.length > 0),
-        render: () => netWorthAllocations && netWorthAllocations.length > 0
-          ? <NetWorthAllocationChart allocations={netWorthAllocations} currency={summary.baseCurrency} />
-          : null,
+        render: () =>
+          netWorthAllocations && netWorthAllocations.length > 0 ? (
+            <NetWorthAllocationChart
+              allocations={netWorthAllocations}
+              currency={summary.baseCurrency}
+            />
+          ) : null,
       },
       {
         id: 'estimatedInterest',
         label: t('cards.estimatedInterest.label'),
         description: t('cards.estimatedInterest.description'),
         isAvailable: Boolean(estimatedInterest && estimatedInterest.accounts?.length > 0),
-        render: () => estimatedInterest
-          ? <EstimatedInterestCard
-            summary={estimatedInterest}
-            period={selectedPeriod === 'CUSTOM' ? '1M' : selectedPeriod}
-          />
-          : null,
+        render: () =>
+          estimatedInterest ? (
+            <EstimatedInterestCard
+              summary={estimatedInterest}
+              period={selectedPeriod === 'CUSTOM' ? '1M' : selectedPeriod}
+            />
+          ) : null,
       },
       {
         id: 'financeNews',
@@ -547,19 +610,36 @@ export default function DashboardPage() {
       },
     ];
   }, [
-    summary, cashFlow, periodDays, activeDateRange, netWorthHistory,
-    portfolioPerformances, assetAllocations, borrowingCapacity,
-    netWorthAllocations, estimatedInterest, selectedPeriod,
-    periodLabel, periodChange, periodTransactions, transactionsLoading, t,
+    summary,
+    cashFlow,
+    periodDays,
+    activeDateRange,
+    netWorthHistory,
+    portfolioPerformances,
+    assetAllocations,
+    borrowingCapacity,
+    netWorthAllocations,
+    estimatedInterest,
+    selectedPeriod,
+    periodLabel,
+    periodChange,
+    periodTransactions,
+    transactionsLoading,
+    t,
     navDateRange,
   ]);
 
-  const cardById = useMemo(() =>
-    dashboardCards.reduce((acc, card) => {
-      acc[card.id] = card;
-      return acc;
-    }, {} as Record<DashboardCardId, DashboardCardConfig>),
-    [dashboardCards]);
+  const cardById = useMemo(
+    () =>
+      dashboardCards.reduce(
+        (acc, card) => {
+          acc[card.id] = card;
+          return acc;
+        },
+        {} as Record<DashboardCardId, DashboardCardConfig>
+      ),
+    [dashboardCards]
+  );
 
   // ── Layout handlers ─────────────────────────────────────────────────────────
   // react-grid-layout reports only the currently-rendered cards. Cards that are
@@ -572,30 +652,26 @@ export default function DashboardPage() {
     // Ignore the transient empty layout RGL emits before children mount / while data loads.
     if (!currentLayout || currentLayout.length === 0) return;
 
-    setLayouts((prev) => {
+    setLayouts(prev => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const merged: Record<string, any> = { ...prev };
-      Object.keys(allLayouts).forEach((bp) => {
+      Object.keys(allLayouts).forEach(bp => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const incoming: any[] = allLayouts[bp] ?? [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const prevItems: any[] = prev[bp] ?? [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const incomingById = new Map<string, any>(incoming.map((it) => [it.i, it]));
+        const incomingById = new Map<string, any>(incoming.map(it => [it.i, it]));
         // Keep every previously-known card, updating positions for the ones RGL reported.
-        const mergedItems = prevItems.map((it) => incomingById.get(it.i) ?? it);
+        const mergedItems = prevItems.map(it => incomingById.get(it.i) ?? it);
         // Append any brand-new cards not present in the previous layout.
-        incoming.forEach((it) => {
-          if (!mergedItems.some((m) => m.i === it.i)) mergedItems.push(it);
+        incoming.forEach(it => {
+          if (!mergedItems.some(m => m.i === it.i)) mergedItems.push(it);
         });
         merged[bp] = mergedItems;
       });
-      // Persist only after a real user drag/resize. Mount-time / breakpoint
-      // regeneration echoes update in-memory state for a smooth render but must
-      // never be written back, or the saved arrangement is lost on refresh.
-      if (layoutInteractedRef.current) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-      }
+      if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       return merged;
     });
   };
@@ -604,16 +680,28 @@ export default function DashboardPage() {
     const defaultLayout = generateDefaultLayouts();
     setLayouts(defaultLayout);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultLayout));
-    const allVisible = DEFAULT_CARD_ORDER.reduce((acc, cardId) => {
-      acc[cardId] = true;
-      return acc;
-    }, {} as Record<DashboardCardId, boolean>);
+    const allVisible = DEFAULT_CARD_ORDER.reduce(
+      (acc, cardId) => {
+        acc[cardId] = true;
+        return acc;
+      },
+      {} as Record<DashboardCardId, boolean>
+    );
     setCardVisibility(allVisible);
     localStorage.removeItem(VISIBILITY_STORAGE_KEY);
   };
 
   // ── Loading skeleton ────────────────────────────────────────────────────────
-  if (!summary && (summaryLoading || cashFlowLoading || historyLoading || allocationLoading || performanceLoading || borrowingLoading || netWorthAllocationLoading)) {
+  if (
+    !summary &&
+    (summaryLoading ||
+      cashFlowLoading ||
+      historyLoading ||
+      allocationLoading ||
+      performanceLoading ||
+      borrowingLoading ||
+      netWorthAllocationLoading)
+  ) {
     return (
       <div className="animate-pulse space-y-6">
         <div className="h-8 bg-surface-elevated rounded w-48"></div>
@@ -639,7 +727,9 @@ export default function DashboardPage() {
     if (isDecryptionError) {
       return (
         <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-6">
-          <h3 className="text-xl font-semibold text-red-500 mb-2">{t('errors.cannotDecrypt.title')}</h3>
+          <h3 className="text-xl font-semibold text-red-500 mb-2">
+            {t('errors.cannotDecrypt.title')}
+          </h3>
           <p className="text-text-secondary mb-4">{t('errors.cannotDecrypt.description')}</p>
           <button
             onClick={() => {
@@ -672,38 +762,47 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-text-primary mb-1">{t('title')}</h1>
-          <p className="text-text-secondary text-sm">{t('subtitle', { date: summary.snapshotDate })}</p>
+          <p className="text-text-secondary text-sm">
+            {t('subtitle', { date: summary.snapshotDate })}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Cards visibility menu */}
           <div className="relative" ref={cardMenuRef}>
             <button
-              onClick={() => setIsCardMenuOpen((prev) => !prev)}
+              onClick={() => setIsCardMenuOpen(prev => !prev)}
               className="px-3 py-2 bg-surface-elevated text-text-secondary rounded-lg hover:bg-surface-elevated/80 transition-colors flex items-center gap-2"
             >
               <SlidersHorizontal className="h-4 w-4" />
               <span className="hidden sm:inline text-sm">{t('cardsButton')}</span>
-              <ChevronDown className={cn('h-4 w-4 transition-transform', isCardMenuOpen && 'rotate-180')} />
+              <ChevronDown
+                className={cn('h-4 w-4 transition-transform', isCardMenuOpen && 'rotate-180')}
+              />
             </button>
 
             {isCardMenuOpen && (
               <div className="absolute right-0 mt-2 w-64 bg-surface border border-border rounded-lg shadow-lg p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs uppercase tracking-wide text-text-secondary">{t('showCards')}</p>
-                  <button onClick={handleResetLayout} className="text-xs text-primary hover:underline">
+                  <p className="text-xs uppercase tracking-wide text-text-secondary">
+                    {t('showCards')}
+                  </p>
+                  <button
+                    onClick={handleResetLayout}
+                    className="text-xs text-primary hover:underline"
+                  >
                     {t('resetLayout')}
                   </button>
                 </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin pr-1">
-                  {dashboardCards.map((card) => (
+                  {dashboardCards.map(card => (
                     <label
                       key={card.id}
                       className={cn(
                         'flex items-start gap-2 rounded-md px-2 py-1.5',
                         card.isAvailable
                           ? 'cursor-pointer hover:bg-surface-elevated'
-                          : 'cursor-not-allowed opacity-60',
+                          : 'cursor-not-allowed opacity-60'
                       )}
                     >
                       <input
@@ -711,18 +810,23 @@ export default function DashboardPage() {
                         className="mt-1 accent-primary"
                         checked={cardVisibility[card.id]}
                         onChange={() => {
-                          setCardVisibility((prev) => {
+                          setCardVisibility(prev => {
                             const next = { ...prev, [card.id]: !prev[card.id] };
                             localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(next));
                             return next;
                           });
-                          setTimeout(() => window.dispatchEvent(new Event('resize')), RESIZE_EVENT_DELAY_MS);
+                          setTimeout(
+                            () => window.dispatchEvent(new Event('resize')),
+                            RESIZE_EVENT_DELAY_MS
+                          );
                         }}
                         disabled={!card.isAvailable}
                       />
                       <span className="flex-1">
                         <span className="block text-sm text-text-primary">{card.label}</span>
-                        <span className="block text-xs text-text-secondary">{card.description}</span>
+                        <span className="block text-xs text-text-secondary">
+                          {card.description}
+                        </span>
                       </span>
                     </label>
                   ))}
@@ -744,7 +848,11 @@ export default function DashboardPage() {
 
       {/* ── Global period selector ────────────────────────────────────────── */}
       <div className="mb-6 flex justify-center">
-        <PeriodSelector selectedPeriod={selectedPeriod} activeDateRange={activeDateRange} onPeriodChange={handlePeriodChange} />
+        <PeriodSelector
+          selectedPeriod={selectedPeriod}
+          activeDateRange={activeDateRange}
+          onPeriodChange={handlePeriodChange}
+        />
       </div>
 
       {/* ── Cards grid ───────────────────────────────────────────────────── */}
@@ -755,12 +863,14 @@ export default function DashboardPage() {
           breakpoints={GRID_LAYOUT_BREAKPOINTS}
           cols={GRID_LAYOUT_COLS}
           rowHeight={40}
-          onLayoutChange={handleLayoutChange}
-          onDragStart={() => {
-            layoutInteractedRef.current = true;
+          onBreakpointChange={breakpoint => {
+            setActiveBreakpoint(breakpoint);
           }}
-          onResizeStart={() => {
-            layoutInteractedRef.current = true;
+          onDragStop={layout => {
+            handleLayoutChange(layout, { [activeBreakpoint]: layout });
+          }}
+          onResizeStop={layout => {
+            handleLayoutChange(layout, { [activeBreakpoint]: layout });
           }}
           draggableHandle=".drag-handle"
           margin={[16, 16]}
@@ -768,16 +878,21 @@ export default function DashboardPage() {
           {DEFAULT_CARD_ORDER.filter(cardId => {
             const card = cardById[cardId];
             return card && cardVisibility[cardId] && card.isAvailable;
-          }).map((cardId) => {
+          }).map(cardId => {
             const card = cardById[cardId];
+            const savedPosition = layouts[activeBreakpoint]?.find(
+              (item: { i: string }) => item.i === card.id
+            );
             return (
-              <div key={card.id} data-grid={DEFAULT_LAYOUT_BY_ID[card.id]} className="relative group flex flex-col h-full rounded-lg overflow-hidden">
+              <div
+                key={card.id}
+                data-grid={savedPosition ?? DEFAULT_LAYOUT_BY_ID[card.id]}
+                className="relative group flex flex-col h-full rounded-lg overflow-hidden"
+              >
                 <div className="drag-handle absolute right-3 top-3 z-10 p-1 bg-surface/80 rounded cursor-move text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary">
                   <GripVertical className="h-4 w-4" />
                 </div>
-                <div className="flex-1 h-full w-full">
-                  {card.render()}
-                </div>
+                <div className="flex-1 h-full w-full">{card.render()}</div>
               </div>
             );
           })}

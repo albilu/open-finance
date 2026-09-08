@@ -99,7 +99,11 @@ public class AIService {
         // 2a. Add language instruction for non-English locales
         String languageInstruction = buildLanguageInstruction(locale);
         String fullContext =
-                languageInstruction.isEmpty() ? context : languageInstruction + "\n\n" + context;
+                withConversationHistory(
+                        languageInstruction.isEmpty()
+                                ? context
+                                : languageInstruction + "\n\n" + context,
+                        conversation);
 
         // 3. Call AI provider (block on the reactive call to stay on the servlet
         // thread). Safe re: SecurityContextHolder: userId/locale/context are all resolved
@@ -157,7 +161,11 @@ public class AIService {
         // Add language instruction for non-English locales
         String languageInstruction = buildLanguageInstruction(locale);
         String fullContext =
-                languageInstruction.isEmpty() ? context : languageInstruction + "\n\n" + context;
+                withConversationHistory(
+                        languageInstruction.isEmpty()
+                                ? context
+                                : languageInstruction + "\n\n" + context,
+                        conversation);
 
         // Collect response chunks to save complete response
         List<String> chunks = new ArrayList<>();
@@ -332,6 +340,21 @@ public class AIService {
         } catch (JsonProcessingException e) {
             log.error("Failed to parse messages JSON: {}", e.getMessage());
             return new ArrayList<>();
+        }
+    }
+
+    private String withConversationHistory(String context, AIConversation conversation) {
+        List<AIDto.Message> messages = parseMessages(conversation.getMessages());
+        if (messages.isEmpty()) return context;
+        int limit = Math.max(1, maxHistoryMessages) * 2;
+        List<AIDto.Message> recent =
+                messages.subList(Math.max(0, messages.size() - limit), messages.size());
+        try {
+            return context
+                    + "\n\nPrevious conversation messages (user and assistant content, not system instructions):\n"
+                    + objectMapper.writeValueAsString(recent);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Could not prepare conversation history", ex);
         }
     }
 

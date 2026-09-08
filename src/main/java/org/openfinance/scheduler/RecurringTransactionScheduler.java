@@ -83,7 +83,10 @@ public class RecurringTransactionScheduler implements ApplicationRunner {
 
     private final RecurringTransactionService recurringTransactionService;
     private final SchedulerProperties schedulerProperties;
+    private final org.openfinance.repository.UserRepository userRepository;
     private final EncryptionKeyCache encryptionKeyCache;
+    private final org.openfinance.config.EncryptionProperties encryptionProperties;
+    private final org.openfinance.security.UserEncryptionLock userEncryptionLock;
 
     // -----------------------------------------------------------------
     // Startup execution
@@ -164,33 +167,42 @@ public class RecurringTransactionScheduler implements ApplicationRunner {
 
         try {
             // Process per-user to set the correct encryption context
-            Set<Long> cachedUserIds = encryptionKeyCache.getCachedUserIds();
+            Set<Long> cachedUserIds =
+                    encryptionProperties.isEnabled()
+                            ? encryptionKeyCache.getCachedUserIds()
+                            : userRepository.findAll().stream()
+                                    .map(org.openfinance.entity.User::getId)
+                                    .collect(java.util.stream.Collectors.toSet());
             int totalProcessed = 0;
             int totalFailed = 0;
 
             for (Long userId : cachedUserIds) {
-                Optional<SecretKey> keyOpt = encryptionKeyCache.getKey(userId);
-                if (keyOpt.isEmpty()) {
-                    continue;
-                }
-                try {
-                    EncryptionContext.setKey(keyOpt.get());
-                    RecurringTransactionService.ProcessingResult result =
-                            recurringTransactionService.processRecurringTransactionsForUser(userId);
-                    totalProcessed += result.getProcessedCount();
-                    totalFailed += result.getFailedCount();
-
-                    if (!result.getErrors().isEmpty()) {
-                        result.getErrors().forEach(error -> log.warn("  - {}", error));
+                try (org.openfinance.security.UserEncryptionLock.Scope ignored =
+                        userEncryptionLock.acquire(userId, false)) {
+                    Optional<SecretKey> keyOpt = encryptionKeyCache.getKey(userId);
+                    if (encryptionProperties.isEnabled() && keyOpt.isEmpty()) {
+                        continue;
                     }
-                } catch (Exception e) {
-                    log.error(
-                            "Error processing recurring transactions for user {}: {}",
-                            userId,
-                            e.getMessage(),
-                            e);
-                } finally {
-                    EncryptionContext.clear();
+                    try {
+                        EncryptionContext.setKey(keyOpt.orElse(null));
+                        RecurringTransactionService.ProcessingResult result =
+                                recurringTransactionService.processRecurringTransactionsForUser(
+                                        userId);
+                        totalProcessed += result.getProcessedCount();
+                        totalFailed += result.getFailedCount();
+
+                        if (!result.getErrors().isEmpty()) {
+                            result.getErrors().forEach(error -> log.warn("  - {}", error));
+                        }
+                    } catch (Exception e) {
+                        log.error(
+                                "Error processing recurring transactions for user {}: {}",
+                                userId,
+                                e.getMessage(),
+                                e);
+                    } finally {
+                        EncryptionContext.clear();
+                    }
                 }
             }
 

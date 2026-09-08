@@ -76,6 +76,8 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordService passwordService;
     private final KeyManagementService keyManagementService;
+    private final MasterPasswordService masterPasswordService;
+    private final org.openfinance.security.UserEncryptionLock userEncryptionLock;
     private final JwtService jwtService;
     private final MessageSource messageSource;
     private final SecurityAuditService securityAuditService;
@@ -146,122 +148,139 @@ public class AuthService {
                             "auth.invalid.credentials", null, LocaleContextHolder.getLocale()));
         }
 
-        // 2. Requirement TASK-15.1.8: Check account lockout
-        if (user.isAccountLocked()) {
-            securityAuditService.logEvent(
-                    user.getId(),
-                    user.getUsername(),
-                    EventType.LOGIN_FAILURE,
-                    httpRequest,
-                    "Account locked until " + user.getLockedUntil());
-            log.warn(
-                    "Login rejected: account '{}' is locked until {}",
-                    user.getUsername(),
-                    user.getLockedUntil());
-            throw new AccountLockedException(
-                    "Account is locked. Please try again after " + user.getLockedUntil());
-        }
+        try (org.openfinance.security.UserEncryptionLock.Scope ignored =
+                userEncryptionLock.acquire(user.getId(), false)) {
+            // 2. Requirement TASK-15.1.8: Check account lockout
+            if (user.isAccountLocked()) {
+                securityAuditService.logEvent(
+                        user.getId(),
+                        user.getUsername(),
+                        EventType.LOGIN_FAILURE,
+                        httpRequest,
+                        "Account locked until " + user.getLockedUntil());
+                log.warn(
+                        "Login rejected: account '{}' is locked until {}",
+                        user.getUsername(),
+                        user.getLockedUntil());
+                throw new AccountLockedException(
+                        "Account is locked. Please try again after " + user.getLockedUntil());
+            }
 
-        // 3. Verify login password
-        if (!passwordService.validatePassword(request.getPassword(), user.getPasswordHash())) {
-            handleFailedLogin(user, httpRequest);
-            throw new BadCredentialsException(
-                    messageSource.getMessage(
-                            "auth.invalid.credentials", null, LocaleContextHolder.getLocale()));
-        }
-
-        if (!encryptionProperties.isEnabled()) {
-            String token = jwtService.generateToken(user);
-            String clientIp = resolveClientIp(httpRequest);
-            userLoginStateService.recordLoginSuccess(user.getId(), clientIp);
-            securityAuditService.logEvent(
-                    user.getId(), user.getUsername(), EventType.LOGIN_SUCCESS, httpRequest, null);
-
-            log.info("Login successful for user: {} (ID: {})", user.getUsername(), user.getId());
-
-            return LoginResponse.builder()
-                    .token(token)
-                    .userId(user.getId())
-                    .username(user.getUsername())
-                    .encryptionKey(null)
-                    .encryptionEnabled(false)
-                    .baseCurrency(defaultCurrencyProvider.resolve(user.getBaseCurrency()))
-                    .onboardingComplete(user.isOnboardingComplete())
-                    .build();
-        }
-
-        if (request.getMasterPassword() == null || request.getMasterPassword().isBlank()) {
-            throw new IllegalArgumentException(
-                    "Master password is required when encryption is enabled");
-        }
-
-        // 4. Derive encryption key from master password + salt
-        byte[] salt = Base64.getDecoder().decode(user.getMasterPasswordSalt());
-        char[] masterPasswordChars = request.getMasterPassword().toCharArray();
-
-        SecretKey encryptionKey = null;
-        String sessionToken = null;
-        try {
-            try {
-                encryptionKey = keyManagementService.deriveKey(masterPasswordChars, salt);
-            } catch (IllegalArgumentException | IllegalStateException e) {
-                log.error(
-                        "Login failed: master password verification error for username '{}': {}",
-                        request.getUsername(),
-                        e.getMessage());
+            // 3. Verify login password
+            if (!passwordService.validatePassword(request.getPassword(), user.getPasswordHash())) {
                 handleFailedLogin(user, httpRequest);
-                throw new BadCredentialsException("Invalid master password");
+                throw new BadCredentialsException(
+                        messageSource.getMessage(
+                                "auth.invalid.credentials", null, LocaleContextHolder.getLocale()));
             }
 
-            // 5. Cache the key server-side and generate an opaque session token.
-            // The raw AES key never leaves the server.
-            sessionToken = encryptionKeyCache.createSession(user.getId(), encryptionKey);
+            if (!encryptionProperties.isEnabled()) {
+                String token = jwtService.generateToken(user);
+                String clientIp = resolveClientIp(httpRequest);
+                userLoginStateService.recordLoginSuccess(user.getId(), clientIp);
+                securityAuditService.logEvent(
+                        user.getId(),
+                        user.getUsername(),
+                        EventType.LOGIN_SUCCESS,
+                        httpRequest,
+                        null);
 
-            // 6. Generate JWT token
-            String token = jwtService.generateToken(user);
+                log.info(
+                        "Login successful for user: {} (ID: {})", user.getUsername(), user.getId());
 
-            // 7. Requirement TASK-15.1.8: Reset failed attempts on success
-            // Requirement TASK-15.1.7: Track last login metadata
-            // Delegated to UserLoginStateService — opens a fresh transaction to avoid
-            // SQLITE_BUSY_SNAPSHOT (no prior reads on the write connection's snapshot).
-            String clientIp = resolveClientIp(httpRequest);
-            userLoginStateService.recordLoginSuccess(user.getId(), clientIp);
+                return LoginResponse.builder()
+                        .token(token)
+                        .userId(user.getId())
+                        .username(user.getUsername())
+                        .encryptionKey(null)
+                        .encryptionEnabled(false)
+                        .baseCurrency(defaultCurrencyProvider.resolve(user.getBaseCurrency()))
+                        .onboardingComplete(user.isOnboardingComplete())
+                        .build();
+            }
 
-            // 8. Requirement TASK-15.1.7: Log successful login (runs outside any tx)
-            securityAuditService.logEvent(
-                    user.getId(), user.getUsername(), EventType.LOGIN_SUCCESS, httpRequest, null);
+            if (request.getMasterPassword() == null || request.getMasterPassword().isBlank()) {
+                throw new IllegalArgumentException(
+                        "Master password is required when encryption is enabled");
+            }
 
-            log.info("Login successful for user: {} (ID: {})", user.getUsername(), user.getId());
+            // 4. Derive encryption key from master password + salt
+            byte[] salt = Base64.getDecoder().decode(user.getMasterPasswordSalt());
+            char[] masterPasswordChars = request.getMasterPassword().toCharArray();
 
-            LoginResponse response =
-                    LoginResponse.builder()
-                            .token(token)
-                            .userId(user.getId())
-                            .username(user.getUsername())
-                            .encryptionKey(sessionToken)
-                            .encryptionEnabled(true)
-                            .baseCurrency(defaultCurrencyProvider.resolve(user.getBaseCurrency()))
-                            .onboardingComplete(user.isOnboardingComplete())
-                            .build();
-
-            encryptionKeyCache.cacheKey(user.getId(), encryptionKey);
-
-            return response;
-
-        } catch (RuntimeException | Error e) {
-            if (sessionToken != null) {
+            SecretKey encryptionKey = null;
+            String sessionToken = null;
+            try {
                 try {
-                    encryptionKeyCache.invalidateFailedSession(sessionToken);
-                } catch (RuntimeException cleanupError) {
-                    e.addSuppressed(cleanupError);
+                    encryptionKey = keyManagementService.deriveKey(masterPasswordChars, salt);
+                    masterPasswordService.verify(user, encryptionKey);
+                } catch (IllegalArgumentException
+                        | IllegalStateException
+                        | BadCredentialsException e) {
+                    log.error(
+                            "Login failed: master password verification error for username '{}': {}",
+                            request.getUsername(),
+                            e.getMessage());
+                    handleFailedLogin(user, httpRequest);
+                    throw new BadCredentialsException("Invalid master password");
                 }
-            }
-            throw e;
-        } finally {
-            // Clear sensitive data from memory
-            java.util.Arrays.fill(masterPasswordChars, '\0');
-            if (encryptionKey != null) {
-                keyManagementService.clearKey(encryptionKey);
+
+                // 5. Cache the key server-side and generate an opaque session token.
+                // The raw AES key never leaves the server.
+                sessionToken = encryptionKeyCache.createSession(user.getId(), encryptionKey);
+
+                // 6. Generate JWT token
+                String token = jwtService.generateToken(user);
+
+                // 7. Requirement TASK-15.1.8: Reset failed attempts on success
+                // Requirement TASK-15.1.7: Track last login metadata
+                // Delegated to UserLoginStateService — opens a fresh transaction to avoid
+                // SQLITE_BUSY_SNAPSHOT (no prior reads on the write connection's snapshot).
+                String clientIp = resolveClientIp(httpRequest);
+                userLoginStateService.recordLoginSuccess(user.getId(), clientIp);
+
+                // 8. Requirement TASK-15.1.7: Log successful login (runs outside any tx)
+                securityAuditService.logEvent(
+                        user.getId(),
+                        user.getUsername(),
+                        EventType.LOGIN_SUCCESS,
+                        httpRequest,
+                        null);
+
+                log.info(
+                        "Login successful for user: {} (ID: {})", user.getUsername(), user.getId());
+
+                LoginResponse response =
+                        LoginResponse.builder()
+                                .token(token)
+                                .userId(user.getId())
+                                .username(user.getUsername())
+                                .encryptionKey(sessionToken)
+                                .encryptionEnabled(true)
+                                .baseCurrency(
+                                        defaultCurrencyProvider.resolve(user.getBaseCurrency()))
+                                .onboardingComplete(user.isOnboardingComplete())
+                                .build();
+
+                encryptionKeyCache.cacheKey(user.getId(), encryptionKey);
+
+                return response;
+
+            } catch (RuntimeException | Error e) {
+                if (sessionToken != null) {
+                    try {
+                        encryptionKeyCache.invalidateFailedSession(sessionToken);
+                    } catch (RuntimeException cleanupError) {
+                        e.addSuppressed(cleanupError);
+                    }
+                }
+                throw e;
+            } finally {
+                // Clear sensitive data from memory
+                java.util.Arrays.fill(masterPasswordChars, '\0');
+                if (encryptionKey != null) {
+                    keyManagementService.clearKey(encryptionKey);
+                }
             }
         }
     }

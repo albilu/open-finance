@@ -1,13 +1,14 @@
 /**
  * SecuritySettings - Security preferences component
- * 
+ *
  * Implements TASK-6.3.16:
  * - Change login password
  * - Change master password (with re-encryption warning)
  * - Two-factor authentication (future)
- * 
+ *
  * Requirements: REQ-6.3 (User Settings & Preferences)
  */
+import { STORAGE_KEYS } from '@/constants/storage';
 import { useState } from 'react';
 import {
   EXTENDED_MESSAGE_DURATION_MS,
@@ -22,23 +23,27 @@ import apiClient from '@/services/apiClient';
 import { useAuthContext } from '@/context/AuthContext';
 
 // Validation schemas
-const passwordChangeSchema = z.object({
-  currentPassword: z.string().min(1, 'validation:currentPassword.required'),
-  newPassword: z.string().min(8, 'validation:password.minLength'),
-  confirmPassword: z.string(),
-}).refine(data => data.newPassword === data.confirmPassword, {
-  message: 'validation:password.mismatch',
-  path: ['confirmPassword'],
-});
+const passwordChangeSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'validation:currentPassword.required'),
+    newPassword: z.string().min(8, 'validation:password.minLength'),
+    confirmPassword: z.string(),
+  })
+  .refine(data => data.newPassword === data.confirmPassword, {
+    message: 'validation:password.mismatch',
+    path: ['confirmPassword'],
+  });
 
-const masterPasswordChangeSchema = z.object({
-  currentMasterPassword: z.string().min(1, 'validation:masterPassword.required'),
-  newMasterPassword: z.string().min(8, 'validation:masterPassword.minLengthShort'),
-  confirmMasterPassword: z.string(),
-}).refine(data => data.newMasterPassword === data.confirmMasterPassword, {
-  message: 'validation:masterPassword.mismatch',
-  path: ['confirmMasterPassword'],
-});
+const masterPasswordChangeSchema = z
+  .object({
+    currentMasterPassword: z.string().min(1, 'validation:masterPassword.required'),
+    newMasterPassword: z.string().min(8, 'validation:masterPassword.minLengthShort'),
+    confirmMasterPassword: z.string(),
+  })
+  .refine(data => data.newMasterPassword === data.confirmMasterPassword, {
+    message: 'validation:masterPassword.mismatch',
+    path: ['confirmMasterPassword'],
+  });
 
 type PasswordChangeFormData = z.infer<typeof passwordChangeSchema>;
 type MasterPasswordChangeFormData = z.infer<typeof masterPasswordChangeSchema>;
@@ -46,7 +51,11 @@ type MasterPasswordChangeFormData = z.infer<typeof masterPasswordChangeSchema>;
 // ---------------------------------------------------------------------------
 // PasswordStrengthBar — inline strength indicator for new-password fields
 // ---------------------------------------------------------------------------
-function getPasswordStrength(password: string): { score: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
+function getPasswordStrength(password: string): {
+  score: 0 | 1 | 2 | 3 | 4;
+  label: string;
+  color: string;
+} {
   if (!password) return { score: 0, label: '', color: '' };
   let score = 0;
   if (password.length >= 8) score++;
@@ -71,14 +80,16 @@ function PasswordStrengthBar({ password }: { password: string }) {
   return (
     <div className="mt-2">
       <div className="flex gap-1 mb-1">
-        {[1, 2, 3, 4].map((i) => (
+        {[1, 2, 3, 4].map(i => (
           <div
             key={i}
             className={`h-1 flex-1 rounded-full transition-all ${i <= score ? color : 'bg-border'}`}
           />
         ))}
       </div>
-      <p className={`text-xs ${score <= 1 ? 'text-red-400' : score === 2 ? 'text-yellow-400' : score === 3 ? 'text-blue-400' : 'text-green-400'}`}>
+      <p
+        className={`text-xs ${score <= 1 ? 'text-red-400' : score === 2 ? 'text-yellow-400' : score === 3 ? 'text-blue-400' : 'text-green-400'}`}
+      >
         {label}
       </p>
     </div>
@@ -147,10 +158,7 @@ export function SecuritySettings() {
       // Auto-clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(null), EXTENDED_MESSAGE_DURATION_MS);
     } catch (error: any) {
-      setErrorMessage(
-        error.response?.data?.message ||
-        t('security.masterPassword.failedPassword')
-      );
+      setErrorMessage(error.response?.data?.message || t('security.masterPassword.failedPassword'));
     } finally {
       setIsSubmitting(false);
     }
@@ -162,11 +170,14 @@ export function SecuritySettings() {
     setErrorMessage(null);
 
     try {
-      await apiClient.put('/users/me/master-password', {
+      const response = await apiClient.put('/users/me/master-password', {
         currentMasterPassword: data.currentMasterPassword,
         newMasterPassword: data.newMasterPassword,
       });
 
+      if (response?.data?.encryptionKey) {
+        sessionStorage.setItem(STORAGE_KEYS.ENCRYPTION_SESSION, response.data.encryptionKey);
+      }
       setSuccessMessage(t('security.masterPassword.success'));
       resetMasterPasswordForm();
       setShowMasterPasswordForm(false);
@@ -175,8 +186,7 @@ export function SecuritySettings() {
       setTimeout(() => setSuccessMessage(null), SECURITY_EXTENDED_MESSAGE_DURATION_MS);
     } catch (error: any) {
       setErrorMessage(
-        error.response?.data?.message ||
-        t('security.masterPassword.failedMasterPassword')
+        error.response?.data?.message || t('security.masterPassword.failedMasterPassword')
       );
     } finally {
       setIsSubmitting(false);
@@ -233,12 +243,17 @@ export function SecuritySettings() {
             }}
             className="text-primary hover:text-primary/80 text-sm font-medium transition-colors"
           >
-            {showPasswordForm ? t('security.loginPassword.cancel') : t('security.loginPassword.change')}
+            {showPasswordForm
+              ? t('security.loginPassword.cancel')
+              : t('security.loginPassword.change')}
           </button>
         </div>
 
         {showPasswordForm && (
-          <form onSubmit={handleSubmitPassword(handlePasswordChange)} className="space-y-4 mt-4 pt-4 border-t border-border">
+          <form
+            onSubmit={handleSubmitPassword(handlePasswordChange)}
+            className="space-y-4 mt-4 pt-4 border-t border-border"
+          >
             {/* Current Password */}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
@@ -254,7 +269,7 @@ export function SecuritySettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowCurrentPw((v) => !v)}
+                  onClick={() => setShowCurrentPw(v => !v)}
                   className="absolute inset-y-0 right-3 flex items-center text-text-muted hover:text-text-primary transition-colors"
                   aria-label={showCurrentPw ? 'Hide password' : 'Show password'}
                 >
@@ -262,7 +277,9 @@ export function SecuritySettings() {
                 </button>
               </div>
               {passwordErrors.currentPassword && (
-                <p className="text-red-400 text-sm mt-1">{t(passwordErrors.currentPassword.message!)}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {t(passwordErrors.currentPassword.message!)}
+                </p>
               )}
             </div>
 
@@ -281,7 +298,7 @@ export function SecuritySettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowNewPw((v) => !v)}
+                  onClick={() => setShowNewPw(v => !v)}
                   className="absolute inset-y-0 right-3 flex items-center text-text-muted hover:text-text-primary transition-colors"
                   aria-label={showNewPw ? 'Hide password' : 'Show password'}
                 >
@@ -290,7 +307,9 @@ export function SecuritySettings() {
               </div>
               <PasswordStrengthBar password={newPasswordValue} />
               {passwordErrors.newPassword && (
-                <p className="text-red-400 text-sm mt-1">{t(passwordErrors.newPassword.message!)}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {t(passwordErrors.newPassword.message!)}
+                </p>
               )}
             </div>
 
@@ -309,7 +328,7 @@ export function SecuritySettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPw((v) => !v)}
+                  onClick={() => setShowConfirmPw(v => !v)}
                   className="absolute inset-y-0 right-3 flex items-center text-text-muted hover:text-text-primary transition-colors"
                   aria-label={showConfirmPw ? 'Hide password' : 'Show password'}
                 >
@@ -317,7 +336,9 @@ export function SecuritySettings() {
                 </button>
               </div>
               {passwordErrors.confirmPassword && (
-                <p className="text-red-400 text-sm mt-1">{t(passwordErrors.confirmPassword.message!)}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {t(passwordErrors.confirmPassword.message!)}
+                </p>
               )}
             </div>
 
@@ -328,7 +349,9 @@ export function SecuritySettings() {
                 disabled={isSubmitting}
                 className="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? t('security.loginPassword.submitting') : t('security.loginPassword.submit')}
+                {isSubmitting
+                  ? t('security.loginPassword.submitting')
+                  : t('security.loginPassword.submit')}
               </button>
             </div>
           </form>
@@ -357,7 +380,9 @@ export function SecuritySettings() {
             }}
             className="text-primary hover:text-primary/80 text-sm font-medium transition-colors"
           >
-            {showMasterPasswordForm ? t('security.masterPassword.cancel') : t('security.masterPassword.change')}
+            {showMasterPasswordForm
+              ? t('security.masterPassword.cancel')
+              : t('security.masterPassword.change')}
           </button>
         </div>
 
@@ -366,7 +391,9 @@ export function SecuritySettings() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-red-400 font-semibold text-sm mb-1">{t('security.masterPassword.criticalWarningTitle')}</p>
+              <p className="text-red-400 font-semibold text-sm mb-1">
+                {t('security.masterPassword.criticalWarningTitle')}
+              </p>
               <p className="text-red-300 text-sm">
                 {t('security.masterPassword.criticalWarningBody')}
               </p>
@@ -375,7 +402,10 @@ export function SecuritySettings() {
         </div>
 
         {showMasterPasswordForm && (
-          <form onSubmit={handleSubmitMasterPassword(handleMasterPasswordChange)} className="space-y-4 pt-4 border-t border-border">
+          <form
+            onSubmit={handleSubmitMasterPassword(handleMasterPasswordChange)}
+            className="space-y-4 pt-4 border-t border-border"
+          >
             {/* Current Master Password */}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
@@ -391,15 +421,21 @@ export function SecuritySettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowCurrentMasterPw((v) => !v)}
+                  onClick={() => setShowCurrentMasterPw(v => !v)}
                   className="absolute inset-y-0 right-3 flex items-center text-text-muted hover:text-text-primary transition-colors"
                   aria-label={showCurrentMasterPw ? 'Hide password' : 'Show password'}
                 >
-                  {showCurrentMasterPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showCurrentMasterPw ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
               {masterPasswordErrors.currentMasterPassword && (
-                <p className="text-red-400 text-sm mt-1">{t(masterPasswordErrors.currentMasterPassword.message!)}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {t(masterPasswordErrors.currentMasterPassword.message!)}
+                </p>
               )}
             </div>
 
@@ -418,7 +454,7 @@ export function SecuritySettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowNewMasterPw((v) => !v)}
+                  onClick={() => setShowNewMasterPw(v => !v)}
                   className="absolute inset-y-0 right-3 flex items-center text-text-muted hover:text-text-primary transition-colors"
                   aria-label={showNewMasterPw ? 'Hide password' : 'Show password'}
                 >
@@ -427,7 +463,9 @@ export function SecuritySettings() {
               </div>
               <PasswordStrengthBar password={newMasterPasswordValue} />
               {masterPasswordErrors.newMasterPassword && (
-                <p className="text-red-400 text-sm mt-1">{t(masterPasswordErrors.newMasterPassword.message!)}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {t(masterPasswordErrors.newMasterPassword.message!)}
+                </p>
               )}
             </div>
 
@@ -446,15 +484,21 @@ export function SecuritySettings() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmMasterPw((v) => !v)}
+                  onClick={() => setShowConfirmMasterPw(v => !v)}
                   className="absolute inset-y-0 right-3 flex items-center text-text-muted hover:text-text-primary transition-colors"
                   aria-label={showConfirmMasterPw ? 'Hide password' : 'Show password'}
                 >
-                  {showConfirmMasterPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConfirmMasterPw ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
               {masterPasswordErrors.confirmMasterPassword && (
-                <p className="text-red-400 text-sm mt-1">{t(masterPasswordErrors.confirmMasterPassword.message!)}</p>
+                <p className="text-red-400 text-sm mt-1">
+                  {t(masterPasswordErrors.confirmMasterPassword.message!)}
+                </p>
               )}
             </div>
 
@@ -472,7 +516,9 @@ export function SecuritySettings() {
                 disabled={isSubmitting}
                 className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? t('security.masterPassword.submitting') : t('security.masterPassword.submit')}
+                {isSubmitting
+                  ? t('security.masterPassword.submitting')
+                  : t('security.masterPassword.submit')}
               </button>
             </div>
           </form>
@@ -498,7 +544,8 @@ export function SecuritySettings() {
 
         <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
           <p className="text-xs text-blue-400">
-            <span className="font-semibold">{t('security.twoFactor.comingSoon')}:</span> {t('security.twoFactor.comingSoonNote')}
+            <span className="font-semibold">{t('security.twoFactor.comingSoon')}:</span>{' '}
+            {t('security.twoFactor.comingSoonNote')}
           </p>
         </div>
       </div>

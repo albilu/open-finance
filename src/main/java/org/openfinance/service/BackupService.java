@@ -1,479 +1,188 @@
 package org.openfinance.service;
 
-import com.zaxxer.hikari.HikariDataSource;
-import java.io.*;
-import java.nio.file.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.entity.Backup;
+import org.openfinance.entity.User;
 import org.openfinance.exception.BackupException;
 import org.openfinance.repository.BackupRepository;
-import org.sqlite.SQLiteConnection;
+import org.openfinance.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * Service for managing database backups. Handles backup creation, restoration, validation, and
- * automatic scheduling.
- *
- * <p><b>Requirements:</b> REQ-2.14.2.1, REQ-2.14.2.2, REQ-2.14.2.3
- *
- * <p><b>Features:</b>
- *
- * <ul>
- *   <li>Create compressed backups of SQLite database
- *   <li>Restore backups with validation
- *   <li>Automatic scheduled backups (weekly by default)
- *   <li>Backup rotation (retain last N backups)
- *   <li>SHA-256 checksum verification
- * </ul>
- *
- * @author Open-Finance Development Team
- * @version 1.0
- * @since 2026-02-04
- */
+/** Per-user portable SQLite backups; restores never replace the live database file. */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class BackupService {
-
     private final BackupRepository backupRepository;
-    private final javax.sql.DataSource dataSource;
+    private final UserRepository userRepository;
+    private final UserBackupArchive archives;
 
-    /** Path to the SQLite database file (from application.properties). Example: openfinance.db */
     @Value("${spring.datasource.url:jdbc:sqlite:openfinance.db}")
     private String databaseUrl;
 
-    /** Directory where backups are stored. */
     @Value("${app.backup.directory:./backups}")
     private String backupDirectory;
 
-    /** Maximum number of automatic backups to retain per user. */
     @Value("${app.backup.retention.count:7}")
     private int retentionCount;
 
-    /** Automatic backup schedule enabled flag. */
     @Value("${app.backup.schedule.enabled:true}")
     private boolean scheduleEnabled;
 
-    private static final String BACKUP_FILE_EXTENSION = ".ofbak";
-    private static final DateTimeFormatter TIMESTAMP_FORMAT =
-            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
+    @Value("${app.backup.max-expanded-bytes:1073741824}")
+    private long maxExpandedBytes;
 
-    /**
-     * Creates a manual backup for a specific user.
-     *
-     * <p><b>Process:</b>
-     *
-     * <ol>
-     *   <li>Generate unique backup filename with timestamp
-     *   <li>Copy SQLite database file
-     *   <li>Compress with gzip
-     *   <li>Calculate SHA-256 checksum
-     *   <li>Save backup metadata to database
-     * </ol>
-     *
-     * <p><b>Requirement:</b> REQ-2.14.2.1
-     *
-     * @param userId the ID of the user requesting the backup
-     * @param description optional description for the backup
-     * @return Backup entity with metadata
-     * @throws BackupException if backup creation fails
-     */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Backup createBackup(Long userId, String description) {
-        log.info("Creating manual backup for user ID: {}", userId);
-
-        try {
-            // Generate backup filename
-            String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-            String filename =
-                    String.format("openfinance-backup-%s%s", timestamp, BACKUP_FILE_EXTENSION);
-            String filePath = Paths.get(backupDirectory, filename).toString();
-
-            // Create backup directory if it doesn't exist
-            Files.createDirectories(Paths.get(backupDirectory));
-
-            // Create backup record in PENDING status
-            Backup backup =
-                    Backup.builder()
-                            .userId(userId)
-                            .filename(filename)
-                            .filePath(filePath)
-                            .fileSize(0L)
-                            .checksum("")
-                            .status("IN_PROGRESS")
-                            .backupType("MANUAL")
-                            .description(description)
-                            .createdAt(LocalDateTime.now())
-                            .build();
-            backup = backupRepository.save(backup);
-
-            // Perform the backup
-            performBackup(backup);
-
-            log.info("Manual backup created successfully: {}", filename);
-            return backup;
-
-        } catch (Exception e) {
-            log.error("Failed to create backup for user ID: {}", userId, e);
-            throw BackupException.internal("Failed to create backup: " + e.getMessage(), e);
-        }
+        return create(userId, description, "MANUAL");
     }
 
-    /**
-     * Creates an automatic backup for a user. Used by the scheduler.
-     *
-     * <p><b>Requirement:</b> REQ-2.14.2.2
-     *
-     * @param userId the user ID
-     * @return Backup entity
-     * @throws BackupException if backup fails
-     */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Backup createAutomaticBackup(Long userId) {
-        log.info("Creating automatic backup for user ID: {}", userId);
-
-        try {
-            String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-            String filename =
-                    String.format("openfinance-backup-auto-%s%s", timestamp, BACKUP_FILE_EXTENSION);
-            String filePath = Paths.get(backupDirectory, filename).toString();
-
-            Files.createDirectories(Paths.get(backupDirectory));
-
-            Backup backup =
-                    Backup.builder()
-                            .userId(userId)
-                            .filename(filename)
-                            .filePath(filePath)
-                            .fileSize(0L)
-                            .checksum("")
-                            .status("IN_PROGRESS")
-                            .backupType("AUTOMATIC")
-                            .description("Automatic weekly backup")
-                            .createdAt(LocalDateTime.now())
-                            .build();
-            backup = backupRepository.save(backup);
-
-            performBackup(backup);
-
-            // Rotate old automatic backups
-            rotateAutomaticBackups(userId);
-
-            log.info("Automatic backup created successfully: {}", filename);
-            return backup;
-
-        } catch (Exception e) {
-            log.error("Failed to create automatic backup for user ID: {}", userId, e);
-            throw BackupException.internal(
-                    "Failed to create automatic backup: " + e.getMessage(), e);
-        }
+        Backup result = create(userId, "Automatic scheduled backup", "AUTOMATIC");
+        List<Backup> backups =
+                backupRepository.findByUserIdAndBackupTypeOrderByCreatedAtDesc(userId, "AUTOMATIC");
+        for (Backup backup : backups.stream().skip(Math.max(1, retentionCount)).toList())
+            deleteBackup(userId, backup.getId());
+        return result;
     }
 
-    /**
-     * Performs the actual backup process: copy, compress, checksum.
-     *
-     * @param backup the backup entity to update
-     * @throws IOException if I/O error occurs
-     */
-    private void performBackup(Backup backup) throws IOException {
-        Path targetPath = Paths.get(backup.getFilePath());
-
-        if (databaseUrl.startsWith("jdbc:h2:file:")) {
-            performH2Backup(targetPath);
-        } else {
-            performFileBackup(targetPath);
-        }
-
-        // Calculate file size and checksum
-        long fileSize = Files.size(targetPath);
-        String checksum = calculateChecksum(targetPath);
-
-        // Update backup record
-        backup.setFileSize(fileSize);
-        backup.setChecksum(checksum);
-        backup.setStatus("COMPLETED");
-        backup.setUpdatedAt(LocalDateTime.now());
-        backupRepository.save(backup);
-
-        log.info(
-                "Backup completed: {} (Size: {}, Checksum: {})",
-                backup.getFilename(),
-                backup.getFormattedFileSize(),
-                checksum);
-    }
-
-    private void performH2Backup(Path targetPath) throws IOException {
-        String targetFile = targetPath.toAbsolutePath().toString().replace('\\', '/');
-        try (java.sql.Connection conn = dataSource.getConnection();
-                java.sql.Statement stmt = conn.createStatement()) {
-            stmt.execute("SCRIPT TO '" + targetFile + "' COMPRESSION GZIP");
-        } catch (java.sql.SQLException e) {
-            throw new IOException("H2 backup via SCRIPT failed", e);
-        }
-    }
-
-    private void restoreH2FromFile(Path backupPath) throws IOException {
-        // For H2 databases: validate the backup file is valid GZIP.
-        // Actual data replacement is skipped because H2 file locks prevent file-based
-        // restore on Windows, and SQL-based DROP ALL OBJECTS + RUNSCRIPT would destroy
-        // the live schema. Production uses SQLite with file-based restore.
-        try (InputStream in = Files.newInputStream(backupPath);
-                GZIPInputStream gzipIn = new GZIPInputStream(in)) {
-            byte[] buffer = new byte[8192];
-            while (gzipIn.read(buffer) != -1) {
-                // Read through to validate GZIP format
-            }
-        }
-        log.info("H2 restore validated from: {}", backupPath);
-    }
-
-    /**
-     * Replaces the live SQLite database file with the contents of a gzip-compressed backup
-     * stream.
-     *
-     * <p>Writing directly into the live database file (truncate-then-overwrite) is unsafe: a
-     * pooled connection can observe a partially-written (torn) file mid-copy and raise {@code
-     * SQLITE_CORRUPT}. A plain OS-level rename swap isn't reliable either, since Windows refuses
-     * to replace a file that still has open handles from pooled connections. Instead, the
-     * decompressed backup is opened as its own SQLite database and copied into the live file using
-     * SQLite's native online backup API (via sqlite-jdbc's {@code DB#backup}), which performs the
-     * copy under SQLite's own locking so concurrent readers/writers never observe a torn file.
-     *
-     * @param targetPath the live database file to replace
-     * @param compressedIn the gzip-compressed backup content
-     * @throws IOException if the temp file cannot be written or the restore fails
-     */
-    private void replaceDatabaseFile(Path targetPath, InputStream compressedIn) throws IOException {
-        Path parentDir = targetPath.toAbsolutePath().getParent();
-        Path tempDb = Files.createTempFile(parentDir, "restore-", ".db");
-        try {
-            try (GZIPInputStream gzipIn = new GZIPInputStream(compressedIn);
-                    OutputStream out =
-                            Files.newOutputStream(tempDb, StandardOpenOption.TRUNCATE_EXISTING)) {
-                byte[] buffer = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = gzipIn.read(buffer)) != -1) {
-                    out.write(buffer, 0, bytesRead);
-                }
-            }
-
-            try (Connection backupConn =
-                    DriverManager.getConnection("jdbc:sqlite:" + tempDb)) {
-                backupConn
-                        .unwrap(SQLiteConnection.class)
-                        .getDatabase()
-                        .backup("main", targetPath.toAbsolutePath().toString(), null);
-            } catch (SQLException e) {
-                throw new IOException("Failed to restore database via SQLite backup API", e);
-            }
-
-            evictConnectionPool();
-        } finally {
-            Files.deleteIfExists(tempDb);
-        }
-    }
-
-    /**
-     * Evicts pooled connections after a restore so subsequent requests don't keep using
-     * connections opened against pre-restore state.
-     */
-    private void evictConnectionPool() {
-        if (dataSource instanceof HikariDataSource hikariDataSource) {
-            hikariDataSource.getHikariPoolMXBean().softEvictConnections();
-        }
-    }
-
-    private void performFileBackup(Path targetPath) throws IOException {
-        // Extract database file path from JDBC URL
-        String dbFilePath = extractDatabasePath(databaseUrl);
-        Path sourcePath = Paths.get(dbFilePath);
-
-        if (!Files.exists(sourcePath)) {
-            throw BackupException.internal("Database file not found: " + dbFilePath);
-        }
-
-        // Copy and compress database file
-        try (InputStream in = Files.newInputStream(sourcePath);
-                OutputStream out = Files.newOutputStream(targetPath);
-                GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
-
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                gzipOut.write(buffer, 0, bytesRead);
-            }
-        }
-    }
-
-    /**
-     * Restores a backup from file.
-     *
-     * <p><b>Process:</b>
-     *
-     * <ol>
-     *   <li>Validate backup file integrity (checksum)
-     *   <li>Verify user ownership
-     *   <li>Create current database backup before restore
-     *   <li>Decompress backup file
-     *   <li>Replace current database with backup
-     *   <li>Verify restoration success
-     * </ol>
-     *
-     * <p><b>Requirement:</b> REQ-2.14.2.3
-     *
-     * @param userId the user ID requesting restore
-     * @param backupId the ID of the backup to restore
-     * @throws BackupException if restoration fails
-     */
-    @Transactional
-    public void restoreBackup(Long userId, Long backupId) {
-        log.info("Restoring backup ID: {} for user ID: {}", backupId, userId);
-
+    private Backup create(Long userId, String description, String type) {
+        requireSQLite();
+        String filename = "openfinance-backup-" + UUID.randomUUID() + ".ofbak";
+        Path target = Path.of(backupDirectory, filename);
         Backup backup =
-                backupRepository
-                        .findByIdAndUserId(backupId, userId)
-                        .orElseThrow(
-                                () ->
-                                        BackupException.notFound(
-                                                "Backup not found or access denied"));
-
-        if (!"COMPLETED".equals(backup.getStatus())) {
-            throw BackupException.validation("Cannot restore incomplete backup");
-        }
-
-        Path backupPath = Paths.get(backup.getFilePath());
-        if (!Files.exists(backupPath)) {
-            throw BackupException.notFound("Backup file not found: " + backup.getFilePath());
-        }
-
+                backupRepository.save(
+                        Backup.builder()
+                                .userId(userId)
+                                .filename(filename)
+                                .filePath(target.toString())
+                                .fileSize(0L)
+                                .checksum("")
+                                .status("IN_PROGRESS")
+                                .backupType(type)
+                                .description(description)
+                                .createdAt(LocalDateTime.now())
+                                .build());
+        Path temporary = null;
         try {
-            // Validate checksum
-            String currentChecksum = calculateChecksum(backupPath);
-            if (!currentChecksum.equals(backup.getChecksum())) {
-                throw BackupException.validation("Backup file corrupted (checksum mismatch)");
+            Files.createDirectories(target.toAbsolutePath().getParent());
+            temporary = Files.createTempFile("openfinance-user-backup-", ".db");
+            archives.write(userId, temporary);
+            try (InputStream input = Files.newInputStream(temporary);
+                    OutputStream output = new GZIPOutputStream(Files.newOutputStream(target))) {
+                input.transferTo(output);
             }
-
-            // Create safety backup of current database
-            createBackup(userId, "Auto-backup before restore");
-
-            if (databaseUrl.startsWith("jdbc:h2:file:")) {
-                restoreH2FromFile(backupPath);
-            } else {
-                // Extract database path
-                String dbFilePath = extractDatabasePath(databaseUrl);
-                Path targetPath = Paths.get(dbFilePath);
-
-                try (InputStream in = Files.newInputStream(backupPath)) {
-                    replaceDatabaseFile(targetPath, in);
-                }
-            }
-
-            log.info("Backup restored successfully: {}", backup.getFilename());
-
-        } catch (BackupException e) {
-            // Preserve intentional classification (e.g. checksum mismatch → VALIDATION).
-            throw e;
-        } catch (java.util.zip.ZipException e) {
-            // Uploaded/stored archive is not a valid gzip stream — a client-side bad-file problem.
-            log.warn("Backup archive is not a valid gzip stream: {}", e.getMessage());
-            throw BackupException.validation("Failed to restore backup: " + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("Failed to restore backup ID: {}", backupId, e);
-            throw BackupException.internal("Failed to restore backup: " + e.getMessage(), e);
+            backup.setFileSize(Files.size(target));
+            backup.setChecksum(calculateChecksum(target));
+            backup.setStatus("COMPLETED");
+            backup.setUpdatedAt(LocalDateTime.now());
+            return backupRepository.save(backup);
+        } catch (Exception ex) {
+            backup.setStatus("FAILED");
+            backup.setErrorMessage("Could not create backup");
+            backupRepository.save(backup);
+            deleteTemporary(target);
+            throw BackupException.internal("Could not create user backup", ex);
+        } finally {
+            deleteTemporary(temporary);
         }
     }
 
-    /**
-     * Restores a backup from uploaded file.
-     *
-     * @param userId the user ID
-     * @param file the uploaded backup file
-     * @throws BackupException if restoration fails
-     */
-    @Transactional
-    public void restoreBackupFromFile(Long userId, MultipartFile file) {
-        log.info("Restoring backup from uploaded file for user ID: {}", userId);
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void restoreBackup(Long userId, Long backupId) {
+        restoreBackup(userId, backupId, null);
+    }
 
-        if (file.isEmpty()) {
-            throw BackupException.validation("Uploaded file is empty");
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void restoreBackup(Long userId, Long backupId, String masterPassword) {
+        Backup backup = getBackup(userId, backupId);
+        if (!"COMPLETED".equals(backup.getStatus()))
+            throw BackupException.validation("Cannot restore incomplete backup");
+        Path path = Path.of(backup.getFilePath());
+        if (!Files.isRegularFile(path)) throw BackupException.notFound("Backup file not found");
+        try {
+            if (!calculateChecksum(path).equals(backup.getChecksum()))
+                throw BackupException.validation("Backup file corrupted (checksum mismatch)");
+            requireSQLite();
+            try (InputStream input = Files.newInputStream(path)) {
+                restore(userId, input, masterPassword);
+            }
+        } catch (IOException ex) {
+            throw BackupException.validation("Invalid backup file", ex);
         }
+    }
 
-        if (!file.getOriginalFilename().endsWith(BACKUP_FILE_EXTENSION)) {
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void restoreBackupFromFile(Long userId, MultipartFile file) {
+        restoreBackupFromFile(userId, file, null);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void restoreBackupFromFile(Long userId, MultipartFile file, String masterPassword) {
+        if (file.isEmpty()) throw BackupException.validation("Uploaded file is empty");
+        if (file.getOriginalFilename() == null || !file.getOriginalFilename().endsWith(".ofbak")) {
             throw BackupException.validation("Invalid backup file format. Expected .ofbak file");
         }
-
-        try {
-            // Save uploaded file temporarily
-            Path tempPath = Files.createTempFile("restore-", BACKUP_FILE_EXTENSION);
-            file.transferTo(tempPath.toFile());
-
-            // Create safety backup
-            createBackup(userId, "Auto-backup before restore from upload");
-
-            if (databaseUrl.startsWith("jdbc:h2:file:")) {
-                restoreH2FromFile(tempPath);
-            } else {
-                // Extract database path
-                String dbFilePath = extractDatabasePath(databaseUrl);
-                Path targetPath = Paths.get(dbFilePath);
-
-                try (InputStream in = Files.newInputStream(tempPath)) {
-                    replaceDatabaseFile(targetPath, in);
-                }
-            }
-
-            // Delete temp file
-            Files.deleteIfExists(tempPath);
-
-            log.info("Backup restored successfully from uploaded file");
-
-        } catch (BackupException e) {
-            // Preserve intentional classification (validation/notFound).
-            throw e;
-        } catch (java.util.zip.ZipException e) {
-            // Uploaded archive is not a valid gzip stream — a client-side bad-file problem.
-            log.warn("Uploaded backup archive is not a valid gzip stream: {}", e.getMessage());
-            throw BackupException.validation("Failed to restore backup: " + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("Failed to restore backup from uploaded file", e);
-            throw BackupException.internal("Failed to restore backup: " + e.getMessage(), e);
+        requireSQLite();
+        try (InputStream input = file.getInputStream()) {
+            restore(userId, input, masterPassword);
+        } catch (IOException ex) {
+            throw BackupException.validation("Invalid backup file", ex);
         }
     }
 
-    /**
-     * Lists all backups for a user.
-     *
-     * @param userId the user ID
-     * @return list of backups, ordered by creation date (newest first)
-     */
+    private void restore(Long userId, InputStream compressed, String masterPassword)
+            throws IOException {
+        Path temporary = Files.createTempFile("openfinance-user-restore-", ".db");
+        try {
+            expand(compressed, temporary);
+            createBackup(userId, "Safety backup before restore");
+            archives.restore(userId, temporary, masterPassword);
+        } finally {
+            deleteTemporary(temporary);
+        }
+    }
+
+    private void expand(InputStream compressed, Path temporary) throws IOException {
+        try (InputStream input = new GZIPInputStream(compressed);
+                OutputStream output = Files.newOutputStream(temporary)) {
+            byte[] buffer = new byte[8192];
+            long total = 0;
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                total += count;
+                if (total > maxExpandedBytes)
+                    throw BackupException.validation(
+                            "Expanded backup exceeds the configured size limit");
+                output.write(buffer, 0, count);
+            }
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<Backup> listBackups(Long userId) {
-        log.debug("Listing backups for user ID: {}", userId);
         return backupRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
-    /**
-     * Gets a specific backup by ID (with ownership verification).
-     *
-     * @param userId the user ID
-     * @param backupId the backup ID
-     * @return Backup entity
-     * @throws BackupException if backup not found or access denied
-     */
     @Transactional(readOnly = true)
     public Backup getBackup(Long userId, Long backupId) {
         return backupRepository
@@ -481,177 +190,79 @@ public class BackupService {
                 .orElseThrow(() -> BackupException.notFound("Backup not found or access denied"));
     }
 
-    /**
-     * Downloads a backup file.
-     *
-     * @param userId the user ID
-     * @param backupId the backup ID
-     * @return InputStream of the backup file
-     * @throws BackupException if backup not found or file missing
-     */
     @Transactional(readOnly = true)
     public InputStream downloadBackup(Long userId, Long backupId) {
         Backup backup = getBackup(userId, backupId);
-
-        Path backupPath = Paths.get(backup.getFilePath());
-        if (!Files.exists(backupPath)) {
-            throw BackupException.notFound("Backup file not found: " + backup.getFilePath());
-        }
-
+        if (!"COMPLETED".equals(backup.getStatus()))
+            throw BackupException.validation("Cannot download incomplete backup");
+        Path temporary = null;
         try {
-            return Files.newInputStream(backupPath);
-        } catch (IOException e) {
-            throw BackupException.internal("Failed to read backup file", e);
+            Path source = Path.of(backup.getFilePath());
+            if (!Files.isRegularFile(source))
+                throw BackupException.notFound("Backup file not found");
+            temporary = Files.createTempFile("openfinance-download-check-", ".db");
+            try (InputStream input = Files.newInputStream(source)) {
+                expand(input, temporary);
+            }
+            // Legacy whole-instance files may contain other users, even when their metadata is
+            // owned.
+            archives.validateDownload(userId, temporary);
+            return Files.newInputStream(source);
+        } catch (IOException ex) {
+            throw BackupException.validation("Invalid portable user backup", ex);
+        } finally {
+            deleteTemporary(temporary);
         }
     }
 
-    /**
-     * Deletes a backup.
-     *
-     * @param userId the user ID
-     * @param backupId the backup ID
-     * @throws BackupException if deletion fails
-     */
     @Transactional
     public void deleteBackup(Long userId, Long backupId) {
-        log.info("Deleting backup ID: {} for user ID: {}", backupId, userId);
-
         Backup backup = getBackup(userId, backupId);
-
-        // Delete physical file
         try {
-            Path backupPath = Paths.get(backup.getFilePath());
-            Files.deleteIfExists(backupPath);
-        } catch (IOException e) {
-            log.warn("Failed to delete backup file: {}", backup.getFilePath(), e);
+            Files.deleteIfExists(Path.of(backup.getFilePath()));
+        } catch (IOException ex) {
+            throw BackupException.internal("Could not delete backup file", ex);
         }
-
-        // Delete database record
         backupRepository.delete(backup);
-        log.info("Backup deleted: {}", backup.getFilename());
     }
 
-    /**
-     * Rotates automatic backups, keeping only the last N backups.
-     *
-     * <p><b>Requirement:</b> REQ-2.14.2.2
-     *
-     * @param userId the user ID
-     */
-    private void rotateAutomaticBackups(Long userId) {
-        log.debug("Rotating automatic backups for user ID: {}", userId);
-
-        List<Backup> automaticBackups =
-                backupRepository.findByUserIdAndBackupTypeOrderByCreatedAtDesc(userId, "AUTOMATIC");
-
-        if (automaticBackups.size() > retentionCount) {
-            List<Backup> backupsToDelete =
-                    automaticBackups.subList(retentionCount, automaticBackups.size());
-
-            for (Backup backup : backupsToDelete) {
-                try {
-                    deleteBackup(userId, backup.getId());
-                } catch (Exception e) {
-                    log.warn("Failed to delete old backup: {}", backup.getFilename(), e);
-                }
-            }
-
-            log.info(
-                    "Rotated {} old automatic backups for user ID: {}",
-                    backupsToDelete.size(),
-                    userId);
-        }
-    }
-
-    /**
-     * Scheduled automatic backup job. Runs every Sunday at 2:00 AM by default.
-     *
-     * <p><b>Requirement:</b> REQ-2.14.2.2
-     */
     @Scheduled(cron = "${app.backup.schedule.cron:0 0 2 * * SUN}")
     public void scheduledBackup() {
-        if (!scheduleEnabled) {
-            log.debug("Automatic backup scheduler is disabled");
-            return;
+        if (!scheduleEnabled || !databaseUrl.startsWith("jdbc:sqlite:")) return;
+        for (User user : userRepository.findAll()) {
+            try {
+                createAutomaticBackup(user.getId());
+            } catch (RuntimeException ex) {
+                log.error("Scheduled user backup failed for user {}", user.getId(), ex);
+            }
         }
-
-        log.info("Starting scheduled automatic backups");
-
-        // In a real implementation, you would iterate over all users
-        // For now, this is a placeholder that can be called manually
-        log.warn(
-                "Scheduled backup: User iteration not implemented. Backups must be triggered per-user.");
     }
 
-    /**
-     * Extracts the database file path from a JDBC URL. Supports SQLite and H2 file-based databases.
-     *
-     * @param jdbcUrl the JDBC connection URL
-     * @return file path (e.g., openfinance.db or ./target/test-db/backup-test.mv.db)
-     */
-    private String extractDatabasePath(String jdbcUrl) {
-        String path;
-
-        // Handle SQLite URLs: jdbc:sqlite:path/to/database.db
-        if (jdbcUrl.startsWith("jdbc:sqlite:")) {
-            path = jdbcUrl.replaceFirst("^jdbc:sqlite:", "");
-        }
-        // Handle H2 file-based URLs: jdbc:h2:file:path/to/database
-        else if (jdbcUrl.startsWith("jdbc:h2:file:")) {
-            path = jdbcUrl.replaceFirst("^jdbc:h2:file:", "");
-        }
-        // Handle H2 mem URLs (in-memory databases don't have files)
-        else if (jdbcUrl.startsWith("jdbc:h2:mem:")) {
-            return jdbcUrl; // Return URL as-is to trigger "not found" error with clear message
-        } else {
-            // Unsupported database type
-            return jdbcUrl; // Return URL as-is to trigger "not found" error
-        }
-
-        // Remove query parameters (everything after ? or ;) BEFORE adding extension
-        int queryIndex =
-                Math.min(
-                        path.indexOf('?') >= 0 ? path.indexOf('?') : Integer.MAX_VALUE,
-                        path.indexOf(';') >= 0 ? path.indexOf(';') : Integer.MAX_VALUE);
-        if (queryIndex < Integer.MAX_VALUE) {
-            path = path.substring(0, queryIndex);
-        }
-
-        // Add .mv.db extension for H2 files AFTER removing query parameters
-        if (jdbcUrl.startsWith("jdbc:h2:file:") && !path.endsWith(".mv.db")) {
-            path = path + ".mv.db";
-        }
-
-        return path;
+    private void requireSQLite() {
+        if (!databaseUrl.startsWith("jdbc:sqlite:"))
+            throw BackupException.validation("User backups are available for SQLite instances");
     }
 
-    /**
-     * Calculates SHA-256 checksum of a file.
-     *
-     * @param filePath the file path
-     * @return hex-encoded checksum
-     * @throws IOException if I/O error occurs
-     */
-    private String calculateChecksum(Path filePath) throws IOException {
+    private static String calculateChecksum(Path path) throws IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            try (InputStream in = Files.newInputStream(filePath)) {
+            try (InputStream input = Files.newInputStream(path)) {
                 byte[] buffer = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    digest.update(buffer, 0, bytesRead);
-                }
+                int count;
+                while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
             }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
 
-            byte[] hashBytes = digest.digest();
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-
-        } catch (Exception e) {
-            throw new IOException("Failed to calculate checksum", e);
+    private static void deleteTemporary(Path path) {
+        if (path == null) return;
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ex) {
+            log.warn("Could not remove temporary backup file {}", path, ex);
         }
     }
 }

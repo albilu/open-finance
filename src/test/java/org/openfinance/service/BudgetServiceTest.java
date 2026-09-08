@@ -37,6 +37,7 @@ import org.openfinance.entity.BudgetPeriod;
 import org.openfinance.entity.Category;
 import org.openfinance.entity.CategoryType;
 import org.openfinance.entity.Transaction;
+import org.openfinance.entity.TransactionSplit;
 import org.openfinance.entity.TransactionType;
 import org.openfinance.exception.BudgetNotFoundException;
 import org.openfinance.exception.CategoryNotFoundException;
@@ -88,6 +89,8 @@ class BudgetServiceTest {
     @Mock private SearchTokenService searchTokenService;
 
     @Mock private DefaultCurrencyProvider defaultCurrencyProvider;
+
+    @Mock private ExchangeRateService exchangeRateService;
 
     @InjectMocks private BudgetService budgetService;
 
@@ -518,6 +521,44 @@ class BudgetServiceTest {
         assertThat(responses).hasSize(1);
         assertThat(responses.get(0).getPeriod()).isEqualTo(BudgetPeriod.MONTHLY);
         verify(budgetRepository).findByUserIdAndPeriod(1L, BudgetPeriod.MONTHLY);
+    }
+
+    @Test
+    void shouldConvertParentAndSplitSpendingAtTheirTransactionDates() {
+        testBudget.setCurrency("USD");
+        LocalDate date = LocalDate.of(2026, 2, 10);
+        Transaction transaction =
+                Transaction.builder()
+                        .id(1L)
+                        .userId(1L)
+                        .categoryId(1L)
+                        .amount(new BigDecimal("100"))
+                        .currency("EUR")
+                        .type(TransactionType.EXPENSE)
+                        .date(date)
+                        .build();
+        TransactionSplit split =
+                TransactionSplit.builder()
+                        .id(2L)
+                        .transactionId(3L)
+                        .categoryId(1L)
+                        .amount(new BigDecimal("25"))
+                        .transaction(transaction)
+                        .build();
+        when(budgetRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testBudget));
+        when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory));
+        when(transactionRepository.findByCategoryIdInAndDateRange(
+                        anyList(), any(), any(), anyLong()))
+                .thenReturn(List.of(transaction));
+        when(transactionSplitRepository.findByCategoryIdInAndDateRange(
+                        anyList(), any(), any(), anyLong()))
+                .thenReturn(List.of(split));
+        when(exchangeRateService.convert(new BigDecimal("100"), "EUR", "USD", date))
+                .thenReturn(new BigDecimal("120"));
+        when(exchangeRateService.convert(new BigDecimal("25"), "EUR", "USD", date))
+                .thenReturn(new BigDecimal("30"));
+        assertThat(budgetService.calculateBudgetProgress(1L, 1L).getSpent())
+                .isEqualByComparingTo("150");
     }
 
     // ========== BUDGET PROGRESS TESTS ==========

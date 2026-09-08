@@ -133,7 +133,8 @@ class SkroogeJsonImportFlowE2ETest {
                                 "file",
                                 "synthetic_skrooge.json",
                                 "application/json",
-                                syntheticSkroogeJson().getBytes(StandardCharsets.UTF_8)));
+                                syntheticSkroogeJson().getBytes(StandardCharsets.UTF_8)),
+                        userId);
 
         ImportSession session =
                 importService.startImport(uploadId, userId, null, "synthetic_skrooge.json");

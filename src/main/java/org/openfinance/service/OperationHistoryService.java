@@ -238,6 +238,8 @@ public class OperationHistoryService {
     private OperationHistoryResponse toResponse(OperationHistory h) {
         return OperationHistoryResponse.builder()
                 .id(h.getId())
+                .canUndo(h.canUndo())
+                .canRedo(false)
                 .entityType(h.getEntityType())
                 .entityId(h.getEntityId())
                 .entityLabel(h.getEntityLabel())

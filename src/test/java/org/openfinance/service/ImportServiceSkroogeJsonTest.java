@@ -184,7 +184,7 @@ class ImportServiceSkroogeJsonTest {
                         .build();
 
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(session));
-        when(fileStorageService.getFileContent(UPLOAD_ID))
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID))
                 .thenReturn(new ByteArrayInputStream("{}".getBytes()));
         when(skroogeJsonParser.parseFile(any(InputStream.class), eq("my_export.json")))
                 .thenReturn(parseResult);
@@ -215,7 +215,7 @@ class ImportServiceSkroogeJsonTest {
                         .build();
 
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(session));
-        when(fileStorageService.getFileContent(UPLOAD_ID))
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID))
                 .thenReturn(new ByteArrayInputStream("{}".getBytes()));
         when(importSessionRepository.save(any(ImportSession.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));

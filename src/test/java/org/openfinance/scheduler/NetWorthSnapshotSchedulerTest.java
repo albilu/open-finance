@@ -36,6 +36,8 @@ class NetWorthSnapshotSchedulerTest {
     @Mock private UserRepository userRepository;
     @Mock private SchedulerProperties schedulerProperties;
     @Mock private EncryptionKeyCache encryptionKeyCache;
+    @Mock private org.openfinance.config.EncryptionProperties encryptionProperties;
+    @Mock private org.openfinance.security.UserEncryptionLock userEncryptionLock;
     @Mock private DefaultCurrencyProvider defaultCurrencyProvider;
 
     @InjectMocks private NetWorthSnapshotScheduler scheduler;
@@ -45,11 +47,29 @@ class NetWorthSnapshotSchedulerTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(encryptionProperties.isEnabled()).thenReturn(true);
         schedulerConfig = new SchedulerProperties.SchedulerConfig();
         when(schedulerProperties.getNetWorthSnapshot()).thenReturn(schedulerConfig);
         when(encryptionKeyCache.getKey(anyLong())).thenReturn(Optional.of(TEST_KEY));
         org.openfinance.testutil.DefaultCurrencyProviderMocks.stub(
                 defaultCurrencyProvider, userRepository);
+    }
+
+    @Test
+    void shouldProcessUsersWithoutKeysWhenEncryptionIsDisabled() {
+        when(encryptionProperties.isEnabled()).thenReturn(false);
+        when(encryptionKeyCache.getKey(1L)).thenReturn(java.util.Optional.empty());
+        when(userRepository.findAll())
+                .thenReturn(
+                        java.util.List.of(
+                                org.openfinance.entity.User.builder()
+                                        .id(1L)
+                                        .baseCurrency("EUR")
+                                        .build()));
+        scheduler.createDailyNetWorthSnapshots();
+        verify(netWorthService)
+                .saveNetWorthSnapshot(eq(1L), any(java.time.LocalDate.class), eq("EUR"));
+        assertThat(org.openfinance.security.EncryptionContext.getKey()).isNull();
     }
 
     @Test

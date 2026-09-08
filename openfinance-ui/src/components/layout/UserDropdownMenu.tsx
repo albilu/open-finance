@@ -1,7 +1,7 @@
 /**
  * UserDropdownMenu Component
  * Task 4.3.13: User profile dropdown menu for TopBar
- * 
+ *
  * Provides user menu with profile, settings, help, and logout options.
  * Displays the user's profile image (if uploaded) or their initials as a fallback.
  */
@@ -11,11 +11,15 @@ import { ROUTES } from '@/constants/routes';
 import { useTranslation } from 'react-i18next';
 import { User, Settings, HelpCircle, LogOut, ChevronDown } from 'lucide-react';
 import { useAuthContext } from '@/context/AuthContext';
+import { useLogout } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
 /** Returns up to 2 initials from a username string. */
 function getInitials(username: string): string {
-  const parts = username.trim().split(/[\s._-]+/).filter(Boolean);
+  const parts = username
+    .trim()
+    .split(/[\s._-]+/)
+    .filter(Boolean);
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -25,7 +29,8 @@ export function UserDropdownMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { user, clearAuth } = useAuthContext();
+  const { user } = useAuthContext();
+  const handleLogout = useLogout();
   const { t } = useTranslation('navigation');
 
   // Close dropdown when clicking outside
@@ -55,11 +60,6 @@ export function UserDropdownMenu() {
       return () => document.removeEventListener('keydown', handleEscape);
     }
   }, [isOpen]);
-
-  const handleLogout = async () => {
-    clearAuth();
-    navigate(ROUTES.LOGIN);
-  };
 
   const menuItems = [
     {
@@ -102,7 +102,11 @@ export function UserDropdownMenu() {
   const AvatarSmall = (
     <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-primary flex items-center justify-center">
       {profileImage ? (
-        <img src={profileImage} alt={`${username}'s avatar`} className="w-full h-full object-cover" />
+        <img
+          src={profileImage}
+          alt={`${username}'s avatar`}
+          className="w-full h-full object-cover"
+        />
       ) : (
         <span className="text-xs font-bold text-background select-none">{initials}</span>
       )}
@@ -112,7 +116,11 @@ export function UserDropdownMenu() {
   const AvatarLarge = (
     <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-primary flex items-center justify-center">
       {profileImage ? (
-        <img src={profileImage} alt={`${username}'s avatar`} className="w-full h-full object-cover" />
+        <img
+          src={profileImage}
+          alt={`${username}'s avatar`}
+          className="w-full h-full object-cover"
+        />
       ) : (
         <span className="text-sm font-bold text-background select-none">{initials}</span>
       )}
@@ -130,9 +138,7 @@ export function UserDropdownMenu() {
         aria-haspopup="true"
       >
         {AvatarSmall}
-        <span className="hidden md:block text-sm font-medium text-text-primary">
-          {username}
-        </span>
+        <span className="hidden md:block text-sm font-medium text-text-primary">{username}</span>
         <ChevronDown
           size={16}
           className={cn(
@@ -163,7 +169,7 @@ export function UserDropdownMenu() {
 
           {/* Menu items */}
           <div className="py-1">
-            {menuItems.map((item) => {
+            {menuItems.map(item => {
               const Icon = item.icon;
               return (
                 <button
@@ -190,4 +196,3 @@ export function UserDropdownMenu() {
 }
 
 export default UserDropdownMenu;
-

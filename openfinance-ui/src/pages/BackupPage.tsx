@@ -1,16 +1,28 @@
 /**
  * BackupPage Component
  * Task 12.5.6: Create BackupPage component
- * 
+ *
  * Main page for managing database backups and restore operations
  * Requirements: REQ-2.14.2 (Data Backup & Restore)
  */
 import { useState } from 'react';
 import { Download, RefreshCw, Trash2, Upload, Database, Clock, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocale } from '@/context/LocaleContext';
+import { useAuthContext } from '@/context/AuthContext';
+import { useCurrencyDisplay } from '@/context/CurrencyDisplayContext';
+import apiClient from '@/services/apiClient';
+import type { User, UserSettings } from '@/types/user';
 import { Button } from '@/components/ui/Button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EmptyState } from '@/components/layout/EmptyState';
@@ -30,13 +42,17 @@ import type { BackupResponse, BackupStatus, BackupType } from '@/types/backup';
 
 export default function BackupPage() {
   const { t } = useTranslation('backup');
-  const { locale } = useLocale();
+  const { locale, setLocale } = useLocale();
+  const { updateUser } = useAuthContext();
+  const { setDisplayMode, setSecondaryCurrency } = useCurrencyDisplay();
+  const queryClient = useQueryClient();
   useDocumentTitle(t('title'));
 
   // State management
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [backupDescription, setBackupDescription] = useState('');
+  const [masterPassword, setMasterPassword] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [deletingBackup, setDeletingBackup] = useState<BackupResponse | null>(null);
   const [restoringBackup, setRestoringBackup] = useState<BackupResponse | null>(null);
@@ -49,7 +65,51 @@ export default function BackupPage() {
   const deleteBackup = useDeleteBackup();
   const downloadBackup = useDownloadBackup();
 
+  const passwordField = (
+    <div className="space-y-2 py-3">
+      <label htmlFor="backup-master-password" className="text-sm font-medium">
+        {t('masterPassword.label')}
+      </label>
+      <input
+        id="backup-master-password"
+        type="password"
+        autoComplete="off"
+        className="w-full rounded-md border border-input bg-background p-2"
+        value={masterPassword}
+        onChange={event => setMasterPassword(event.target.value)}
+      />
+      <p className="text-xs text-muted-foreground">{t('masterPassword.help')}</p>
+    </div>
+  );
+
   // Handlers
+  const refreshRestoredPreferences = async (message: string) => {
+    try {
+      const [profile, settings] = await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: ['user', 'profile'],
+          queryFn: async () => (await apiClient.get<User>('/users/me')).data,
+        }),
+        queryClient.fetchQuery({
+          queryKey: ['user', 'settings'],
+          queryFn: async () => (await apiClient.get<UserSettings>('/users/me/settings')).data,
+        }),
+      ]);
+      updateUser({
+        baseCurrency: profile.baseCurrency,
+        profileImage: profile.profileImage ?? null,
+      });
+      setDisplayMode(settings.amountDisplayMode ?? 'base');
+      setSecondaryCurrency(settings.secondaryCurrency ?? null);
+      if (settings.language) await setLocale(settings.language);
+    } catch {
+      // The restore committed successfully even if refreshing the view fails.
+      alert(t('alerts.restoreRefreshFailed'));
+      return;
+    }
+    alert(t('alerts.restoreSuccess', { message }));
+  };
+
   const handleCreateBackup = async () => {
     try {
       await createBackup.mutateAsync(backupDescription || undefined);
@@ -64,9 +124,13 @@ export default function BackupPage() {
     if (!restoringBackup) return;
 
     try {
-      const message = await restoreBackup.mutateAsync(restoringBackup.id);
-      alert(t('alerts.restoreSuccess', { message }));
+      const message = await restoreBackup.mutateAsync({
+        backupId: restoringBackup.id,
+        masterPassword: masterPassword || undefined,
+      });
+      setMasterPassword('');
       setRestoringBackup(null);
+      await refreshRestoredPreferences(message);
     } catch (error) {
       console.error('Failed to restore backup:', error);
       alert(t('alerts.restoreFailed'));
@@ -77,10 +141,14 @@ export default function BackupPage() {
     if (!selectedFile) return;
 
     try {
-      const message = await uploadAndRestore.mutateAsync(selectedFile);
-      alert(t('alerts.restoreSuccess', { message }));
+      const message = await uploadAndRestore.mutateAsync({
+        file: selectedFile,
+        masterPassword: masterPassword || undefined,
+      });
+      setMasterPassword('');
       setIsUploadDialogOpen(false);
       setSelectedFile(null);
+      await refreshRestoredPreferences(message);
     } catch (error) {
       console.error('Failed to upload and restore backup:', error);
       alert(t('alerts.restoreFailed'));
@@ -103,6 +171,7 @@ export default function BackupPage() {
       await downloadBackup.mutateAsync({ backupId: backup.id, filename: backup.filename });
     } catch (error) {
       console.error('Failed to download backup:', error);
+      alert(t('alerts.downloadFailed'));
     }
   };
 
@@ -177,10 +246,7 @@ export default function BackupPage() {
     <div className="p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <PageHeader
-          title={t('title')}
-          description={t('description')}
-        />
+        <PageHeader title={t('title')} description={t('description')} />
         <div className="flex gap-3 shrink-0">
           <Button variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
@@ -241,13 +307,11 @@ export default function BackupPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {backups.map((backup) => (
+              {backups.map(backup => (
                 <tr key={backup.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-foreground">
-                        {backup.filename}
-                      </span>
+                      <span className="text-sm font-medium text-foreground">{backup.filename}</span>
                       {backup.description && (
                         <span className="text-xs text-muted-foreground mt-1">
                           {backup.description}
@@ -270,12 +334,8 @@ export default function BackupPage() {
                       {formatDate(backup.createdAt)}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    {getTypeBadge(backup.backupType)}
-                  </td>
-                  <td className="px-6 py-4">
-                    {getStatusBadge(backup.status)}
-                  </td>
+                  <td className="px-6 py-4">{getTypeBadge(backup.backupType)}</td>
+                  <td className="px-6 py-4">{getStatusBadge(backup.status)}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <Button
@@ -318,15 +378,13 @@ export default function BackupPage() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{t('createDialog.title')}</DialogTitle>
-            <DialogDescription>
-              {t('createDialog.description')}
-            </DialogDescription>
+            <DialogDescription>{t('createDialog.description')}</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
               label={t('createDialog.descriptionLabel')}
               value={backupDescription}
-              onChange={(e) => setBackupDescription(e.target.value)}
+              onChange={e => setBackupDescription(e.target.value)}
               placeholder={t('createDialog.descriptionPlaceholder')}
               maxLength={200}
             />
@@ -354,13 +412,17 @@ export default function BackupPage() {
       </Dialog>
 
       {/* Upload Backup Dialog */}
-      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+      <Dialog
+        open={isUploadDialogOpen}
+        onOpenChange={open => {
+          setIsUploadDialogOpen(open);
+          if (!open) setMasterPassword('');
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{t('uploadDialog.title')}</DialogTitle>
-            <DialogDescription>
-              {t('uploadDialog.description')}
-            </DialogDescription>
+            <DialogDescription>{t('uploadDialog.description')}</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
@@ -387,12 +449,11 @@ export default function BackupPage() {
             <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-warning">
-                  {t('uploadDialog.warning')}
-                </p>
+                <p className="text-xs text-warning">{t('uploadDialog.warning')}</p>
               </div>
             </div>
           </div>
+          {passwordField}
           <DialogFooter>
             <Button
               variant="ghost"
@@ -418,19 +479,28 @@ export default function BackupPage() {
       {/* Restore Confirmation Dialog */}
       <ConfirmationDialog
         open={!!restoringBackup}
-        onOpenChange={(open) => !open && setRestoringBackup(null)}
+        onOpenChange={open => {
+          if (!open) {
+            setRestoringBackup(null);
+            setMasterPassword('');
+          }
+        }}
         onConfirm={handleRestoreBackup}
         title={t('restoreDialog.title')}
-        description={t('restoreDialog.description', { date: restoringBackup ? formatDate(restoringBackup.createdAt) : '' })}
+        description={t('restoreDialog.description', {
+          date: restoringBackup ? formatDate(restoringBackup.createdAt) : '',
+        })}
         confirmText={t('restoreDialog.confirmText')}
         variant="warning"
         loading={restoreBackup.isPending}
-      />
+      >
+        {passwordField}
+      </ConfirmationDialog>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         open={!!deletingBackup}
-        onOpenChange={(open) => !open && setDeletingBackup(null)}
+        onOpenChange={open => !open && setDeletingBackup(null)}
         onConfirm={handleDeleteBackup}
         title={t('deleteDialog.title')}
         description={t('deleteDialog.description', { filename: deletingBackup?.filename })}

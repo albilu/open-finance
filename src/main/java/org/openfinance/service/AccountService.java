@@ -72,6 +72,8 @@ public class AccountService {
     private final AccountMapper accountMapper;
     private final EncryptionService encryptionService;
     private final TransactionRepository transactionRepository;
+    private final org.springframework.beans.factory.ObjectProvider<TransactionService>
+            transactionService;
     private final InstitutionService institutionService;
     private final InstitutionRepository institutionRepository;
     private final InterestRateVariationRepository interestRateVariationRepository;
@@ -619,6 +621,14 @@ public class AccountService {
                 accountRepository
                         .findByIdAndUserId(accountId, userId)
                         .orElseThrow(() -> AccountNotFoundException.byIdAndUser(accountId, userId));
+
+        java.util.Set<String> reversedTransfers = new java.util.HashSet<>();
+        for (org.openfinance.entity.Transaction transaction :
+                transactionRepository.findActiveForAccountDeletion(accountId, userId)) {
+            if (transaction.getTransferId() != null
+                    && !reversedTransfers.add(transaction.getTransferId())) continue;
+            transactionService.getObject().deleteTransaction(transaction.getId(), userId);
+        }
 
         // Hard-delete every transaction referencing this account, including soft-deleted rows.
         // The transactions FK is ON DELETE RESTRICT, so any lingering soft-deleted transaction
@@ -1236,14 +1246,11 @@ public class AccountService {
         List<org.openfinance.entity.Transaction> transactions =
                 transactionRepository
                         .findByAccountIdAndTransactionDateBetweenOrderByTransactionDateAsc(
-                                accountId, startDate, endDate);
+                                accountId, account.getOpeningDate(), endDate);
 
         // Calculate daily balances
         java.math.BigDecimal openingBalance = account.getOpeningBalance();
         java.math.BigDecimal runningBalance = openingBalance;
-
-        // Determine if we need to negate transaction amounts (for credit cards)
-        boolean isCreditCard = account.getType() == org.openfinance.entity.AccountType.CREDIT_CARD;
 
         // Map to store total transaction amount per day
         java.util.Map<java.time.LocalDate, java.math.BigDecimal> dailyTxAmounts =
@@ -1254,10 +1261,7 @@ public class AccountService {
             java.time.LocalDate txDate = transaction.getDate();
             java.math.BigDecimal txAmount = transaction.getAmount();
 
-            // For credit cards, charges increase balance (negative amount means expense,
-            // but increases debt)
-            // So we negate to get the correct sign for the balance calculation
-            if (isCreditCard) {
+            if (transaction.getType() == org.openfinance.entity.TransactionType.EXPENSE) {
                 txAmount = txAmount.negate();
             }
 
@@ -1270,7 +1274,9 @@ public class AccountService {
                 new java.util.LinkedHashMap<>();
 
         // Add opening date balance
-        dailyBalances.put(account.getOpeningDate(), openingBalance);
+        java.time.LocalDate firstDate =
+                startDate.isBefore(account.getOpeningDate()) ? account.getOpeningDate() : startDate;
+        dailyBalances.put(firstDate, openingBalance);
 
         // Process each day in order
         for (java.util.Map.Entry<java.time.LocalDate, java.math.BigDecimal> entry :
@@ -1280,7 +1286,7 @@ public class AccountService {
 
             // Add the day's total to running balance
             runningBalance = runningBalance.add(dayTotal);
-            dailyBalances.put(txDate, runningBalance);
+            dailyBalances.put(txDate.isBefore(firstDate) ? firstDate : txDate, runningBalance);
         }
 
         // Convert to list sorted by date

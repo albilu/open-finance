@@ -99,6 +99,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class LiabilityService {
 
     private final LiabilityRepository liabilityRepository;
+    private final org.openfinance.repository.AssetRepository backingAssetRepository;
     private final CurrencyRepository currencyRepository;
     private final EncryptionService encryptionService;
     private final TransactionRepository transactionRepository;
@@ -1563,6 +1564,16 @@ public class LiabilityService {
                 (purchasePrice == null ? BigDecimal.ZERO : purchasePrice).add(request.getAmount());
         property.setPurchasePrice(updatedPurchase.toPlainString());
         RealEstateProperty savedProperty = realEstateRepository.save(property);
+        if (savedProperty.getAssetId() != null) {
+            org.openfinance.entity.Asset asset =
+                    backingAssetRepository
+                            .findByIdAndUserId(savedProperty.getAssetId(), userId)
+                            .orElseThrow();
+            asset.setCurrentPrice(updatedValue);
+            asset.setPurchasePrice(updatedPurchase);
+            backingAssetRepository.save(asset);
+        }
+
         realEstateValueHistoryRepository.save(
                 RealEstateValueHistory.builder()
                         .propertyId(savedProperty.getId())

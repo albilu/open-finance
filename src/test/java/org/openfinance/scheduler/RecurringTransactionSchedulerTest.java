@@ -31,7 +31,10 @@ class RecurringTransactionSchedulerTest {
 
     @Mock private RecurringTransactionService recurringTransactionService;
     @Mock private SchedulerProperties schedulerProperties;
+    @Mock private org.openfinance.repository.UserRepository userRepository;
     @Mock private EncryptionKeyCache encryptionKeyCache;
+    @Mock private org.openfinance.config.EncryptionProperties encryptionProperties;
+    @Mock private org.openfinance.security.UserEncryptionLock userEncryptionLock;
 
     @InjectMocks private RecurringTransactionScheduler scheduler;
 
@@ -43,8 +46,28 @@ class RecurringTransactionSchedulerTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(encryptionProperties.isEnabled()).thenReturn(true);
         schedulerConfig = new SchedulerProperties.SchedulerConfig();
         when(schedulerProperties.getRecurringTransactions()).thenReturn(schedulerConfig);
+    }
+
+    @Test
+    void shouldProcessUsersWithoutKeysWhenEncryptionIsDisabled() {
+        when(encryptionProperties.isEnabled()).thenReturn(false);
+        when(encryptionKeyCache.getKey(1L)).thenReturn(java.util.Optional.empty());
+        when(userRepository.findAll())
+                .thenReturn(
+                        java.util.List.of(org.openfinance.entity.User.builder().id(1L).build()));
+        when(recurringTransactionService.processRecurringTransactionsForUser(1L))
+                .thenAnswer(
+                        invocation -> {
+                            assertThat(EncryptionContext.getKey()).isNull();
+                            return new RecurringTransactionService.ProcessingResult(
+                                    1, 0, java.util.List.of());
+                        });
+        scheduler.processRecurringTransactions();
+        verify(recurringTransactionService).processRecurringTransactionsForUser(1L);
+        assertThat(org.openfinance.security.EncryptionContext.getKey()).isNull();
     }
 
     @Test

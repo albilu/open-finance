@@ -28,6 +28,21 @@ import org.springframework.web.multipart.MultipartFile;
 @DisplayName("FileStorageService Tests")
 class FileStorageServiceTest {
 
+    @Test
+    @DisplayName("Uploads remain private across users and service restarts; prefixes never resolve")
+    void shouldIsolateUploadedFiles() throws IOException {
+        MultipartFile file =
+                new MockMultipartFile("file", "private.qif", "text/plain", new byte[] {1});
+        String id = fileStorageService.storeFile(file, 1L);
+        FileStorageService restarted = new FileStorageService(testTempDirectory.toString(), 24);
+        assertTrue(restarted.fileExists(id, 1L));
+        assertFalse(restarted.fileExists(id, 2L));
+        assertFalse(restarted.fileExists(id.substring(0, 1), 1L));
+        assertThrows(IOException.class, () -> restarted.getFileContent(id, 2L));
+        assertThrows(IOException.class, () -> restarted.deleteFile(id, 2L));
+        assertTrue(restarted.fileExists(id, 1L));
+    }
+
     private FileStorageService fileStorageService;
     private Path testTempDirectory;
 
@@ -68,14 +83,14 @@ class FileStorageServiceTest {
                 new MockMultipartFile("file", "transactions.qif", "text/plain", content.getBytes());
 
         // When
-        String uploadId = fileStorageService.storeFile(file);
+        String uploadId = fileStorageService.storeFile(file, 1L);
 
         // Then
         assertNotNull(uploadId);
         assertFalse(uploadId.isEmpty());
 
         // Verify file exists
-        Path storedFile = fileStorageService.getFile(uploadId);
+        Path storedFile = fileStorageService.getFile(uploadId, 1L);
         assertTrue(Files.exists(storedFile));
         assertEquals(content, Files.readString(storedFile));
     }
@@ -88,10 +103,10 @@ class FileStorageServiceTest {
                 new MockMultipartFile("file", "test.qif", "text/plain", "!Type:Bank\n".getBytes());
 
         // When
-        String uploadId = fileStorageService.storeFile(qifFile);
+        String uploadId = fileStorageService.storeFile(qifFile, 1L);
 
         // Then
-        Path storedFile = fileStorageService.getFile(uploadId);
+        Path storedFile = fileStorageService.getFile(uploadId, 1L);
         assertTrue(storedFile.getFileName().toString().endsWith(".qif"));
     }
 
@@ -105,10 +120,10 @@ class FileStorageServiceTest {
                         "test.csv",
                         "text/csv",
                         "Date,Amount\n2024-01-15,100.00\n".getBytes());
-        String uploadId = fileStorageService.storeFile(file);
+        String uploadId = fileStorageService.storeFile(file, 1L);
 
         // When
-        Path retrievedFile = fileStorageService.getFile(uploadId);
+        Path retrievedFile = fileStorageService.getFile(uploadId, 1L);
 
         // Then
         assertNotNull(retrievedFile);
@@ -125,7 +140,8 @@ class FileStorageServiceTest {
         // When & Then
         IOException exception =
                 assertThrows(
-                        IOException.class, () -> fileStorageService.getFile(nonExistentUploadId));
+                        IOException.class,
+                        () -> fileStorageService.getFile(nonExistentUploadId, 1L));
         assertTrue(exception.getMessage().contains("File not found"));
     }
 
@@ -135,12 +151,12 @@ class FileStorageServiceTest {
         // Given
         MultipartFile file =
                 new MockMultipartFile("file", "test.qif", "text/plain", "!Type:Bank\n".getBytes());
-        String uploadId = fileStorageService.storeFile(file);
-        Path storedFile = fileStorageService.getFile(uploadId);
+        String uploadId = fileStorageService.storeFile(file, 1L);
+        Path storedFile = fileStorageService.getFile(uploadId, 1L);
         assertTrue(Files.exists(storedFile));
 
         // When
-        fileStorageService.deleteFile(uploadId);
+        fileStorageService.deleteFile(uploadId, 1L);
 
         // Then
         assertFalse(Files.exists(storedFile));
@@ -153,7 +169,8 @@ class FileStorageServiceTest {
         String nonExistentUploadId = "non-existent-id";
 
         // When & Then
-        assertThrows(IOException.class, () -> fileStorageService.deleteFile(nonExistentUploadId));
+        assertThrows(
+                IOException.class, () -> fileStorageService.deleteFile(nonExistentUploadId, 1L));
     }
 
     @Test
@@ -168,8 +185,8 @@ class FileStorageServiceTest {
         // Create an old file (modified 2 hours ago)
         MultipartFile oldFile =
                 new MockMultipartFile("file", "old.qif", "text/plain", "old content".getBytes());
-        String oldUploadId = shortRetentionService.storeFile(oldFile);
-        Path oldFilePath = shortRetentionService.getFile(oldUploadId);
+        String oldUploadId = shortRetentionService.storeFile(oldFile, 1L);
+        Path oldFilePath = shortRetentionService.getFile(oldUploadId, 1L);
 
         // Set last modified time to 2 hours ago
         Instant twoHoursAgo = Instant.now().minus(2, ChronoUnit.HOURS);
@@ -179,8 +196,8 @@ class FileStorageServiceTest {
         MultipartFile recentFile =
                 new MockMultipartFile(
                         "file", "recent.qif", "text/plain", "recent content".getBytes());
-        String recentUploadId = shortRetentionService.storeFile(recentFile);
-        Path recentFilePath = shortRetentionService.getFile(recentUploadId);
+        String recentUploadId = shortRetentionService.storeFile(recentFile, 1L);
+        Path recentFilePath = shortRetentionService.getFile(recentUploadId, 1L);
 
         // When
         int deletedCount = shortRetentionService.cleanupOldFiles();
@@ -200,11 +217,11 @@ class FileStorageServiceTest {
         MultipartFile file2 =
                 new MockMultipartFile("file", "test2.qif", "text/plain", "content2".getBytes());
 
-        String uploadId1 = fileStorageService.storeFile(file1);
-        String uploadId2 = fileStorageService.storeFile(file2);
+        String uploadId1 = fileStorageService.storeFile(file1, 1L);
+        String uploadId2 = fileStorageService.storeFile(file2, 1L);
 
-        Path file1Path = fileStorageService.getFile(uploadId1);
-        Path file2Path = fileStorageService.getFile(uploadId2);
+        Path file1Path = fileStorageService.getFile(uploadId1, 1L);
+        Path file2Path = fileStorageService.getFile(uploadId2, 1L);
 
         // When
         int deletedCount = fileStorageService.cleanupOldFiles();
@@ -219,7 +236,7 @@ class FileStorageServiceTest {
     @DisplayName("Should reject null file")
     void shouldRejectNullFile() {
         // When & Then
-        assertThrows(NullPointerException.class, () -> fileStorageService.storeFile(null));
+        assertThrows(NullPointerException.class, () -> fileStorageService.storeFile(null, 1L));
     }
 
     @Test
@@ -233,7 +250,8 @@ class FileStorageServiceTest {
         // When & Then
         IllegalArgumentException exception =
                 assertThrows(
-                        IllegalArgumentException.class, () -> fileStorageService.storeFile(file));
+                        IllegalArgumentException.class,
+                        () -> fileStorageService.storeFile(file, 1L));
         assertEquals("Invalid file name", exception.getMessage());
     }
 
@@ -246,7 +264,8 @@ class FileStorageServiceTest {
         // When & Then
         IllegalArgumentException exception =
                 assertThrows(
-                        IllegalArgumentException.class, () -> fileStorageService.storeFile(file));
+                        IllegalArgumentException.class,
+                        () -> fileStorageService.storeFile(file, 1L));
         assertEquals("Invalid file name", exception.getMessage());
     }
 
@@ -258,11 +277,11 @@ class FileStorageServiceTest {
                 new MockMultipartFile("file", "noextension", "text/plain", "content".getBytes());
 
         // When
-        String uploadId = fileStorageService.storeFile(file);
+        String uploadId = fileStorageService.storeFile(file, 1L);
 
         // Then
         assertNotNull(uploadId);
-        Path storedFile = fileStorageService.getFile(uploadId);
+        Path storedFile = fileStorageService.getFile(uploadId, 1L);
         assertTrue(Files.exists(storedFile));
     }
 
@@ -278,9 +297,9 @@ class FileStorageServiceTest {
                 new MockMultipartFile("file", "test3.qif", "text/plain", "content3".getBytes());
 
         // When
-        String uploadId1 = fileStorageService.storeFile(file1);
-        String uploadId2 = fileStorageService.storeFile(file2);
-        String uploadId3 = fileStorageService.storeFile(file3);
+        String uploadId1 = fileStorageService.storeFile(file1, 1L);
+        String uploadId2 = fileStorageService.storeFile(file2, 1L);
+        String uploadId3 = fileStorageService.storeFile(file3, 1L);
 
         // Then
         assertNotEquals(uploadId1, uploadId2);
@@ -326,8 +345,8 @@ class FileStorageServiceTest {
         MultipartFile file1 =
                 new MockMultipartFile(
                         "file", "test.qif", "text/plain", "original content".getBytes());
-        String uploadId = fileStorageService.storeFile(file1);
-        Path storedFile = fileStorageService.getFile(uploadId);
+        String uploadId = fileStorageService.storeFile(file1, 1L);
+        Path storedFile = fileStorageService.getFile(uploadId, 1L);
         String originalContent = Files.readString(storedFile);
 
         // When - Store another file (rare case, but should replace)
@@ -361,6 +380,6 @@ class FileStorageServiceTest {
     @DisplayName("Should reject null upload ID for retrieval")
     void shouldRejectNullUploadIdForRetrieval() {
         // When & Then
-        assertThrows(NullPointerException.class, () -> fileStorageService.getFile(null));
+        assertThrows(NullPointerException.class, () -> fileStorageService.getFile(null, 1L));
     }
 }

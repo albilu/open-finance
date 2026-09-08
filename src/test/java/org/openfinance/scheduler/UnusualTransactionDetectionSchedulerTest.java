@@ -53,6 +53,8 @@ class UnusualTransactionDetectionSchedulerTest {
     @Mock private SchedulerProperties schedulerProperties;
 
     @Mock private EncryptionKeyCache encryptionKeyCache;
+    @Mock private org.openfinance.config.EncryptionProperties encryptionProperties;
+    @Mock private org.openfinance.security.UserEncryptionLock userEncryptionLock;
 
     @InjectMocks private UnusualTransactionDetectionScheduler scheduler;
 
@@ -62,6 +64,7 @@ class UnusualTransactionDetectionSchedulerTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(encryptionProperties.isEnabled()).thenReturn(true);
         schedulerConfig = new SchedulerProperties.SchedulerConfig();
         when(schedulerProperties.getUnusualTransactionDetection()).thenReturn(schedulerConfig);
         when(encryptionKeyCache.getKey(anyLong())).thenReturn(Optional.of(TEST_KEY));
@@ -70,6 +73,18 @@ class UnusualTransactionDetectionSchedulerTest {
     // ------------------------------------------------------------------
     // Default cron constant
     // ------------------------------------------------------------------
+
+    @Test
+    void shouldProcessUsersWithoutKeysWhenEncryptionIsDisabled() {
+        when(encryptionProperties.isEnabled()).thenReturn(false);
+        when(encryptionKeyCache.getKey(1L)).thenReturn(java.util.Optional.empty());
+        when(userRepository.findAll())
+                .thenReturn(
+                        java.util.List.of(org.openfinance.entity.User.builder().id(1L).build()));
+        scheduler.runDetection();
+        verify(detectionService).detectAndPersist(eq(1L), any());
+        assertThat(org.openfinance.security.EncryptionContext.getKey()).isNull();
+    }
 
     @Test
     @DisplayName("DEFAULT_CRON is set to 01:00 AM daily")

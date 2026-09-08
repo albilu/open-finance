@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.RecurringTransactionRequest;
 import org.openfinance.dto.RecurringTransactionResponse;
-import org.openfinance.dto.TransactionRequest;
 import org.openfinance.entity.Account;
 import org.openfinance.entity.Category;
 import org.openfinance.entity.CategoryType;
@@ -87,6 +86,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RecurringTransactionService {
 
     private final RecurringTransactionRepository recurringTransactionRepository;
+    private final RecurringOccurrenceService occurrenceService;
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
     private final CurrencyRepository currencyRepository;
@@ -684,7 +684,8 @@ public class RecurringTransactionService {
      *
      * @return processing result with counts and error details
      */
-    @Transactional
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public ProcessingResult processRecurringTransactions() {
         log.info("Starting scheduled recurring transaction processing");
 
@@ -701,8 +702,12 @@ public class RecurringTransactionService {
         for (RecurringTransaction recurringTransaction : dueRecurringTransactions) {
             try {
                 // Process this recurring transaction
-                processRecurringTransaction(recurringTransaction, today);
-                processedCount++;
+                if (occurrenceService.post(
+                        recurringTransaction.getId(),
+                        recurringTransaction.getUserId(),
+                        recurringTransaction.getNextOccurrence())) {
+                    processedCount++;
+                }
             } catch (Exception e) {
                 failedCount++;
                 String errorMsg =
@@ -736,7 +741,8 @@ public class RecurringTransactionService {
      * @param userId the ID of the user
      * @return processing result with counts and error details
      */
-    @Transactional
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public ProcessingResult processRecurringTransactionsForUser(Long userId) {
         if (userId == null) {
             throw new IllegalArgumentException("User ID cannot be null");
@@ -759,8 +765,12 @@ public class RecurringTransactionService {
 
         for (RecurringTransaction recurringTransaction : dueRecurringTransactions) {
             try {
-                processRecurringTransaction(recurringTransaction, today);
-                processedCount++;
+                if (occurrenceService.post(
+                        recurringTransaction.getId(),
+                        recurringTransaction.getUserId(),
+                        recurringTransaction.getNextOccurrence())) {
+                    processedCount++;
+                }
             } catch (Exception e) {
                 failedCount++;
                 String errorMsg =
@@ -790,84 +800,6 @@ public class RecurringTransactionService {
      * @param recurringTransaction the recurring transaction to process
      * @param asOfDate the date to use for the generated transaction
      */
-    private void processRecurringTransaction(
-            RecurringTransaction recurringTransaction, LocalDate asOfDate) {
-        log.debug(
-                "Processing recurring transaction {}: userId={}, type={}, amount={}",
-                recurringTransaction.getId(),
-                recurringTransaction.getUserId(),
-                recurringTransaction.getType(),
-                recurringTransaction.getAmount());
-
-        // Fetch the user's account to get encryption key (we need to
-        // decrypt/re-encrypt)
-        // NOTE: In production, this would require the user's encryption key from a
-        // secure key store
-        // For now, we'll work with the already-encrypted data and pass it through
-        Account account =
-                accountRepository
-                        .findByIdAndUserId(
-                                recurringTransaction.getAccountId(),
-                                recurringTransaction.getUserId())
-                        .orElseThrow(
-                                () ->
-                                        new AccountNotFoundException(
-                                                "Account "
-                                                        + recurringTransaction.getAccountId()
-                                                        + " not found"));
-
-        // Create TransactionRequest from RecurringTransaction
-        // Note: description and notes are already encrypted in the recurring
-        // transaction entity
-        // We'll pass them as-is and the TransactionService will re-encrypt them
-        TransactionRequest transactionRequest =
-                TransactionRequest.builder()
-                        .accountId(recurringTransaction.getAccountId())
-                        .toAccountId(recurringTransaction.getToAccountId())
-                        .type(recurringTransaction.getType())
-                        .amount(recurringTransaction.getAmount())
-                        .currency(recurringTransaction.getCurrency())
-                        .categoryId(recurringTransaction.getCategoryId())
-                        .date(asOfDate) // Use the nextOccurrence date as the transaction date
-                        .description(recurringTransaction.getDescription()) // Already encrypted
-                        .notes(recurringTransaction.getNotes()) // Already encrypted
-                        .isReconciled(false)
-                        .build();
-
-        // Create the actual transaction
-        // NOTE: This requires a workaround for encryption key
-        // In a real scenario, we would need access to the user's encryption key
-        // For MVP, we skip transaction creation and just log what would happen
-        log.info(
-                "WOULD CREATE transaction from recurring template {}: userId={}, amount={}, date={}",
-                recurringTransaction.getId(),
-                recurringTransaction.getUserId(),
-                recurringTransaction.getAmount(),
-                asOfDate);
-
-        // Calculate next occurrence
-        LocalDate nextOccurrence = recurringTransaction.calculateNextOccurrence();
-        recurringTransaction.setNextOccurrence(nextOccurrence);
-
-        // Check if recurring transaction should end
-        if (recurringTransaction.getEndDate() != null
-                && nextOccurrence.isAfter(recurringTransaction.getEndDate())) {
-            log.info(
-                    "Recurring transaction {} has reached end date, setting inactive",
-                    recurringTransaction.getId());
-            recurringTransaction.setIsActive(false);
-        }
-
-        // Save updated recurring transaction
-        recurringTransactionRepository.save(recurringTransaction);
-
-        log.info(
-                "Recurring transaction {} processed: nextOccurrence={}, isActive={}",
-                recurringTransaction.getId(),
-                nextOccurrence,
-                recurringTransaction.getIsActive());
-    }
-
     /**
      * Validates a recurring transaction request.
      *

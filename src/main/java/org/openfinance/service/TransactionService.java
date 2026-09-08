@@ -1612,6 +1612,25 @@ public class TransactionService {
             }
         }
 
+        if (request.getSplits() != null) {
+            for (org.openfinance.dto.TransactionSplitRequest split : request.getSplits()) {
+                if (split.getCategoryId() == null) {
+                    continue;
+                }
+                Category splitCategory =
+                        categoryRepository
+                                .findByIdAndUserId(split.getCategoryId(), userId)
+                                .orElseThrow(
+                                        () ->
+                                                CategoryNotFoundException.byIdAndUser(
+                                                        split.getCategoryId(), userId));
+                if (!splitCategory.getType().name().equals(request.getType().name())) {
+                    throw InvalidTransactionException.categoryTypeMismatch(
+                            splitCategory.getType().name(), request.getType().name());
+                }
+            }
+        }
+
         // Validate amount at service level (defensive - DTO validation should have
         // already enforced this)
         if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {

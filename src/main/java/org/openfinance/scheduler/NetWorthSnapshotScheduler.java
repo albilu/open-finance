@@ -67,6 +67,8 @@ public class NetWorthSnapshotScheduler implements ApplicationRunner {
     private final UserRepository userRepository;
     private final SchedulerProperties schedulerProperties;
     private final EncryptionKeyCache encryptionKeyCache;
+    private final org.openfinance.config.EncryptionProperties encryptionProperties;
+    private final org.openfinance.security.UserEncryptionLock userEncryptionLock;
     private final org.openfinance.service.DefaultCurrencyProvider defaultCurrencyProvider;
 
     // -----------------------------------------------------------------
@@ -122,30 +124,34 @@ public class NetWorthSnapshotScheduler implements ApplicationRunner {
             int skippedCount = 0;
 
             for (User user : users) {
-                Optional<SecretKey> keyOpt = encryptionKeyCache.getKey(user.getId());
-                if (keyOpt.isEmpty()) {
-                    skippedCount++;
-                    log.debug(
-                            "Skipping net worth snapshot for user {} — no cached encryption key",
-                            user.getId());
-                    continue;
-                }
-                try {
-                    EncryptionContext.setKey(keyOpt.get());
-                    String userCurrency = defaultCurrencyProvider.resolve(user.getBaseCurrency());
-                    netWorthService.saveNetWorthSnapshot(
-                            user.getId(), LocalDate.now(), userCurrency);
-                    successCount++;
-                    log.debug("Net worth snapshot created for user: {}", user.getId());
-                } catch (Exception e) {
-                    failureCount++;
-                    log.error(
-                            "Failed to create net worth snapshot for user {}: {}",
-                            user.getId(),
-                            e.getMessage(),
-                            e);
-                } finally {
-                    EncryptionContext.clear();
+                try (org.openfinance.security.UserEncryptionLock.Scope ignored =
+                        userEncryptionLock.acquire(user.getId(), false)) {
+                    Optional<SecretKey> keyOpt = encryptionKeyCache.getKey(user.getId());
+                    if (encryptionProperties.isEnabled() && keyOpt.isEmpty()) {
+                        skippedCount++;
+                        log.debug(
+                                "Skipping net worth snapshot for user {} — no cached encryption key",
+                                user.getId());
+                        continue;
+                    }
+                    try {
+                        EncryptionContext.setKey(keyOpt.orElse(null));
+                        String userCurrency =
+                                defaultCurrencyProvider.resolve(user.getBaseCurrency());
+                        netWorthService.saveNetWorthSnapshot(
+                                user.getId(), LocalDate.now(), userCurrency);
+                        successCount++;
+                        log.debug("Net worth snapshot created for user: {}", user.getId());
+                    } catch (Exception e) {
+                        failureCount++;
+                        log.error(
+                                "Failed to create net worth snapshot for user {}: {}",
+                                user.getId(),
+                                e.getMessage(),
+                                e);
+                    } finally {
+                        EncryptionContext.clear();
+                    }
                 }
             }
 

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
-import { renderWithProviders, mockAuthentication, clearAuthentication, userEvent } from '@/test/test-utils';
+import {
+  renderWithProviders,
+  mockAuthentication,
+  clearAuthentication,
+  userEvent,
+} from '@/test/test-utils';
 import HistoryPage from '@/pages/HistoryPage';
 import type { OperationHistoryResponse } from '@/types/history';
 
@@ -10,21 +15,23 @@ import type { OperationHistoryResponse } from '@/types/history';
 const mockHistoryItems: OperationHistoryResponse[] = [
   {
     id: 1,
+    canUndo: true,
+    canRedo: false,
     entityType: 'TRANSACTION',
     entityId: 101,
     entityLabel: 'Weekly groceries',
     operationType: 'CREATE',
-    operationDate: '2026-01-10T10:00:00Z',
-    timestamp: '2026-01-10T10:00:00Z',
+    createdAt: '2026-01-10T10:00:00Z',
   },
   {
     id: 2,
+    canUndo: false,
+    canRedo: false,
     entityType: 'ACCOUNT',
     entityId: 1,
     entityLabel: 'Checking Account',
     operationType: 'UPDATE',
-    operationDate: '2026-01-09T09:00:00Z',
-    timestamp: '2026-01-09T09:00:00Z',
+    createdAt: '2026-01-09T09:00:00Z',
   },
 ];
 
@@ -45,21 +52,23 @@ vi.mock('@/services/historyService', () => ({
       content: [
         {
           id: 1,
+          canUndo: true,
+          canRedo: false,
           entityType: 'TRANSACTION',
           entityId: 101,
           entityLabel: 'Weekly groceries',
           operationType: 'CREATE',
-          operationDate: '2026-01-10T10:00:00Z',
-          timestamp: '2026-01-10T10:00:00Z',
+          createdAt: '2026-01-10T10:00:00Z',
         },
         {
           id: 2,
+          canUndo: false,
+          canRedo: false,
           entityType: 'ACCOUNT',
           entityId: 1,
           entityLabel: 'Checking Account',
           operationType: 'UPDATE',
-          operationDate: '2026-01-09T09:00:00Z',
-          timestamp: '2026-01-09T09:00:00Z',
+          createdAt: '2026-01-09T09:00:00Z',
         },
       ],
       totalElements: 2,
@@ -73,7 +82,7 @@ vi.mock('@/services/historyService', () => ({
 }));
 
 // Mock AuthContext to always provide sessionStartTime
-vi.mock('@/context/AuthContext', async (importOriginal) => {
+vi.mock('@/context/AuthContext', async importOriginal => {
   const actual = await importOriginal<typeof import('@/context/AuthContext')>();
   return {
     ...actual,
@@ -161,19 +170,20 @@ describe('HistoryPage', () => {
       expect(historyService.undo).toHaveBeenCalledWith(1);
     });
 
-    it('should call redo when clicking redo button on undone item', async () => {
+    it('should disable redo when the server reports it is unavailable', async () => {
       const { historyService } = await import('@/services/historyService');
-      // Override to return an undone item so redo is enabled
+      // Being undone alone does not make redo available.
       (historyService.getHistory as any).mockResolvedValueOnce({
         content: [
           {
             id: 3,
+            canUndo: false,
+            canRedo: false,
             entityType: 'TRANSACTION',
             entityId: 101,
             entityLabel: 'Undone item',
             operationType: 'CREATE',
-            operationDate: '2026-01-10T10:00:00Z',
-            timestamp: '2026-01-10T10:00:00Z',
+            createdAt: '2026-01-10T10:00:00Z',
             undoneAt: '2026-01-10T11:00:00Z',
           },
         ],
@@ -188,7 +198,8 @@ describe('HistoryPage', () => {
 
       const redoButtons = screen.getAllByRole('button', { name: /redo/i });
       await user.click(redoButtons[0]);
-      expect(historyService.redo).toHaveBeenCalledWith(3);
+      expect(redoButtons[0]).toBeDisabled();
+      expect(historyService.redo).not.toHaveBeenCalled();
     });
   });
 });

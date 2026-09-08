@@ -35,7 +35,10 @@ test.describe('Transaction Management', () => {
   // ─── Create transactions ────────────────────────────────────────────────────
 
   test('core-020: create income transaction opens form and submits', async ({ page }) => {
-    await page.getByRole('button', { name: /add transaction/i }).first().click();
+    await page
+      .getByRole('button', { name: /add transaction/i })
+      .first()
+      .click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     // Select INCOME type
@@ -44,7 +47,8 @@ test.describe('Transaction Management', () => {
       await typeSelect.selectOption('INCOME');
     } else {
       // Try radio button or segmented control
-      const incomeBtn = page.getByRole('button', { name: /^income$/i })
+      const incomeBtn = page
+        .getByRole('button', { name: /^income$/i })
         .or(page.getByText(/^income$/i).locator('..'));
       if (await incomeBtn.isVisible().catch(() => false)) await incomeBtn.click();
     }
@@ -61,12 +65,18 @@ test.describe('Transaction Management', () => {
     await page.locator('input#amount').fill('1000');
 
     // Date - fill with today's date
-    const today = new Date().toISOString().split('T')[0];
-    const dateInput = page.getByLabel(/date/i);
+    const today = new Date().toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    });
+    const dateInput = page.getByRole('dialog').locator('input#date');
     await dateInput.fill(today);
 
     // Submit
-    const submitBtn = page.getByRole('button', { name: /create|save/i });
+    const submitBtn = page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^create transaction$/i });
     await submitBtn.click();
 
     // Dialog should close (success)
@@ -74,7 +84,10 @@ test.describe('Transaction Management', () => {
   });
 
   test('core-021: create expense transaction', async ({ page }) => {
-    await page.getByRole('button', { name: /add transaction/i }).first().click();
+    await page
+      .getByRole('button', { name: /add transaction/i })
+      .first()
+      .click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     const typeSelect = page.locator('select[name="type"]').first();
@@ -94,21 +107,32 @@ test.describe('Transaction Management', () => {
 
     await page.locator('input#amount').fill('50.75');
 
-    const today = new Date().toISOString().split('T')[0];
-    await page.getByLabel(/date/i).fill(today);
+    const today = new Date().toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    });
+    await page.getByRole('dialog').locator('input#date').fill(today);
 
-    const submitBtn2 = page.getByRole('button', { name: /create|save/i });
+    const submitBtn2 = page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^create transaction$/i });
     await submitBtn2.click();
     await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 15_000 });
   });
 
   test('transaction form validates positive amount', async ({ page }) => {
-    await page.getByRole('button', { name: /add transaction/i }).first().click();
+    await page
+      .getByRole('button', { name: /add transaction/i })
+      .first()
+      .click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     // Submit with negative amount — should fail validation
     await page.locator('input#amount').fill('-100');
-    const submitBtn3 = page.getByRole('button', { name: /create|save/i });
+    const submitBtn3 = page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^create transaction$/i });
     await submitBtn3.click();
 
     // Validation error should appear
@@ -120,7 +144,10 @@ test.describe('Transaction Management', () => {
   });
 
   test('transaction form cancel button closes dialog', async ({ page }) => {
-    await page.getByRole('button', { name: /add transaction/i }).first().click();
+    await page
+      .getByRole('button', { name: /add transaction/i })
+      .first()
+      .click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     await page.getByRole('button', { name: /cancel/i }).click();
@@ -130,18 +157,20 @@ test.describe('Transaction Management', () => {
   // ─── Filtering ──────────────────────────────────────────────────────────────
 
   test('filter panel opens when clicking Filter button', async ({ page }) => {
-    const filterBtn = page.getByRole('button', { name: /filter/i });
+    const filterBtn = page.getByRole('button', { name: /^filters$/i });
     await expect(filterBtn).toBeVisible();
     await filterBtn.click();
 
     // Filter panel should become visible — look for filter controls
-    const filterPanel = page.locator('[aria-label*="filter" i], [data-testid*="filter" i], form').first();
+    const filterPanel = page
+      .locator('[aria-label*="filter" i], [data-testid*="filter" i], form')
+      .first();
     await expect(filterPanel).toBeVisible({ timeout: 5_000 });
   });
 
   test('core-033: filter transactions by type EXPENSE', async ({ page }) => {
     // Open filter panel
-    const filterBtn = page.getByRole('button', { name: /filter/i });
+    const filterBtn = page.getByRole('button', { name: /^filters$/i });
     if (await filterBtn.isVisible().catch(() => false)) {
       await filterBtn.click();
     }
@@ -162,7 +191,7 @@ test.describe('Transaction Management', () => {
   });
 
   test('core-034: filter transactions by date range', async ({ page }) => {
-    const filterBtn = page.getByRole('button', { name: /filter/i });
+    const filterBtn = page.getByRole('button', { name: /^filters$/i });
     if (await filterBtn.isVisible().catch(() => false)) {
       await filterBtn.click();
     }
@@ -190,7 +219,7 @@ test.describe('Transaction Management', () => {
 
   test('core-030: transaction search field accepts input', async ({ page }) => {
     // Open filters if needed to find search
-    const filterBtn = page.getByRole('button', { name: /filter/i });
+    const filterBtn = page.getByRole('button', { name: /^filters$/i });
     if (await filterBtn.isVisible().catch(() => false)) {
       await filterBtn.click();
     }

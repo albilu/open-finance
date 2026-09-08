@@ -1,7 +1,7 @@
 /**
  * Backup management hooks
  * Task 12.5.8: Create useBackup hook
- * 
+ *
  * Provides React Query hooks for backup and restore operations
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -29,7 +29,7 @@ export function useBackup(backupId: number | null) {
     queryKey: ['backups', backupId],
     queryFn: async () => {
       if (!backupId) throw new Error('Backup ID is required');
-      
+
       const response = await apiClient.get<BackupResponse>(`/backup/${backupId}`);
       return response.data;
     },
@@ -39,12 +39,12 @@ export function useBackup(backupId: number | null) {
 
 /**
  * Create a new manual backup
- * 
+ *
  * @returns Mutation hook that accepts optional description
  */
 export function useCreateBackup() {
   const queryClient = useQueryClient();
-  
+
   return useMutation<BackupResponse, Error, string | undefined>({
     mutationFn: async (description?: string) => {
       const requestData: BackupRequest = description ? { description } : {};
@@ -60,29 +60,35 @@ export function useCreateBackup() {
 
 /**
  * Restore database from an existing backup
- * 
+ *
  * @returns Mutation hook that accepts backup ID
  */
 export function useRestoreBackup() {
-  return useMutation<string, Error, number>({
-    mutationFn: async (backupId: number) => {
-      const response = await apiClient.post<string>(`/backup/restore/${backupId}`);
+  const queryClient = useQueryClient();
+  return useMutation<string, Error, { backupId: number; masterPassword?: string }>({
+    mutationFn: async ({ backupId, masterPassword }) => {
+      const response = await apiClient.post<string>(`/backup/restore/${backupId}`, {
+        masterPassword,
+      });
       return response.data;
     },
+    onSuccess: () => queryClient.resetQueries(),
   });
 }
 
 /**
  * Upload and restore database from a backup file
- * 
+ *
  * @returns Mutation hook that accepts File object
  */
 export function useUploadAndRestoreBackup() {
-  return useMutation<string, Error, File>({
-    mutationFn: async (file: File) => {
+  const queryClient = useQueryClient();
+  return useMutation<string, Error, { file: File; masterPassword?: string }>({
+    mutationFn: async ({ file, masterPassword }) => {
       const formData = new FormData();
       formData.append('file', file);
-      
+      if (masterPassword) formData.append('masterPassword', masterPassword);
+
       const response = await apiClient.post<string>('/backup/restore/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -90,17 +96,18 @@ export function useUploadAndRestoreBackup() {
       });
       return response.data;
     },
+    onSuccess: () => queryClient.resetQueries(),
   });
 }
 
 /**
  * Delete a backup
- * 
+ *
  * @returns Mutation hook that accepts backup ID
  */
 export function useDeleteBackup() {
   const queryClient = useQueryClient();
-  
+
   return useMutation<void, Error, number>({
     mutationFn: async (backupId: number) => {
       await apiClient.delete(`/backup/${backupId}`);
@@ -114,7 +121,7 @@ export function useDeleteBackup() {
 
 /**
  * Download a backup file
- * 
+ *
  * @returns Mutation hook that accepts backup ID and filename
  */
 export function useDownloadBackup() {
@@ -123,7 +130,7 @@ export function useDownloadBackup() {
       const response = await apiClient.get(`/backup/${backupId}/download`, {
         responseType: 'blob',
       });
-      
+
       // Create blob URL and trigger download
       const blob = new Blob([response.data], { type: 'application/octet-stream' });
       const url = window.URL.createObjectURL(blob);
@@ -132,7 +139,7 @@ export function useDownloadBackup() {
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
-      
+
       // Cleanup
       link.remove();
       window.URL.revokeObjectURL(url);

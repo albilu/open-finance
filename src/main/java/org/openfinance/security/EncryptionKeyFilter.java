@@ -35,6 +35,7 @@ public class EncryptionKeyFilter extends OncePerRequestFilter {
     private final EncryptionKeyCache encryptionKeyCache;
 
     private final EncryptionProperties encryptionProperties;
+    private final UserEncryptionLock userEncryptionLock;
 
     @Override
     protected void doFilterInternal(
@@ -62,29 +63,38 @@ public class EncryptionKeyFilter extends OncePerRequestFilter {
                 return;
             }
 
-            String sessionToken = request.getHeader(SESSION_HEADER);
-            if (sessionToken == null || sessionToken.isBlank()) {
-                rejectMissingSession(response);
-                return;
-            }
+            boolean rotating =
+                    "PUT".equals(request.getMethod())
+                                    && request.getRequestURI().endsWith("/users/me/master-password")
+                            || "POST".equals(request.getMethod())
+                                    && request.getRequestURI()
+                                            .startsWith("/api/v1/backup/restore/");
+            try (UserEncryptionLock.Scope ignored =
+                    userEncryptionLock.acquire(requestUserId, rotating)) {
+                String sessionToken = request.getHeader(SESSION_HEADER);
+                if (sessionToken == null || sessionToken.isBlank()) {
+                    rejectMissingSession(response);
+                    return;
+                }
 
-            Optional<SecretKey> keyOpt = encryptionKeyCache.getKeyBySessionToken(sessionToken);
-            if (keyOpt.isPresent()) {
-                Optional<Long> sessionUserId =
-                        encryptionKeyCache.getUserIdBySessionToken(sessionToken);
-                if (sessionUserId.isEmpty() || !sessionUserId.get().equals(requestUserId)) {
-                    log.warn("Encryption session token does not belong to authenticated user");
+                Optional<SecretKey> keyOpt = encryptionKeyCache.getKeyBySessionToken(sessionToken);
+                if (keyOpt.isPresent()) {
+                    Optional<Long> sessionUserId =
+                            encryptionKeyCache.getUserIdBySessionToken(sessionToken);
+                    if (sessionUserId.isEmpty() || !sessionUserId.get().equals(requestUserId)) {
+                        log.warn("Encryption session token does not belong to authenticated user");
+                        rejectInvalidSession(response);
+                        return;
+                    }
+                    EncryptionContext.setKey(keyOpt.get());
+                } else {
+                    log.warn("Invalid or expired encryption session token");
                     rejectInvalidSession(response);
                     return;
                 }
-                EncryptionContext.setKey(keyOpt.get());
-            } else {
-                log.warn("Invalid or expired encryption session token");
-                rejectInvalidSession(response);
-                return;
-            }
 
-            filterChain.doFilter(request, response);
+                filterChain.doFilter(request, response);
+            }
         } finally {
             EncryptionContext.clear();
         }

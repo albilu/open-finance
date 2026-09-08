@@ -60,6 +60,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final EncryptionKeyCache encryptionKeyCache;
     private final EncryptionProperties encryptionProperties;
+    private final org.openfinance.security.UserEncryptionLock userEncryptionLock;
     private final SecurityHeadersFilter securityHeadersFilter;
 
     /**
@@ -79,7 +80,8 @@ public class SecurityConfig {
      */
     @Bean
     public EncryptionKeyFilter encryptionKeyFilter() {
-        return new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+        return new EncryptionKeyFilter(
+                encryptionKeyCache, encryptionProperties, userEncryptionLock);
     }
 
     /**

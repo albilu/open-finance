@@ -45,7 +45,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(false);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader(SESSION_HEADER, "stale-session");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -72,7 +73,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(true);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader(SESSION_HEADER, "invalid-session");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -98,7 +100,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(true);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/auth/login");
         request.setAttribute("userId", 1L);
@@ -125,7 +128,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(true);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute("userId", 1L);
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -145,7 +149,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(true);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute("userId", 1L);
         request.addHeader(SESSION_HEADER, "invalid-session");
@@ -167,7 +172,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(true);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute("userId", 1L);
         request.addHeader(SESSION_HEADER, "+Ifn53/WIpprMdk+ToP0VZ4b9PiMeT24/r/U5VLreYM=");
@@ -194,7 +200,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(true);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute("userId", 1L);
         request.addHeader(SESSION_HEADER, "valid-session");
@@ -225,7 +232,8 @@ class EncryptionKeyFilterTest {
         EncryptionProperties encryptionProperties = new EncryptionProperties();
         encryptionProperties.setEnabled(true);
         EncryptionKeyFilter filter =
-                new EncryptionKeyFilter(encryptionKeyCache, encryptionProperties);
+                new EncryptionKeyFilter(
+                        encryptionKeyCache, encryptionProperties, new UserEncryptionLock());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute("userId", 1L);
         request.addHeader(SESSION_HEADER, "other-user-session");

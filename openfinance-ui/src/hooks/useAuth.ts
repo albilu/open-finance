@@ -149,8 +149,19 @@ export function useLogout() {
   const { clearAuth } = useAuthContext();
 
   return useCallback(() => {
-    // Invalidate encryption session on the server (best-effort — don't block on failure)
-    apiClient.post('/auth/logout').catch(() => {});
+    // Capture credentials before clearing storage: Axios interceptors run asynchronously.
+    const token =
+      localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
+      sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    const session = sessionStorage.getItem(STORAGE_KEYS.ENCRYPTION_SESSION);
+    apiClient
+      .post('/auth/logout', undefined, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(session ? { 'X-Encryption-Session': session } : {}),
+        },
+      })
+      .catch(() => {});
 
     // Clear auth context (which also clears localStorage/sessionStorage)
     clearAuth();
@@ -216,7 +227,9 @@ export function useUpdateProfile() {
       if (currentUser) {
         // Check which storage has the token to preserve the "remember me" preference
         const token =
-          localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || '';
+          localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
+          sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
+          '';
         const rememberMe = !!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN); // true if in localStorage
         setAuth(updatedUser, token, rememberMe);
       }

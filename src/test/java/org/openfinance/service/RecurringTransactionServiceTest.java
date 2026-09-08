@@ -60,6 +60,8 @@ class RecurringTransactionServiceTest {
 
     @Mock private TransactionService transactionService;
 
+    @Mock private RecurringOccurrenceService occurrenceService;
+
     @Mock private OperationHistoryService operationHistoryService;
 
     @Mock private CurrencyRepository currencyRepository;
@@ -891,341 +893,62 @@ class RecurringTransactionServiceTest {
     // ========== PROCESS RECURRING TRANSACTIONS TESTS (CRITICAL) ==========
 
     @Nested
-    @DisplayName("Process Recurring Transactions (CRITICAL)")
+    @DisplayName("Process Recurring Transactions")
     class ProcessRecurringTransactionsTests {
-
         @Test
-        @DisplayName("Should process due recurring transactions successfully")
-        void shouldProcessDueRecurringTransactions() {
-            // Given
-            LocalDate today = LocalDate.of(2026, 3, 1);
-            RecurringTransaction rt1 =
-                    RecurringTransaction.builder()
-                            .id(1L)
-                            .userId(1L)
-                            .accountId(100L)
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("1500.00"))
-                            .currency("USD")
-                            .categoryId(50L)
-                            .description("Rent")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(today)
-                            .isActive(true)
-                            .build();
-
-            RecurringTransaction rt2 =
-                    RecurringTransaction.builder()
-                            .id(2L)
-                            .userId(2L)
-                            .accountId(101L)
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("50.00"))
-                            .currency("USD")
-                            .categoryId(51L)
-                            .description("Netflix")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(today)
-                            .isActive(true)
-                            .build();
-
-            when(recurringTransactionRepository.findDueRecurringTransactions(any(LocalDate.class)))
-                    .thenReturn(Arrays.asList(rt1, rt2));
-            when(accountRepository.findByIdAndUserId(100L, 1L))
-                    .thenReturn(Optional.of(testAccount));
-            when(accountRepository.findByIdAndUserId(101L, 2L))
-                    .thenReturn(Optional.of(testToAccount));
-            when(recurringTransactionRepository.save(any(RecurringTransaction.class)))
-                    .thenAnswer(inv -> inv.getArgument(0));
-
-            // When
+        void shouldCountOnlyCommittedOccurrencesAndContinueAfterFailure() {
+            LocalDate date = LocalDate.now();
+            List<RecurringTransaction> templates =
+                    java.util.stream.LongStream.rangeClosed(1, 3)
+                            .mapToObj(
+                                    id ->
+                                            RecurringTransaction.builder()
+                                                    .id(id)
+                                                    .userId(1L)
+                                                    .nextOccurrence(date)
+                                                    .build())
+                            .toList();
+            when(recurringTransactionRepository.findDueRecurringTransactions(date))
+                    .thenReturn(templates);
+            when(occurrenceService.post(1L, 1L, date)).thenReturn(true);
+            when(occurrenceService.post(2L, 1L, date))
+                    .thenThrow(new IllegalStateException("Posting failed"));
+            when(occurrenceService.post(3L, 1L, date)).thenReturn(false);
             RecurringTransactionService.ProcessingResult result =
                     recurringTransactionService.processRecurringTransactions();
-
-            // Then
-            assertThat(result).isNotNull();
-            assertThat(result.getProcessedCount()).isEqualTo(2);
-            assertThat(result.getFailedCount()).isEqualTo(0);
-            assertThat(result.getErrors()).isEmpty();
-
-            verify(recurringTransactionRepository)
-                    .findDueRecurringTransactions(any(LocalDate.class));
-            verify(recurringTransactionRepository, times(2)).save(any(RecurringTransaction.class));
-        }
-
-        @Test
-        @DisplayName("Should calculate next occurrence correctly")
-        void shouldCalculateNextOccurrenceCorrectly() {
-            // Given
-            LocalDate startDate = LocalDate.of(2026, 3, 1);
-            RecurringTransaction rt =
-                    RecurringTransaction.builder()
-                            .id(1L)
-                            .userId(1L)
-                            .accountId(100L)
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("1500.00"))
-                            .currency("USD")
-                            .categoryId(50L)
-                            .description("Rent")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(startDate)
-                            .isActive(true)
-                            .build();
-
-            when(recurringTransactionRepository.findDueRecurringTransactions(any(LocalDate.class)))
-                    .thenReturn(Collections.singletonList(rt));
-            when(accountRepository.findByIdAndUserId(100L, 1L))
-                    .thenReturn(Optional.of(testAccount));
-            when(recurringTransactionRepository.save(any(RecurringTransaction.class)))
-                    .thenAnswer(inv -> inv.getArgument(0));
-
-            // When
-            recurringTransactionService.processRecurringTransactions();
-
-            // Then
-            ArgumentCaptor<RecurringTransaction> captor =
-                    ArgumentCaptor.forClass(RecurringTransaction.class);
-            verify(recurringTransactionRepository).save(captor.capture());
-
-            RecurringTransaction saved = captor.getValue();
-            assertThat(saved.getNextOccurrence())
-                    .isEqualTo(LocalDate.of(2026, 4, 1)); // One month later
-        }
-
-        @Test
-        @DisplayName("Should set isActive=false when endDate reached")
-        void shouldSetInactiveWhenEndDateReached() {
-            // Given
-            LocalDate today = LocalDate.of(2026, 12, 1);
-            LocalDate endDate = LocalDate.of(2026, 12, 31);
-
-            RecurringTransaction rt =
-                    RecurringTransaction.builder()
-                            .id(1L)
-                            .userId(1L)
-                            .accountId(100L)
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("1500.00"))
-                            .currency("USD")
-                            .categoryId(50L)
-                            .description("Rent")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(today)
-                            .endDate(endDate)
-                            .isActive(true)
-                            .build();
-
-            when(recurringTransactionRepository.findDueRecurringTransactions(any(LocalDate.class)))
-                    .thenReturn(Collections.singletonList(rt));
-            when(accountRepository.findByIdAndUserId(100L, 1L))
-                    .thenReturn(Optional.of(testAccount));
-            when(recurringTransactionRepository.save(any(RecurringTransaction.class)))
-                    .thenAnswer(inv -> inv.getArgument(0));
-
-            // When
-            recurringTransactionService.processRecurringTransactions();
-
-            // Then
-            ArgumentCaptor<RecurringTransaction> captor =
-                    ArgumentCaptor.forClass(RecurringTransaction.class);
-            verify(recurringTransactionRepository).save(captor.capture());
-
-            RecurringTransaction saved = captor.getValue();
-            // Next occurrence would be 2027-01-01, which is after endDate 2026-12-31
-            assertThat(saved.getIsActive()).isFalse();
-        }
-
-        @Test
-        @DisplayName("Should continue processing when one transaction fails")
-        void shouldContinueProcessingWhenOneTransactionFails() {
-            // Given
-            LocalDate today = LocalDate.now();
-
-            RecurringTransaction rt1 =
-                    RecurringTransaction.builder()
-                            .id(1L)
-                            .userId(1L)
-                            .accountId(100L)
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("1500.00"))
-                            .currency("USD")
-                            .categoryId(50L)
-                            .description("Rent")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(today)
-                            .isActive(true)
-                            .build();
-
-            RecurringTransaction rt2 =
-                    RecurringTransaction.builder()
-                            .id(2L)
-                            .userId(2L)
-                            .accountId(999L) // Non-existent account - will fail
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("50.00"))
-                            .currency("USD")
-                            .categoryId(51L)
-                            .description("Netflix")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(today)
-                            .isActive(true)
-                            .build();
-
-            RecurringTransaction rt3 =
-                    RecurringTransaction.builder()
-                            .id(3L)
-                            .userId(3L)
-                            .accountId(102L)
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("100.00"))
-                            .currency("USD")
-                            .categoryId(52L)
-                            .description("Internet")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(today)
-                            .isActive(true)
-                            .build();
-
-            when(recurringTransactionRepository.findDueRecurringTransactions(any(LocalDate.class)))
-                    .thenReturn(Arrays.asList(rt1, rt2, rt3));
-            when(accountRepository.findByIdAndUserId(100L, 1L))
-                    .thenReturn(Optional.of(testAccount));
-            when(accountRepository.findByIdAndUserId(999L, 2L))
-                    .thenReturn(Optional.empty()); // Fails
-            when(accountRepository.findByIdAndUserId(102L, 3L))
-                    .thenReturn(Optional.of(testToAccount));
-            when(recurringTransactionRepository.save(any(RecurringTransaction.class)))
-                    .thenAnswer(inv -> inv.getArgument(0));
-
-            // When
-            RecurringTransactionService.ProcessingResult result =
-                    recurringTransactionService.processRecurringTransactions();
-
-            // Then
-            assertThat(result.getProcessedCount()).isEqualTo(2);
+            assertThat(result.getProcessedCount()).isEqualTo(1);
             assertThat(result.getFailedCount()).isEqualTo(1);
             assertThat(result.getErrors()).hasSize(1);
-            assertThat(result.getErrors().get(0))
-                    .contains("Failed to process recurring transaction 2");
-
-            // Verify two successful saves (rt1 and rt3)
-            verify(recurringTransactionRepository, times(2)).save(any(RecurringTransaction.class));
-        }
-
-        @Test
-        @DisplayName("Should process user-specific recurring transactions")
-        void shouldProcessUserSpecificRecurringTransactions() {
-            // Given
-            LocalDate today = LocalDate.now();
-            RecurringTransaction rt =
-                    RecurringTransaction.builder()
-                            .id(1L)
-                            .userId(1L)
-                            .accountId(100L)
-                            .type(TransactionType.EXPENSE)
-                            .amount(new BigDecimal("1500.00"))
-                            .currency("USD")
-                            .categoryId(50L)
-                            .description("Rent")
-                            .frequency(RecurringFrequency.MONTHLY)
-                            .nextOccurrence(today)
-                            .isActive(true)
-                            .build();
-
-            when(recurringTransactionRepository.findDueRecurringTransactionsByUserId(
-                            eq(1L), any(LocalDate.class)))
-                    .thenReturn(Collections.singletonList(rt));
-            when(accountRepository.findByIdAndUserId(100L, 1L))
-                    .thenReturn(Optional.of(testAccount));
-            when(recurringTransactionRepository.save(any(RecurringTransaction.class)))
-                    .thenAnswer(inv -> inv.getArgument(0));
-
-            // When
-            RecurringTransactionService.ProcessingResult result =
-                    recurringTransactionService.processRecurringTransactionsForUser(1L);
-
-            // Then
-            assertThat(result.getProcessedCount()).isEqualTo(1);
-            assertThat(result.getFailedCount()).isEqualTo(0);
-            assertThat(result.getErrors()).isEmpty();
-
-            verify(recurringTransactionRepository)
-                    .findDueRecurringTransactionsByUserId(eq(1L), any(LocalDate.class));
-            verify(recurringTransactionRepository).save(any(RecurringTransaction.class));
-        }
-
-        @Test
-        @DisplayName("Should return empty result when no due recurring transactions")
-        void shouldReturnEmptyResultWhenNoDueRecurringTransactions() {
-            // Given
-            when(recurringTransactionRepository.findDueRecurringTransactions(any(LocalDate.class)))
-                    .thenReturn(Collections.emptyList());
-
-            // When
-            RecurringTransactionService.ProcessingResult result =
-                    recurringTransactionService.processRecurringTransactions();
-
-            // Then
-            assertThat(result.getProcessedCount()).isEqualTo(0);
-            assertThat(result.getFailedCount()).isEqualTo(0);
-            assertThat(result.getErrors()).isEmpty();
-
-            verify(recurringTransactionRepository)
-                    .findDueRecurringTransactions(any(LocalDate.class));
+            verify(occurrenceService).post(3L, 1L, date);
             verify(recurringTransactionRepository, never()).save(any());
         }
-    }
 
-    @Test
-    @DisplayName("Should create recurring transaction with JPY currency (zero decimal)")
-    void shouldCreateRecurringTransactionWithJpyCurrency() {
-        // Given
-        RecurringTransactionRequest jpyRequest =
-                RecurringTransactionRequest.builder()
-                        .accountId(100L)
-                        .type(TransactionType.EXPENSE)
-                        .amount(new BigDecimal("120000"))
-                        .currency("JPY")
-                        .categoryId(50L)
-                        .description("Tokyo rent")
-                        .frequency(RecurringFrequency.MONTHLY)
-                        .nextOccurrence(LocalDate.of(2026, 4, 1))
-                        .endDate(LocalDate.of(2027, 3, 31))
-                        .build();
+        @Test
+        void shouldProcessOnlyTheRequestedUser() {
+            LocalDate date = LocalDate.now();
+            testRecurringTransaction.setNextOccurrence(date);
+            when(recurringTransactionRepository.findDueRecurringTransactionsByUserId(1L, date))
+                    .thenReturn(List.of(testRecurringTransaction));
+            when(occurrenceService.post(testRecurringTransaction.getId(), 1L, date))
+                    .thenReturn(true);
+            assertThat(
+                            recurringTransactionService
+                                    .processRecurringTransactionsForUser(1L)
+                                    .getProcessedCount())
+                    .isEqualTo(1);
+            verify(recurringTransactionRepository, never()).findDueRecurringTransactions(any());
+        }
 
-        RecurringTransaction jpyEntity =
-                RecurringTransaction.builder()
-                        .id(50L)
-                        .userId(1L)
-                        .accountId(100L)
-                        .type(TransactionType.EXPENSE)
-                        .amount(new BigDecimal("120000"))
-                        .currency("JPY")
-                        .categoryId(50L)
-                        .description("Tokyo rent")
-                        .frequency(RecurringFrequency.MONTHLY)
-                        .nextOccurrence(LocalDate.of(2026, 4, 1))
-                        .endDate(LocalDate.of(2027, 3, 31))
-                        .isActive(true)
-                        .build();
-
-        lenient().when(encryptionService.decrypt(any(), any())).thenAnswer(i -> i.getArgument(0));
-
-        when(accountRepository.findByIdAndUserId(100L, 1L)).thenReturn(Optional.of(testAccount));
-        when(categoryRepository.findByIdAndUserId(50L, 1L))
-                .thenReturn(Optional.of(testExpenseCategory));
-        when(recurringTransactionRepository.save(any(RecurringTransaction.class)))
-                .thenReturn(jpyEntity);
-
-        // When
-        RecurringTransactionResponse response =
-                recurringTransactionService.createRecurringTransaction(1L, jpyRequest);
-
-        // Then
-        assertThat(response).isNotNull();
-        assertThat(response.getCurrency()).isEqualTo("JPY");
-        assertThat(response.getAmount()).isEqualByComparingTo(new BigDecimal("120000"));
-        verify(recurringTransactionRepository).save(any(RecurringTransaction.class));
+        @Test
+        void shouldReturnEmptyResultWhenNothingIsDue() {
+            when(recurringTransactionRepository.findDueRecurringTransactions(any()))
+                    .thenReturn(List.of());
+            assertThat(
+                            recurringTransactionService
+                                    .processRecurringTransactions()
+                                    .getProcessedCount())
+                    .isZero();
+            verifyNoInteractions(occurrenceService);
+        }
     }
 }

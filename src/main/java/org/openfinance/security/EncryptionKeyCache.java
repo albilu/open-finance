@@ -178,4 +178,14 @@ public class EncryptionKeyCache {
     public void evict(Long userId) {
         userKeyCache.invalidate(userId);
     }
+
+    public void invalidateUserSessions(Long userId) {
+        sessionTokenUserCache
+                .asMap()
+                .forEach(
+                        (token, owner) -> {
+                            if (owner.equals(userId)) invalidateSession(token);
+                        });
+        userKeyCache.invalidate(userId);
+    }
 }

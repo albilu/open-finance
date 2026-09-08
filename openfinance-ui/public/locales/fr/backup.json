@@ -1,6 +1,6 @@
 {
   "title": "Sauvegarde et restauration",
-  "description": "Créez et gérez des sauvegardes de la base de données",
+  "description": "Sauvegardez toutes vos données et restaurez-les dans une autre instance SQLite.",
   "createBackup": "Créer une sauvegarde",
   "uploadBackup": "Téléverser une sauvegarde",
   "table": {
@@ -34,7 +34,7 @@
   },
   "createDialog": {
     "title": "Créer une sauvegarde",
-    "description": "Créez une sauvegarde manuelle de votre base de données. Cela peut prendre quelques instants.",
+    "description": "Créez une sauvegarde portable de vos données, pièces jointes et paramètres compris.",
     "descriptionLabel": "Description (facultatif)",
     "descriptionPlaceholder": "ex. : Avant la préparation de la déclaration fiscale",
     "cancel": "Annuler",
@@ -43,17 +43,17 @@
   },
   "uploadDialog": {
     "title": "Téléverser et restaurer une sauvegarde",
-    "description": "Téléversez un fichier de sauvegarde (.ofbak) pour restaurer votre base de données",
+    "description": "Importez vos données depuis une sauvegarde SQLite portable (.ofbak).",
     "selectFile": "Cliquez pour sélectionner le fichier de sauvegarde",
     "fileRestriction": "Fichiers .ofbak uniquement, jusqu'à 100 Mo",
-    "warning": "Cela remplacera toutes les données actuelles. Une sauvegarde de sécurité sera créée automatiquement.",
+    "warning": "Vos données actuelles seront remplacées. Une sauvegarde de sécurité sera créée automatiquement.",
     "cancel": "Annuler",
     "restoring": "Restauration en cours...",
     "upload": "Téléverser et restaurer"
   },
   "restoreDialog": {
     "title": "Restaurer la sauvegarde ?",
-    "description": "Cela remplacera toutes les données actuelles par la sauvegarde du {{date}}. Une sauvegarde de sécurité sera créée automatiquement. Cette action est irréversible.",
+    "description": "Remplacer vos données par la sauvegarde du {{date}}. Une sauvegarde de sécurité sera créée automatiquement.",
     "confirmText": "Restaurer la sauvegarde"
   },
   "deleteDialog": {
@@ -64,8 +64,10 @@
   "alerts": {
     "invalidFileType": "Type de fichier invalide. Veuillez sélectionner un fichier .ofbak.",
     "fileTooLarge": "Le fichier est trop volumineux. La taille maximale est de 100 Mo.",
-    "restoreSuccess": "Succès : {{message}}\n\nVeuillez redémarrer l'application pour que les modifications prennent effet.",
-    "restoreFailed": "Échec de la restauration. Veuillez vérifier la console pour plus de détails."
+    "restoreSuccess": "Succès : {{message}}",
+    "restoreRefreshFailed": "Vos données ont été restaurées, mais les préférences n’ont pas pu être actualisées. Déconnectez-vous puis reconnectez-vous pour les recharger.",
+    "restoreFailed": "Échec de la restauration. Vérifiez le fichier et le mot de passe maître utilisé à sa création.",
+    "downloadFailed": "Cette sauvegarde ne peut pas être téléchargée. Créez une nouvelle sauvegarde portable ; les anciens fichiers de l’instance complète ne sont pas pris en charge."
   },
   "overview": {
     "sectionTitle": "Sauvegarde et restauration",
@@ -98,5 +100,9 @@
       "dayAgo_one": "Il y a {{count}} jour",
       "dayAgo_other": "Il y a {{count}} jours"
     }
+  },
+  "masterPassword": {
+    "label": "Mot de passe maître de la sauvegarde (si chiffrée)",
+    "help": "Saisissez le mot de passe maître utilisé à la création de la sauvegarde. Le compte de destination conserve ses identifiants et son mot de passe maître actuels."
   }
 }

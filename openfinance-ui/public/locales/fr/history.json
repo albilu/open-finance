@@ -32,5 +32,6 @@
     "active": "Actif",
     "undone": "Annulé",
     "redone": "Rétabli"
-  }
+  },
+  "unavailable": "Cette opération ne peut pas être annulée actuellement."
 }

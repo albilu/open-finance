@@ -1,7 +1,7 @@
 /**
  * Confirmation Dialog Component
  * Task 2.2.15: Create confirmation dialog for delete
- * 
+ *
  * Reusable confirmation dialog for destructive actions
  */
 import {
@@ -26,6 +26,7 @@ interface ConfirmationDialogProps {
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
   loading?: boolean;
+  children?: import('react').ReactNode;
 }
 
 export function ConfirmationDialog({
@@ -38,6 +39,7 @@ export function ConfirmationDialog({
   cancelText,
   variant = 'danger',
   loading = false,
+  children,
 }: ConfirmationDialogProps) {
   const { t } = useTranslation('common');
   const resolvedCancelText = cancelText ?? t('cancel');
@@ -65,12 +67,9 @@ export function ConfirmationDialog({
           </div>
           <DialogDescription className="pt-2">{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter className="mt-4">
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
             {resolvedCancelText}
           </Button>
           <Button

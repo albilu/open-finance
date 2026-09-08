@@ -18,8 +18,10 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // Add JWT token from localStorage or sessionStorage
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    if (token && config.headers) {
+    const token =
+      localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
+      sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -44,7 +46,7 @@ apiClient.interceptors.request.use(
 
 // Response interceptor - handle errors globally
 apiClient.interceptors.response.use(
-  (response) => {
+  response => {
     return response;
   },
   (error: AxiosError) => {

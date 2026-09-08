@@ -518,14 +518,8 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName(
-            "POST /auth/login - should successfully generate different encryption key for different master password")
-    void shouldGenerateDifferentKeyForDifferentMasterPassword() throws Exception {
-        // NOTE: Master password validation happens CLIENT-SIDE when decrypting data.
-        // Server cannot validate master password correctness without storing a verification hash.
-        // The server will successfully login with ANY master password, but the encryption key
-        // derived will be different, so the client won't be able to decrypt their data.
-
+    @DisplayName("POST /auth/login - should reject an incorrect master password")
+    void shouldRejectDifferentMasterPassword() throws Exception {
         // Arrange: Register a user first
         UserRegistrationRequest registerRequest =
                 UserRegistrationRequest.builder()
@@ -562,20 +556,13 @@ class AuthControllerTest {
                         .getContentAsString();
 
         // Act: Login with wrong master password (still succeeds server-side)
-        String wrongResponse =
-                mockMvc.perform(
-                                post("/api/v1/auth/login")
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(objectMapper.writeValueAsString(wrongMasterLogin)))
-                        .andExpect(status().isOk()) // Server doesn't reject wrong master password
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-
-        // Assert: Different master passwords produce different encryption keys
-        String correctEncKey = objectMapper.readTree(correctResponse).get("encryptionKey").asText();
-        String wrongEncKey = objectMapper.readTree(wrongResponse).get("encryptionKey").asText();
-        assertThat(correctEncKey).isNotEqualTo(wrongEncKey);
+        mockMvc.perform(
+                        post("/api/v1/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(wrongMasterLogin)))
+                .andExpect(status().isUnauthorized());
+        assertThat(objectMapper.readTree(correctResponse).get("encryptionKey").asText())
+                .isNotBlank();
     }
 
     @Test

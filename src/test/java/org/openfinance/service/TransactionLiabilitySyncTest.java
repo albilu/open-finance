@@ -101,6 +101,17 @@ class TransactionLiabilitySyncTest {
 
     @BeforeEach
     void setUp() {
+        for (long categoryId : new long[] {5L, 6L}) {
+            when(categoryRepository.findByIdAndUserId(categoryId, 1L))
+                    .thenReturn(
+                            Optional.of(
+                                    org.openfinance.entity.Category.builder()
+                                            .id(categoryId)
+                                            .userId(1L)
+                                            .type(org.openfinance.entity.CategoryType.EXPENSE)
+                                            .name("Loan costs")
+                                            .build()));
+        }
         when(userRepository.findById(any())).thenReturn(Optional.empty());
         org.openfinance.testutil.DefaultCurrencyProviderMocks.stub(
                 defaultCurrencyProvider, userRepository);
@@ -139,7 +150,7 @@ class TransactionLiabilitySyncTest {
     private Account accountFixture(String currency) {
         return Account.builder()
                 .id(ACCOUNT_ID)
-                .userId(USER_ID)
+                .userId(1L)
                 .currency(currency)
                 .name("Checking")
                 .balance(new BigDecimal("1000.00"))
@@ -158,7 +169,7 @@ class TransactionLiabilitySyncTest {
     private RealEstateProperty propertyFixture(String currentValue) {
         return RealEstateProperty.builder()
                 .id(PROPERTY_ID)
-                .userId(USER_ID)
+                .userId(1L)
                 .currency("USD")
                 .currentValue(currentValue)
                 .build();
@@ -182,7 +193,7 @@ class TransactionLiabilitySyncTest {
             Long id, BigDecimal amount, MovementType movementType, String currency) {
         return Transaction.builder()
                 .id(id)
-                .userId(USER_ID)
+                .userId(1L)
                 .accountId(ACCOUNT_ID)
                 .type(TransactionType.EXPENSE)
                 .amount(amount)
@@ -404,7 +415,7 @@ class TransactionLiabilitySyncTest {
                 LiabilityTranche.builder()
                         .id(1L)
                         .liabilityId(LIABILITY_ID)
-                        .userId(USER_ID)
+                        .userId(1L)
                         .trancheNo(1)
                         .plannedAmount(new BigDecimal("6000.00"))
                         .drawnAmount(new BigDecimal("6000.00"))
@@ -415,7 +426,7 @@ class TransactionLiabilitySyncTest {
                 LiabilityTranche.builder()
                         .id(2L)
                         .liabilityId(LIABILITY_ID)
-                        .userId(USER_ID)
+                        .userId(1L)
                         .trancheNo(2)
                         .plannedAmount(new BigDecimal("4000.00"))
                         .status(TrancheStatus.PLANNED)
@@ -464,7 +475,7 @@ class TransactionLiabilitySyncTest {
         return LiabilityTranche.builder()
                 .id(TRANCHE_ID)
                 .liabilityId(LIABILITY_ID)
-                .userId(USER_ID)
+                .userId(1L)
                 .trancheNo(1)
                 .plannedAmount(new BigDecimal("50000.00"))
                 .drawnAmount(drawnAmount)
@@ -904,7 +915,7 @@ class TransactionLiabilitySyncTest {
                 LiabilityTranche.builder()
                         .id(TRANCHE_ID)
                         .liabilityId(LIABILITY_ID)
-                        .userId(USER_ID)
+                        .userId(1L)
                         .trancheNo(1)
                         .plannedAmount(new BigDecimal("50000.00"))
                         .status(TrancheStatus.PLANNED)

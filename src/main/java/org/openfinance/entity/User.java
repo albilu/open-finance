@@ -80,6 +80,11 @@ public class User {
     @Column(name = "master_password_salt", nullable = false, length = 255)
     private String masterPasswordSalt;
 
+    /** Authenticated encrypted sentinel used to verify the master-password-derived key. */
+    @ToString.Exclude
+    @Column(name = "master_password_verifier", length = 512)
+    private String masterPasswordVerifier;
+
     /**
      * User's preferred base currency for multi-currency conversion. ISO 4217 currency code (e.g.,
      * "USD", "EUR", "GBP"). Never defaulted in the entity: every creation path sets it explicitly

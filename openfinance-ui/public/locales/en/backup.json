@@ -1,6 +1,6 @@
 {
   "title": "Backup & Restore",
-  "description": "Create and manage database backups",
+  "description": "Back up your complete user data and restore it into another SQLite instance.",
   "createBackup": "Create Backup",
   "uploadBackup": "Upload Backup",
   "table": {
@@ -34,7 +34,7 @@
   },
   "createDialog": {
     "title": "Create Backup",
-    "description": "Create a manual backup of your database. This may take a few moments.",
+    "description": "Create a portable backup of your data, including attachments and settings.",
     "descriptionLabel": "Description (optional)",
     "descriptionPlaceholder": "e.g., Before tax season preparation",
     "cancel": "Cancel",
@@ -43,17 +43,17 @@
   },
   "uploadDialog": {
     "title": "Upload and Restore Backup",
-    "description": "Upload a backup file (.ofbak) to restore your database",
+    "description": "Import your user data from a portable SQLite backup (.ofbak).",
     "selectFile": "Click to select backup file",
     "fileRestriction": "Only .ofbak files up to 100 MB",
-    "warning": "This will overwrite all current data. A safety backup will be created automatically.",
+    "warning": "This replaces your current user data. A safety backup will be created automatically.",
     "cancel": "Cancel",
     "restoring": "Restoring...",
     "upload": "Upload & Restore"
   },
   "restoreDialog": {
     "title": "Restore Backup?",
-    "description": "This will overwrite all current data with the backup from {{date}}. A safety backup will be created automatically. This action cannot be undone.",
+    "description": "Replace your user data with the backup from {{date}}. A safety backup will be created automatically.",
     "confirmText": "Restore Backup"
   },
   "deleteDialog": {
@@ -64,8 +64,10 @@
   "alerts": {
     "invalidFileType": "Invalid file type. Please select a .ofbak file.",
     "fileTooLarge": "File is too large. Maximum size is 100 MB.",
-    "restoreSuccess": "Success: {{message}}\n\nPlease restart the application for changes to take effect.",
-    "restoreFailed": "Failed to restore backup. Please check the console for details."
+    "restoreSuccess": "Success: {{message}}",
+    "restoreRefreshFailed": "Your data was restored, but preferences could not be refreshed. Sign out and sign back in to reload them.",
+    "restoreFailed": "Restore failed. Check the backup file and the master password used when it was created.",
+    "downloadFailed": "This backup cannot be downloaded. Create a new portable user backup; legacy whole-instance files are not supported."
   },
   "overview": {
     "sectionTitle": "Backup & Restore",
@@ -98,5 +100,9 @@
       "dayAgo_one": "{{count}} day ago",
       "dayAgo_other": "{{count}} days ago"
     }
+  },
+  "masterPassword": {
+    "label": "Backup master password (if encrypted)",
+    "help": "Enter the master password used when this backup was created. Your destination account keeps its current login and master password."
   }
 }

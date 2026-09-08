@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openfinance.dto.TransactionSplitRequest;
 import org.openfinance.dto.TransactionSplitResponse;
-import org.openfinance.entity.Category;
 import org.openfinance.entity.TransactionSplit;
 import org.openfinance.entity.TransactionType;
 import org.openfinance.exception.InvalidTransactionException;
@@ -321,22 +320,18 @@ public class TransactionSplitService {
             builder.description(split.getDescription());
         }
 
-        // Denormalize category metadata via lazy-loaded relationship
-        Category category = split.getCategory();
-        if (category != null) {
-            builder.categoryName(category.getName())
-                    .categoryIcon(category.getIcon())
-                    .categoryColor(category.getColor());
-        } else if (split.getCategoryId() != null) {
-            // Relationship not loaded — fall back to a direct repository look-up
+        // Legacy rows may contain invalid category references. Never disclose another owner's
+        // metadata.
+        org.openfinance.entity.Transaction parent = split.getTransaction();
+        if (parent != null && split.getCategoryId() != null) {
             categoryRepository
-                    .findById(split.getCategoryId())
-                    .ifPresent(
-                            cat -> {
-                                builder.categoryName(cat.getName())
-                                        .categoryIcon(cat.getIcon())
-                                        .categoryColor(cat.getColor());
-                            });
+                    .findByIdAndUserId(split.getCategoryId(), parent.getUserId())
+                    .ifPresentOrElse(
+                            category ->
+                                    builder.categoryName(category.getName())
+                                            .categoryIcon(category.getIcon())
+                                            .categoryColor(category.getColor()),
+                            () -> builder.categoryId(null));
         }
 
         return builder.build();

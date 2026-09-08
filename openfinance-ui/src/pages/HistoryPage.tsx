@@ -14,7 +14,6 @@ import { useAuthContext } from '@/context/AuthContext';
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/constants/pagination';
 import { format } from 'date-fns';
 
-
 export default function HistoryPage() {
   const { t } = useTranslation('history');
   useDocumentTitle(t('title'));
@@ -26,9 +25,19 @@ export default function HistoryPage() {
 
   const { sessionStartTime } = useAuthContext();
 
-  const { data: historyPage, isLoading, error } = useQuery({
+  const {
+    data: historyPage,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['history', currentPage, pageSize, entityTypeFilter, sessionStartTime],
-    queryFn: () => historyService.getHistory(currentPage, pageSize, entityTypeFilter, sessionStartTime ?? undefined),
+    queryFn: () =>
+      historyService.getHistory(
+        currentPage,
+        pageSize,
+        entityTypeFilter,
+        sessionStartTime ?? undefined
+      ),
     enabled: !!sessionStartTime,
   });
 
@@ -37,7 +46,7 @@ export default function HistoryPage() {
     onSuccess: () => {
       // Refresh history and other relevant data
       queryClient.invalidateQueries({ queryKey: ['history'] });
-      queryClient.invalidateQueries(); 
+      queryClient.invalidateQueries();
     },
   });
 
@@ -93,12 +102,12 @@ export default function HistoryPage() {
     <div className="p-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <PageHeader title={t('title')} description={t('description')} />
-        
+
         <div className="flex items-center gap-3 shrink-0">
-          <select 
+          <select
             className="h-10 px-3 py-2 border rounded-md border-input bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             value={entityTypeFilter || ''}
-            onChange={(e) => {
+            onChange={e => {
               setEntityTypeFilter(e.target.value ? (e.target.value as EntityType) : undefined);
               setCurrentPage(0);
             }}
@@ -124,11 +133,7 @@ export default function HistoryPage() {
       )}
 
       {!isLoading && historyPage?.content.length === 0 && (
-        <EmptyState
-          title={t('empty')}
-          description=""
-          icon={History}
-        />
+        <EmptyState title={t('empty')} description="" icon={History} />
       )}
 
       {!isLoading && historyPage && historyPage.content.length > 0 && (
@@ -144,20 +149,16 @@ export default function HistoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {historyPage.content.map((item) => {
+              {historyPage.content.map(item => {
                 const isUndone = !!item.undoneAt && !item.redoneAt;
                 const isRedone = !!item.redoneAt;
-                
+
                 return (
                   <tr key={item.id} className="hover:bg-muted/50 transition-colors group">
-                    <td className="px-6 py-4 font-medium">
-                      {getEntityOperationLabel(item)}
-                    </td>
-                    <td className="px-6 py-4">
-                      {item.entityLabel || '-'}
-                    </td>
+                    <td className="px-6 py-4 font-medium">{getEntityOperationLabel(item)}</td>
+                    <td className="px-6 py-4">{item.entityLabel || '-'}</td>
                     <td className="px-6 py-4 text-muted-foreground">
-                      {item.operationDate ? format(new Date(item.operationDate), 'PP pp') : '-'}
+                      {item.createdAt ? format(new Date(item.createdAt), 'PP pp') : '-'}
                     </td>
                     <td className="px-6 py-4">
                       {isUndone ? (
@@ -175,11 +176,12 @@ export default function HistoryPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
-                       <Button
+                      <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleUndo(item.id)}
-                        disabled={isUndone || undoMutation.isPending || redoMutation.isPending}
+                        title={!item.canUndo ? t('unavailable') : undefined}
+                        disabled={!item.canUndo || undoMutation.isPending || redoMutation.isPending}
                         className="h-8 px-2"
                       >
                         <Undo2 className="w-4 h-4 mr-1" />
@@ -189,7 +191,8 @@ export default function HistoryPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleRedo(item.id)}
-                        disabled={!isUndone || undoMutation.isPending || redoMutation.isPending}
+                        title={!item.canRedo ? t('unavailable') : undefined}
+                        disabled={!item.canRedo || undoMutation.isPending || redoMutation.isPending}
                         className="h-8 px-2"
                       >
                         <Redo2 className="w-4 h-4 mr-1" />
@@ -201,7 +204,7 @@ export default function HistoryPage() {
               })}
             </tbody>
           </table>
-          
+
           {historyPage.totalPages > 1 && (
             <div className="p-4 border-t border-border">
               <Pagination

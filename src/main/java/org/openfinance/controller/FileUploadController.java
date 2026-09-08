@@ -128,7 +128,7 @@ public class FileUploadController {
         // Store the file
         String uploadId;
         try {
-            uploadId = fileStorageService.storeFile(file);
+            uploadId = fileStorageService.storeFile(file, userId);
         } catch (IOException e) {
             log.error("Failed to store file for user {}", userId, e);
 

@@ -48,6 +48,8 @@ class UserServiceTest {
     @Mock private KeyManagementService keyManagementService;
 
     @Mock private EncryptionProperties encryptionProperties;
+    @Mock private MasterPasswordService masterPasswordService;
+    @Mock private org.openfinance.security.UserEncryptionLock userEncryptionLock;
 
     @Mock private UserMapper userMapper;
 

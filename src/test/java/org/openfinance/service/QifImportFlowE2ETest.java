@@ -146,7 +146,8 @@ class QifImportFlowE2ETest {
                                 "file",
                                 "synthetic.qif",
                                 "application/octet-stream",
-                                syntheticQif().getBytes(StandardCharsets.UTF_8)));
+                                syntheticQif().getBytes(StandardCharsets.UTF_8)),
+                        userId);
 
         ImportSession session = importService.startImport(uploadId, userId, null, "synthetic.qif");
         awaitParsed(session.getId());

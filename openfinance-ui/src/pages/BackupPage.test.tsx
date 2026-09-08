@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders, mockAuthentication } from '@/test/test-utils';
+import { http, HttpResponse } from 'msw';
+import { server } from '@/test/mocks/server';
+import { useAuthContext } from '@/context/AuthContext';
+import { useCurrencyDisplay } from '@/context/CurrencyDisplayContext';
+import { STORAGE_KEYS } from '@/constants/storage';
 
 vi.mock('@/hooks/useDocumentTitle', () => ({ useDocumentTitle: vi.fn() }));
 
@@ -59,6 +64,14 @@ vi.mock('@/components/ConfirmationDialog', () => ({
 
 import BackupPage from './BackupPage';
 
+function RestoredPreferences() {
+  const { user } = useAuthContext();
+  const { displayMode, secondaryCurrency } = useCurrencyDisplay();
+  return (
+    <output aria-label="Active preferences">{`${user?.baseCurrency}/${displayMode}/${secondaryCurrency}`}</output>
+  );
+}
+
 describe('BackupPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -109,7 +122,7 @@ describe('BackupPage', () => {
     renderWithProviders(<BackupPage />);
     const buttons = screen.getAllByRole('button', { name: /create backup/i });
     await user.click(buttons[0]);
-    expect(screen.getByText(/create a manual backup/i)).toBeInTheDocument();
+    expect(screen.getByText(/create a portable backup/i)).toBeInTheDocument();
   });
 
   it('opens upload dialog', async () => {
@@ -117,7 +130,7 @@ describe('BackupPage', () => {
     renderWithProviders(<BackupPage />);
     const buttons = screen.getAllByRole('button', { name: /upload backup/i });
     await user.click(buttons[0]);
-    expect(screen.getByText(/upload a backup file/i)).toBeInTheDocument();
+    expect(screen.getByText(/import your user data/i)).toBeInTheDocument();
   });
 
   it('calls createBackup when confirmed', async () => {
@@ -270,12 +283,72 @@ describe('BackupPage', () => {
     await user.click(restoreButtons[0]);
     await user.click(screen.getByText('Confirm'));
 
-    expect(mockRestoreBackup).toHaveBeenCalledWith(1);
+    expect(mockRestoreBackup).toHaveBeenCalledWith({ backupId: 1, masterPassword: undefined });
     // Wait for the alert to fire
     await vi.waitFor(() => {
       expect(alertSpy).toHaveBeenCalled();
     });
   });
+
+  it.each(['stored', 'uploaded'])(
+    'refreshes profile and currency preferences after a %s restore',
+    async source => {
+      const user = userEvent.setup();
+      vi.spyOn(window, 'alert').mockImplementation(() => {});
+      mockData = mockBackups;
+      server.use(
+        http.get('/api/v1/users/me', () =>
+          HttpResponse.json({
+            id: 1,
+            username: 'testuser',
+            baseCurrency: 'GBP',
+            profileImage: 'data:image/png;base64,restored',
+          })
+        ),
+        http.get('/api/v1/users/me/settings', () =>
+          HttpResponse.json({
+            language: 'en',
+            amountDisplayMode: 'both',
+            secondaryCurrency: 'EUR',
+          })
+        )
+      );
+      renderWithProviders(
+        <>
+          <BackupPage />
+          <RestoredPreferences />
+        </>
+      );
+
+      if (source === 'stored') {
+        await user.click(screen.getAllByTitle(/restore/i)[0]);
+        await user.click(screen.getByText('Confirm'));
+      } else {
+        await user.click(screen.getByRole('button', { name: /upload backup/i }));
+        const fileInput = document.getElementById('backup-file-input') as HTMLInputElement;
+        fireEvent.change(fileInput, {
+          target: { files: [new File(['archive'], 'portable.ofbak')] },
+        });
+        await user.type(
+          screen.getByLabelText(/Backup master password/),
+          'Original master password'
+        );
+        await user.click(screen.getByRole('button', { name: 'Upload & Restore' }));
+        expect(mockUploadAndRestore).toHaveBeenCalledWith({
+          file: expect.any(File),
+          masterPassword: 'Original master password',
+        });
+      }
+
+      await vi.waitFor(() =>
+        expect(screen.getByLabelText('Active preferences')).toHaveTextContent('GBP/both/EUR')
+      );
+      const storedUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.AUTH_USER) ?? '{}');
+      expect(storedUser.username).toBe('testuser');
+      expect(storedUser.baseCurrency).toBe('GBP');
+      expect(storedUser.profileImage).toBe('data:image/png;base64,restored');
+    }
+  );
 
   it('handles createBackup error gracefully', async () => {
     mockCreateBackup.mockRejectedValueOnce(new Error('Create failed'));

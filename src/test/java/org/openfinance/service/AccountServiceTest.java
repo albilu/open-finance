@@ -623,7 +623,7 @@ class AccountServiceTest {
 
     @Test
     @DisplayName("Should reverse transaction signs for credit card accounts")
-    void shouldReverseSignsForCreditCardAccounts() {
+    void shouldUseLedgerSignsForCreditCardAccounts() {
         // Arrange
         Account account =
                 Account.builder()
@@ -640,13 +640,15 @@ class AccountServiceTest {
                         org.openfinance.entity.Transaction.builder()
                                 .id(1L)
                                 .accountId(1L)
-                                .amount(new BigDecimal("-100.00")) // Charge stored as negative
+                                .type(org.openfinance.entity.TransactionType.EXPENSE)
+                                .amount(new BigDecimal("100.00")) // Expense amounts are positive
                                 .date(java.time.LocalDate.of(2023, 1, 5))
                                 .build(),
                         org.openfinance.entity.Transaction.builder()
                                 .id(2L)
                                 .accountId(1L)
-                                .amount(new BigDecimal("50.00")) // Payment stored as positive
+                                .type(org.openfinance.entity.TransactionType.INCOME)
+                                .amount(new BigDecimal("50.00"))
                                 .date(java.time.LocalDate.of(2023, 1, 10))
                                 .build());
 
@@ -667,11 +669,9 @@ class AccountServiceTest {
         assertThat(history.get(0).date()).isEqualTo(java.time.LocalDate.of(2023, 1, 1));
         assertThat(history.get(0).balance()).isEqualByComparingTo(new BigDecimal("0.00"));
         assertThat(history.get(1).date()).isEqualTo(java.time.LocalDate.of(2023, 1, 5));
-        assertThat(history.get(1).balance())
-                .isEqualByComparingTo(new BigDecimal("100.00")); // 0 + (-(-100)) = +100
+        assertThat(history.get(1).balance()).isEqualByComparingTo(new BigDecimal("-100.00"));
         assertThat(history.get(2).date()).isEqualTo(java.time.LocalDate.of(2023, 1, 10));
-        assertThat(history.get(2).balance())
-                .isEqualByComparingTo(new BigDecimal("50.00")); // 100 + (-50) = +50
+        assertThat(history.get(2).balance()).isEqualByComparingTo(new BigDecimal("-50.00"));
     }
 
     @Test
@@ -694,7 +694,9 @@ class AccountServiceTest {
                                 .id(1L)
                                 .accountId(1L)
                                 .amount(new BigDecimal("50.00"))
-                                .date(java.time.LocalDate.of(2023, 6, 1)) // Within 1M period
+                                .date(
+                                        java.time.LocalDate.now()
+                                                .minusDays(5)) // Within all requested windows
                                 .build());
 
         when(accountRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(account));

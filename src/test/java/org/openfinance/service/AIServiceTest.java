@@ -70,6 +70,9 @@ class AIServiceTest {
     @BeforeEach
     void setUp() {
         userId = 1L;
+        lenient()
+                .when(conversationRepository.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         testUser = User.builder().id(userId).email("test@example.com").username("testuser").build();
 
@@ -77,6 +80,44 @@ class AIServiceTest {
         // creation)
         // Use lenient() because not all tests create new conversations
         lenient().when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+    }
+
+    @Test
+    void shouldSendBothRolesFromSavedConversationToProvider() {
+        ObjectMapper realMapper = new ObjectMapper().findAndRegisterModules();
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                aiService, "objectMapper", realMapper);
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                aiService, "maxHistoryMessages", 2);
+        AIConversation conversation =
+                AIConversation.builder()
+                        .id(42L)
+                        .user(testUser)
+                        .title("Budget")
+                        .messages(
+                                "[{\"role\":\"user\",\"content\":\"My target is 500\"},{\"role\":\"assistant\",\"content\":\"We can use that target\"}]")
+                        .build();
+        when(conversationRepository.findByIdAndUser_Id(42L, userId))
+                .thenReturn(Optional.of(conversation));
+        when(contextBuilder.buildMinimalContext(eq(userId), any(Locale.class)))
+                .thenReturn("Current finances");
+        when(aiProvider.sendPrompt(eq("What was my target?"), anyString()))
+                .thenReturn(Mono.just("500"));
+        aiService.askQuestion(
+                userId,
+                AIDto.ChatRequest.builder()
+                        .conversationId(42L)
+                        .question("What was my target?")
+                        .includeFullContext(false)
+                        .build());
+        ArgumentCaptor<String> context = ArgumentCaptor.forClass(String.class);
+        verify(aiProvider).sendPrompt(eq("What was my target?"), context.capture());
+        assertThat(context.getValue())
+                .contains(
+                        "My target is 500",
+                        "We can use that target",
+                        "\"role\":\"user\"",
+                        "\"role\":\"assistant\"");
     }
 
     @Nested

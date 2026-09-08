@@ -59,6 +59,8 @@ class AuthServiceTest {
 
     @Mock private EncryptionKeyCache encryptionKeyCache;
     @Mock private EncryptionProperties encryptionProperties;
+    @Mock private MasterPasswordService masterPasswordService;
+    @Mock private org.openfinance.security.UserEncryptionLock userEncryptionLock;
 
     @Mock private DefaultCurrencyProvider defaultCurrencyProvider;
 

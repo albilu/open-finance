@@ -254,14 +254,14 @@ class ImportServiceTest {
     @DisplayName("Should start import successfully with valid upload ID and account")
     void shouldStartImportSuccessfully() throws Exception {
         // Given
-        when(fileStorageService.fileExists(UPLOAD_ID)).thenReturn(true);
-        when(fileStorageService.getOriginalFileName(UPLOAD_ID)).thenReturn(FILE_NAME);
+        when(fileStorageService.fileExists(UPLOAD_ID, USER_ID)).thenReturn(true);
+        when(fileStorageService.getOriginalFileName(UPLOAD_ID, USER_ID)).thenReturn(FILE_NAME);
         when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
                 .thenReturn(Optional.of(testAccount));
         when(importSessionRepository.save(any(ImportSession.class))).thenReturn(testSession);
         // Mock for parseFileAsync - it needs to find the session by ID
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(testSession));
-        when(fileStorageService.getFileContent(UPLOAD_ID))
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID))
                 .thenReturn(new ByteArrayInputStream("QIF content".getBytes()));
         when(qifParser.parseFile(any(InputStream.class), anyString(), any()))
                 .thenReturn(testTransactions);
@@ -283,8 +283,8 @@ class ImportServiceTest {
         // In production, @Async would make it PENDING initially
 
         // Verify interactions
-        verify(fileStorageService).fileExists(UPLOAD_ID);
-        verify(fileStorageService).getOriginalFileName(UPLOAD_ID);
+        verify(fileStorageService).fileExists(UPLOAD_ID, USER_ID);
+        verify(fileStorageService).getOriginalFileName(UPLOAD_ID, USER_ID);
         verify(accountRepository).findByIdAndUserId(ACCOUNT_ID, USER_ID);
         verify(importSessionRepository, atLeastOnce()).save(any(ImportSession.class));
     }
@@ -293,12 +293,12 @@ class ImportServiceTest {
     @DisplayName("Should start import without account ID")
     void shouldStartImportWithoutAccountId() throws Exception {
         // Given
-        when(fileStorageService.fileExists(UPLOAD_ID)).thenReturn(true);
-        when(fileStorageService.getOriginalFileName(UPLOAD_ID)).thenReturn(FILE_NAME);
+        when(fileStorageService.fileExists(UPLOAD_ID, USER_ID)).thenReturn(true);
+        when(fileStorageService.getOriginalFileName(UPLOAD_ID, USER_ID)).thenReturn(FILE_NAME);
         when(importSessionRepository.save(any(ImportSession.class))).thenReturn(testSession);
         // Mock for parseFileAsync - it needs to find the session by ID
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(testSession));
-        when(fileStorageService.getFileContent(UPLOAD_ID))
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID))
                 .thenReturn(new ByteArrayInputStream("QIF content".getBytes()));
         when(qifParser.parseFile(any(InputStream.class), anyString(), any()))
                 .thenReturn(testTransactions);
@@ -321,7 +321,7 @@ class ImportServiceTest {
     @DisplayName("Should throw ResourceNotFoundException when upload file not found")
     void shouldThrowExceptionWhenUploadNotFound() {
         // Given
-        when(fileStorageService.fileExists(UPLOAD_ID)).thenReturn(false);
+        when(fileStorageService.fileExists(UPLOAD_ID, USER_ID)).thenReturn(false);
 
         // When & Then
         assertThatThrownBy(() -> importService.startImport(UPLOAD_ID, USER_ID, ACCOUNT_ID))
@@ -335,8 +335,8 @@ class ImportServiceTest {
     @DisplayName("Should throw ResourceNotFoundException when account not found")
     void shouldThrowExceptionWhenAccountNotFound() {
         // Given
-        when(fileStorageService.fileExists(UPLOAD_ID)).thenReturn(true);
-        when(fileStorageService.getOriginalFileName(UPLOAD_ID)).thenReturn(FILE_NAME);
+        when(fileStorageService.fileExists(UPLOAD_ID, USER_ID)).thenReturn(true);
+        when(fileStorageService.getOriginalFileName(UPLOAD_ID, USER_ID)).thenReturn(FILE_NAME);
         when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.empty());
 
         // When & Then
@@ -352,8 +352,8 @@ class ImportServiceTest {
     void shouldThrowExceptionWhenAccountIsInactive() {
         // Given
         testAccount.setIsActive(false);
-        when(fileStorageService.fileExists(UPLOAD_ID)).thenReturn(true);
-        when(fileStorageService.getOriginalFileName(UPLOAD_ID)).thenReturn(FILE_NAME);
+        when(fileStorageService.fileExists(UPLOAD_ID, USER_ID)).thenReturn(true);
+        when(fileStorageService.getOriginalFileName(UPLOAD_ID, USER_ID)).thenReturn(FILE_NAME);
         when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
                 .thenReturn(Optional.of(testAccount));
 
@@ -380,8 +380,8 @@ class ImportServiceTest {
                         .status(ImportStatus.PENDING)
                         .build();
 
-        when(fileStorageService.fileExists(UPLOAD_ID)).thenReturn(true);
-        when(fileStorageService.getOriginalFileName(UPLOAD_ID)).thenReturn(qfxFileName);
+        when(fileStorageService.fileExists(UPLOAD_ID, USER_ID)).thenReturn(true);
+        when(fileStorageService.getOriginalFileName(UPLOAD_ID, USER_ID)).thenReturn(qfxFileName);
         when(importSessionRepository.save(any(ImportSession.class)))
                 .thenAnswer(
                         invocation -> {
@@ -392,7 +392,7 @@ class ImportServiceTest {
                             return session;
                         });
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(qfxSession));
-        when(fileStorageService.getFileContent(UPLOAD_ID))
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID))
                 .thenReturn(new ByteArrayInputStream("OFX content".getBytes()));
         ImportParseResult ofxResult =
                 ImportParseResult.builder()
@@ -425,7 +425,7 @@ class ImportServiceTest {
         InputStream mockStream = new ByteArrayInputStream("!Type:Bank\n".getBytes());
 
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(testSession));
-        when(fileStorageService.getFileContent(UPLOAD_ID)).thenReturn(mockStream);
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID)).thenReturn(mockStream);
         when(qifParser.parseFile(any(InputStream.class), eq(FILE_NAME), any()))
                 .thenReturn(testTransactions);
         when(objectMapper.writeValueAsString(any())).thenReturn("{\"transactions\":[]}");
@@ -449,7 +449,7 @@ class ImportServiceTest {
         InputStream mockStream = new ByteArrayInputStream("<OFX>".getBytes());
 
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(testSession));
-        when(fileStorageService.getFileContent(UPLOAD_ID)).thenReturn(mockStream);
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID)).thenReturn(mockStream);
         ImportParseResult ofxResult =
                 ImportParseResult.builder()
                         .transactions(testTransactions)
@@ -478,7 +478,7 @@ class ImportServiceTest {
                 new ByteArrayInputStream("Date,Payee,Amount\n2023-01-01,Test,10.0".getBytes());
 
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(testSession));
-        when(fileStorageService.getFileContent(UPLOAD_ID)).thenReturn(mockStream);
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID)).thenReturn(mockStream);
         when(csvParser.parseFile(any(InputStream.class), anyString(), any()))
                 .thenReturn(testTransactions);
         when(objectMapper.writeValueAsString(any())).thenReturn("{\"transactions\":[]}");
@@ -662,7 +662,7 @@ class ImportServiceTest {
         // Given
         testSession.setStatus(ImportStatus.PARSING);
         when(importSessionRepository.findById(1L)).thenReturn(Optional.of(testSession));
-        when(fileStorageService.getFileContent(UPLOAD_ID))
+        when(fileStorageService.getFileContent(UPLOAD_ID, USER_ID))
                 .thenThrow(new IOException("File read error"));
 
         // When

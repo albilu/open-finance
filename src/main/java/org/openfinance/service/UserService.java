@@ -56,6 +56,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordService passwordService;
     private final KeyManagementService keyManagementService;
+    private final MasterPasswordService masterPasswordService;
     private final EncryptionProperties encryptionProperties;
     private final UserMapper userMapper;
     private final CategorySeeder categorySeeder;
@@ -148,6 +149,11 @@ public class UserService {
                         .masterPasswordSalt(saltBase64)
                         .baseCurrency(defaultCurrencyProvider.getDefaultCurrency())
                         .build();
+
+        if (encryptionEnabled) {
+            user.setMasterPasswordVerifier(
+                    masterPasswordService.createVerifier(request.getMasterPassword(), saltBase64));
+        }
 
         // 6. Persist to database
         User savedUser = userRepository.save(user);
@@ -505,16 +511,8 @@ public class UserService {
      * data. This method verifies the current master password and generates a new salt for the new
      * password.
      *
-     * <p><strong>Important:</strong> This method only updates the salt. Full re-encryption of all
-     * user data (accounts, transactions, assets, liabilities) with the new key is a separate
-     * complex operation that requires:
-     *
-     * <ul>
-     *   <li>Deriving the old encryption key from current master password
-     *   <li>Decrypting all encrypted data
-     *   <li>Deriving the new encryption key from new master password
-     *   <li>Re-encrypting all data with the new key
-     * </ul>
+     * <p>Delegates the encrypted records, attachment bytes, indexes, salt, and verifier migration
+     * to one transaction. Old sessions are revoked only after successful commit.
      *
      * <p><strong>Security:</strong>
      *
@@ -532,54 +530,11 @@ public class UserService {
      * @param newMasterPassword new master password to set
      * @throws IllegalArgumentException if user not found or current master password invalid
      */
-    @Transactional
-    public void updateMasterPassword(
+    public String updateMasterPassword(
             Long userId, String currentMasterPassword, String newMasterPassword) {
-        log.info("Updating master password for user ID: {}", userId);
-
-        // 1. Find user
-        User user =
-                userRepository
-                        .findById(userId)
-                        .orElseThrow(
-                                () -> {
-                                    log.warn(
-                                            "Master password update failed: user ID {} not found",
-                                            userId);
-                                    return new IllegalArgumentException(
-                                            "User not found with ID: " + userId);
-                                });
-
-        // 2. Verify current master password by deriving the key
-        try {
-            byte[] saltBytes = Base64.getDecoder().decode(user.getMasterPasswordSalt());
-            char[] currentPasswordChars = currentMasterPassword.toCharArray();
-
-            // Try to derive key from current password - if it fails, password is wrong
-            keyManagementService.deriveKey(currentPasswordChars, saltBytes);
-
-            // Clear the password from memory
-            for (int i = 0; i < currentPasswordChars.length; i++) {
-                currentPasswordChars[i] = '\0';
-            }
-        } catch (Exception e) {
-            log.warn(
-                    "Master password update failed for user {}: invalid current master password",
-                    user.getUsername());
-            throw new IllegalArgumentException("Current master password is incorrect");
-        }
-
-        // 3. Generate new salt for the new master password
-        byte[] newSaltBytes = keyManagementService.generateSalt();
-        String newSaltBase64 = Base64.getEncoder().encodeToString(newSaltBytes);
-
-        // 4. Update the salt (note: full data re-encryption is not implemented)
-        user.setMasterPasswordSalt(newSaltBase64);
-        userRepository.save(user);
-
-        log.info(
-                "Successfully updated master password salt for user {}. Note: Full data re-encryption is required.",
-                user.getUsername());
+        if (!encryptionProperties.isEnabled())
+            throw new IllegalStateException("Application encryption is disabled");
+        return masterPasswordService.change(userId, currentMasterPassword, newMasterPassword);
     }
 
     // -------------------------------------------------------------------------

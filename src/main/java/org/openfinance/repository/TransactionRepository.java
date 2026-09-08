@@ -274,7 +274,7 @@ public interface TransactionRepository
      */
     @Query(
             "SELECT t FROM Transaction t WHERE t.categoryId IN :categoryIds AND t.userId = :userId "
-                    + "AND t.date BETWEEN :startDate AND :endDate AND t.isDeleted = false ORDER BY t.date ASC")
+                    + "AND t.date BETWEEN :startDate AND :endDate AND t.isDeleted = false AND NOT EXISTS (SELECT s.id FROM TransactionSplit s WHERE s.transactionId = t.id) ORDER BY t.date ASC")
     List<Transaction> findByCategoryIdInAndDateRange(
             @Param("categoryIds") List<Long> categoryIds,
             @Param("startDate") LocalDate startDate,
@@ -523,4 +523,9 @@ public interface TransactionRepository
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.accountId = :accountId OR t.toAccountId = :accountId")
     int deleteAllByAccountIdIncludingDeleted(@Param("accountId") Long accountId);
+
+    @Query(
+            "SELECT t FROM Transaction t WHERE t.userId = :userId AND t.isDeleted = false AND (t.accountId = :accountId OR t.toAccountId = :accountId)")
+    List<Transaction> findActiveForAccountDeletion(
+            @Param("accountId") Long accountId, @Param("userId") Long userId);
 }

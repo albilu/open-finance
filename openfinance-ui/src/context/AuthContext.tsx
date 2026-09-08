@@ -10,6 +10,7 @@
  */
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import type { User } from '@/types/user';
 import { DEFAULT_CURRENCY } from '@/utils/currency';
 import { STORAGE_KEYS } from '@/constants/storage';
@@ -46,6 +47,7 @@ interface AuthProviderProps {
  * Wraps the application and provides authentication state
  */
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useContext(QueryClientContext);
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,6 +103,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Listen to storage events to sync auth state across tabs
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.AUTH_TOKEN) {
+        queryClient?.clear();
+        sessionStorage.removeItem(STORAGE_KEYS.ENCRYPTION_SESSION);
         if (e.newValue === null) {
           // Logged out in another tab
           setToken(null);
@@ -108,7 +112,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           // Logged in on another tab
           const storedUser =
-            localStorage.getItem(STORAGE_KEYS.AUTH_USER) || sessionStorage.getItem(STORAGE_KEYS.AUTH_USER);
+            localStorage.getItem(STORAGE_KEYS.AUTH_USER) ||
+            sessionStorage.getItem(STORAGE_KEYS.AUTH_USER);
           if (storedUser) {
             setToken(e.newValue);
             setUser(JSON.parse(storedUser) as User);
@@ -119,7 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [queryClient]);
 
   /**
    * Set authentication state after successful login
@@ -127,36 +132,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * @param token - JWT token
    * @param rememberMe - If true, use localStorage (persist across browser restarts). If false, use sessionStorage (clear on browser close)
    */
-  const setAuth = useCallback((user: User, token: string, rememberMe = false) => {
-    setUser(user);
-    setToken(token);
+  const setAuth = useCallback(
+    (user: User, token: string, rememberMe = false) => {
+      queryClient?.clear();
+      setUser(user);
+      setToken(token);
 
-    // Choose storage based on rememberMe preference
-    const storage = rememberMe ? localStorage : sessionStorage;
+      // Choose storage based on rememberMe preference
+      const storage = rememberMe ? localStorage : sessionStorage;
 
-    // Clear from the opposite storage to avoid conflicts
-    const oppositeStorage = rememberMe ? sessionStorage : localStorage;
+      // Clear from the opposite storage to avoid conflicts
+      const oppositeStorage = rememberMe ? sessionStorage : localStorage;
 
-    // Persist to chosen storage. Note: storing JWT in localStorage has XSS risk;
-    // consider using httpOnly cookies for production deployments.
-    try {
-      storage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      storage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(user));
+      // Persist to chosen storage. Note: storing JWT in localStorage has XSS risk;
+      // consider using httpOnly cookies for production deployments.
+      try {
+        storage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+        storage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(user));
 
-      // Record session start time; always in sessionStorage so it clears on tab close
-      const now = new Date().toISOString();
-      sessionStorage.setItem(STORAGE_KEYS.SESSION_START_TIME, now);
-      setSessionStartTime(now);
+        // Record session start time; always in sessionStorage so it clears on tab close
+        const now = new Date().toISOString();
+        sessionStorage.setItem(STORAGE_KEYS.SESSION_START_TIME, now);
+        setSessionStartTime(now);
 
-      // Clear from opposite storage
-      oppositeStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      oppositeStorage.removeItem(STORAGE_KEYS.AUTH_USER);
-    } catch (error) {
-      // Log but don't throw — UI should remain usable even if persistence fails
-      // eslint-disable-next-line no-console
-      console.error('Failed to persist auth state:', error);
-    }
-  }, []);
+        // Clear from opposite storage
+        oppositeStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+        oppositeStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+      } catch (error) {
+        // Log but don't throw — UI should remain usable even if persistence fails
+        // eslint-disable-next-line no-console
+        console.error('Failed to persist auth state:', error);
+      }
+    },
+    [queryClient]
+  );
 
   /**
    * Merge partial user fields into current user and persist to whichever storage
@@ -188,6 +197,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Clears from both localStorage and sessionStorage
    */
   const clearAuth = useCallback(() => {
+    queryClient?.clear();
     setUser(null);
     setToken(null);
 
@@ -204,7 +214,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (e) {
       // ignore storage errors
     }
-  }, []);
+  }, [queryClient]);
 
   const value: AuthContextType = useMemo(
     () => ({

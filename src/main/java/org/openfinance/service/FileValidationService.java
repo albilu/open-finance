@@ -53,7 +53,7 @@ public class FileValidationService {
     public FileValidationService(
             @Value("${application.import.allowed-extensions:.qif,.ofx,.qfx,.csv,.json}")
                     String allowedExtensions,
-            @Value("${spring.servlet.multipart.max-file-size:10MB}") String maxFileSizeString,
+            @Value("${application.import.max-file-size:10MB}") String maxFileSizeString,
             ImportProperties importProperties) {
         this.allowedExtensions = Arrays.asList(allowedExtensions.split(","));
         this.maxFileSize = parseFileSize(maxFileSizeString);

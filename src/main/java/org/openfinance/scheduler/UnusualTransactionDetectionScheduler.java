@@ -68,6 +68,8 @@ public class UnusualTransactionDetectionScheduler implements ApplicationRunner {
     private final UserRepository userRepository;
     private final SchedulerProperties schedulerProperties;
     private final EncryptionKeyCache encryptionKeyCache;
+    private final org.openfinance.config.EncryptionProperties encryptionProperties;
+    private final org.openfinance.security.UserEncryptionLock userEncryptionLock;
 
     // -----------------------------------------------------------------
     // Startup execution
@@ -115,27 +117,33 @@ public class UnusualTransactionDetectionScheduler implements ApplicationRunner {
         int skippedUsers = 0;
 
         for (User user : users) {
-            Optional<SecretKey> keyOpt = encryptionKeyCache.getKey(user.getId());
-            if (keyOpt.isEmpty()) {
-                skippedUsers++;
-                continue;
-            }
-            try {
-                EncryptionContext.setKey(keyOpt.get());
-                int count = detectionService.detectAndPersist(user.getId(), since);
-                if (count > 0) {
-                    log.info("Detected {} unusual transaction(s) for user {}", count, user.getId());
+            try (org.openfinance.security.UserEncryptionLock.Scope ignored =
+                    userEncryptionLock.acquire(user.getId(), false)) {
+                Optional<SecretKey> keyOpt = encryptionKeyCache.getKey(user.getId());
+                if (encryptionProperties.isEnabled() && keyOpt.isEmpty()) {
+                    skippedUsers++;
+                    continue;
                 }
-                totalInsights += count;
-            } catch (Exception e) {
-                failedUsers++;
-                log.error(
-                        "Error detecting unusual transactions for user {}: {}",
-                        user.getId(),
-                        e.getMessage(),
-                        e);
-            } finally {
-                EncryptionContext.clear();
+                try {
+                    EncryptionContext.setKey(keyOpt.orElse(null));
+                    int count = detectionService.detectAndPersist(user.getId(), since);
+                    if (count > 0) {
+                        log.info(
+                                "Detected {} unusual transaction(s) for user {}",
+                                count,
+                                user.getId());
+                    }
+                    totalInsights += count;
+                } catch (Exception e) {
+                    failedUsers++;
+                    log.error(
+                            "Error detecting unusual transactions for user {}: {}",
+                            user.getId(),
+                            e.getMessage(),
+                            e);
+                } finally {
+                    EncryptionContext.clear();
+                }
             }
         }
 

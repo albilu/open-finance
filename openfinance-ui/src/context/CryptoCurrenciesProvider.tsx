@@ -1,6 +1,7 @@
 import { type ReactNode, useLayoutEffect } from 'react';
 import { useCurrencies } from '@/hooks/useCurrency';
 import { setCryptoCurrencyCodes } from '@/utils/currency';
+import { useAuthContext } from '@/context/AuthContext';
 
 /**
  * Pushes the set of CRYPTO currency codes from the currencies API into the `currency.ts` module
@@ -8,7 +9,8 @@ import { setCryptoCurrencyCodes } from '@/utils/currency';
  * Mirrors DecimalPlacesProvider (useLayoutEffect -> setter, runs before paint).
  */
 export function CryptoCurrenciesProvider({ children }: { children: ReactNode }) {
-  const { data: currencies } = useCurrencies();
+  const { isAuthenticated } = useAuthContext();
+  const { data: currencies } = useCurrencies(isAuthenticated);
 
   useLayoutEffect(() => {
     setCryptoCurrencyCodes((currencies ?? []).filter(c => c.type === 'CRYPTO').map(c => c.code));

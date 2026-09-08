@@ -24,7 +24,6 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -93,6 +92,8 @@ class BackupControllerIntegrationTest {
     @Autowired private UserRepository userRepository;
 
     @Autowired private BackupRepository backupRepository;
+
+    @Autowired private org.openfinance.service.BackupService backupService;
 
     @Autowired private KeyManagementService keyManagementService;
 
@@ -339,36 +340,7 @@ class BackupControllerIntegrationTest {
     void shouldCreateSafetyBackupBeforeRestore() throws Exception {
         assumeTrue(isSQLite(), "Backup file operations are SQLite-only");
         // Given - create backup file
-        String filename = "safety-test.ofbak";
-        Path backupPath = Paths.get(backupDirectory);
-        Files.createDirectories(backupPath);
-        Path backupFile = backupPath.resolve(filename);
-
-        byte[] testDbContent = "SQLite format 3\0safety test content".getBytes();
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {
-            gzipOut.write(testDbContent);
-            gzipOut.finish();
-            Files.write(backupFile, baos.toByteArray());
-        }
-
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(Files.readAllBytes(backupFile));
-        String checksum = bytesToHex(hash);
-
-        Backup backup =
-                Backup.builder()
-                        .userId(userId)
-                        .filename(filename)
-                        .filePath(backupFile.toString())
-                        .fileSize(Files.size(backupFile))
-                        .checksum(checksum)
-                        .status("COMPLETED")
-                        .backupType("MANUAL")
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
-                        .build();
-        Backup saved = backupRepository.save(backup);
+        Backup saved = backupService.createBackup(userId, "Restore fixture");
 
         // When - perform restore
         mockMvc.perform(
@@ -381,14 +353,14 @@ class BackupControllerIntegrationTest {
         List<Backup> backups = backupRepository.findByUserIdOrderByCreatedAtDesc(userId);
         assertThat(backups.size()).isGreaterThanOrEqualTo(2); // Original + safety backup
 
-        // Check for safety backup (description contains "Auto-backup before restore")
+        // Check for safety backup (description contains "Safety backup before restore")
         boolean hasSafetyBackup =
                 backups.stream()
                         .anyMatch(
                                 b ->
                                         b.getDescription() != null
                                                 && b.getDescription()
-                                                        .contains("Auto-backup before restore"));
+                                                        .contains("Safety backup before restore"));
         assertThat(hasSafetyBackup).isTrue();
     }
 
@@ -495,15 +467,8 @@ class BackupControllerIntegrationTest {
     @DisplayName("POST /api/v1/backup/restore/upload - upload and restore backup")
     void shouldUploadAndRestoreBackup() throws Exception {
         assumeTrue(isSQLite(), "Backup file operations are SQLite-only");
-        // Given - create gzipped backup file content
-        byte[] testDbContent = "SQLite format 3\0uploaded database content".getBytes();
-        byte[] gzippedContent;
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {
-            gzipOut.write(testDbContent);
-            gzipOut.finish();
-            gzippedContent = baos.toByteArray();
-        }
+        Backup backup = backupService.createBackup(userId, "Portable upload fixture");
+        byte[] gzippedContent = Files.readAllBytes(Path.of(backup.getFilePath()));
 
         MockMultipartFile file =
                 new MockMultipartFile(

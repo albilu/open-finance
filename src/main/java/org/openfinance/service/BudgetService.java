@@ -93,6 +93,7 @@ public class BudgetService {
     private final OperationHistoryService operationHistoryService;
     private final SearchTokenService searchTokenService;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
+    private final ExchangeRateService exchangeRateService;
 
     // Status thresholds
     private static final BigDecimal WARNING_THRESHOLD = BigDecimal.valueOf(75);
@@ -480,7 +481,12 @@ public class BudgetService {
 
         // Calculate spent amount
         BigDecimal spent =
-                calculateSpentAmount(category, budget.getStartDate(), budget.getEndDate(), userId);
+                calculateSpentAmount(
+                        category,
+                        budget.getStartDate(),
+                        budget.getEndDate(),
+                        userId,
+                        budget.getCurrency());
 
         // Calculate remaining
         BigDecimal remaining = budgeted.subtract(spent);
@@ -815,7 +821,9 @@ public class BudgetService {
             LocalDate periodStart = window[0];
             LocalDate periodEnd = window[1];
 
-            BigDecimal spent = calculateSpentAmount(category, periodStart, periodEnd, userId);
+            BigDecimal spent =
+                    calculateSpentAmount(
+                            category, periodStart, periodEnd, userId, budget.getCurrency());
             BigDecimal remaining = budgetedPerPeriod.subtract(spent);
             BigDecimal percentage = BigDecimal.ZERO;
             if (budgetedPerPeriod.compareTo(BigDecimal.ZERO) > 0) {
@@ -1131,7 +1139,11 @@ public class BudgetService {
      * @return total amount spent (always positive or zero)
      */
     private BigDecimal calculateSpentAmount(
-            Category category, LocalDate startDate, LocalDate endDate, Long userId) {
+            Category category,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long userId,
+            String currency) {
         List<Long> categoryIds = getCategoryAndSubcategoryIds(category);
         List<Transaction> transactions =
                 transactionRepository.findByCategoryIdInAndDateRange(
@@ -1140,7 +1152,13 @@ public class BudgetService {
         BigDecimal mainSpent =
                 transactions.stream()
                         .filter(t -> t.getType() == TransactionType.EXPENSE)
-                        .map(Transaction::getAmount)
+                        .map(
+                                t ->
+                                        budgetAmount(
+                                                t.getAmount(),
+                                                t.getCurrency(),
+                                                currency,
+                                                t.getDate()))
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // REQUIREMENT: Include split transactions that match the category
@@ -1150,10 +1168,29 @@ public class BudgetService {
         BigDecimal splitSpent =
                 splits.stream()
                         .filter(s -> s.getAmount() != null)
-                        .map(TransactionSplit::getAmount)
+                        .map(
+                                split -> {
+                                    Transaction parent = split.getTransaction();
+                                    if (parent == null)
+                                        parent =
+                                                transactionRepository
+                                                        .findById(split.getTransactionId())
+                                                        .orElseThrow();
+                                    return budgetAmount(
+                                            split.getAmount(),
+                                            parent.getCurrency(),
+                                            currency,
+                                            parent.getDate());
+                                })
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return mainSpent.add(splitSpent);
+    }
+
+    private BigDecimal budgetAmount(
+            BigDecimal amount, String source, String target, LocalDate date) {
+        if (source == null || target == null || source.equalsIgnoreCase(target)) return amount;
+        return exchangeRateService.convert(amount, source, target, date);
     }
 
     /**

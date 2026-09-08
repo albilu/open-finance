@@ -56,8 +56,8 @@ spring:
   servlet:
     multipart:
       enabled: true
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 100MB
+      max-request-size: 101MB
   task:
     scheduling:
       pool:
@@ -152,6 +152,7 @@ application:
         - https://www.lemonde.fr/economie/rss_full.xml
         - https://www.lefigaro.fr/rss/figaro_economie.xml
   import:
+    max-file-size: 10MB
     allowed-extensions: .qif,.ofx,.qfx,.csv,.json
     temp-directory: ./temp/imports
     cleanup-after-hours: 24

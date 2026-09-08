@@ -59,33 +59,14 @@ public class DataExportController {
      * }
      * </pre>
      *
-     * <p><b>Example Response:</b>
-     *
-     * <pre>
-     * {
-     *   "exportId": "a7f8c9d0-1234-5678-90ab-cdef12345678",
-     *   "format": "JSON",
-     *   "filename": "openfinance-export-20240203-102530.json",
-     *   "fileSizeBytes": 524288,
-     *   "accountCount": 5,
-     *   "transactionCount": 234,
-     *   "assetCount": 12,
-     *   "liabilityCount": 2,
-     *   "budgetCount": 8,
-     *   "categoryCount": 25,
-     *   "realEstateCount": 1,
-     *   "generatedAt": "2024-02-03T10:25:30",
-     *   "expiresAt": "2024-02-04T10:25:30",
-     *   "message": "Export completed successfully"
-     * }
-     * </pre>
+     * <p>Returns the generated file as an attachment.
      *
      * @param request Export request with format and inclusion options
      * @param authentication Spring Security authentication
-     * @return Export response with metadata
+     * @return Downloadable JSON or CSV content
      */
     @PostMapping("/export")
-    public ResponseEntity<DataExportResponse> exportData(
+    public ResponseEntity<byte[]> exportData(
             @Valid @RequestBody DataExportRequest request, Authentication authentication) {
 
         log.info("Export data request received for format: {}", request.getFormat());
@@ -95,11 +76,25 @@ public class DataExportController {
         Long userId = user.getId();
 
         // Perform export
-        DataExportResponse response = dataExportService.exportUserData(userId, request);
+        DataExportService.DataExportFile export = dataExportService.exportUserData(userId, request);
+        DataExportResponse response = export.metadata();
 
         log.info("Export completed for user {}. Export ID: {}", userId, response.getExportId());
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok()
+                .contentType(
+                        org.springframework.http.MediaType.parseMediaType(
+                                "JSON".equalsIgnoreCase(response.getFormat())
+                                        ? "application/json"
+                                        : "text/csv;charset=UTF-8"))
+                .header(
+                        org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment()
+                                .filename(response.getFilename())
+                                .build()
+                                .toString())
+                .contentLength(export.content().length)
+                .body(export.content());
     }
 
     /**

@@ -1,7 +1,7 @@
 /**
  * Currency management hooks
  * Sprint 6 - Task 6.2.11: Multi-currency support frontend
- * 
+ *
  * Provides React Query hooks for currency and exchange rate operations
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,7 +19,7 @@ import type {
 /**
  * Get all active currencies
  */
-export function useCurrencies() {
+export function useCurrencies(enabled = true) {
   return useQuery({
     queryKey: ['currencies'],
     queryFn: async () => {
@@ -27,6 +27,7 @@ export function useCurrencies() {
       return response.data;
     },
     staleTime: 1000 * 60 * 60, // 1 hour (currencies don't change often)
+    enabled,
   });
 }
 
@@ -65,7 +66,7 @@ export function useExchangeRate(from: string, to: string, date?: string) {
 
 /**
  * Get latest exchange rate
- * 
+ *
  * @param from - Source currency code
  * @param to - Target currency code
  * @param refreshKey - Optional key to force refetch (increment to refresh)
@@ -74,13 +75,15 @@ export function useLatestExchangeRate(
   from: string,
   to: string,
   refreshKey?: number,
-  enabled: boolean = true,
+  enabled: boolean = true
 ) {
   return useQuery({
     queryKey: ['exchangeRate', 'latest', from, to, refreshKey],
     queryFn: async () => {
       const params = new URLSearchParams({ from, to });
-      const response = await apiClient.get<ExchangeRate>('/currencies/exchange-rates/latest', { params });
+      const response = await apiClient.get<ExchangeRate>('/currencies/exchange-rates/latest', {
+        params,
+      });
       return response.data;
     },
     enabled: !!from && !!to && from !== to && enabled, // Don't fetch if same currency or disabled
@@ -108,7 +111,9 @@ export function useUpdateExchangeRates() {
 
   return useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<UpdateRatesResponse>('/currencies/exchange-rates/update');
+      const response = await apiClient.post<UpdateRatesResponse>(
+        '/currencies/exchange-rates/update'
+      );
       return response.data;
     },
     onSuccess: () => {
@@ -137,9 +142,9 @@ export function useConvertAmount(amount: number, from: string, to: string) {
  */
 export function useCurrencyFormat(code: string) {
   const { data: currencies } = useCurrencies();
-  
+
   const currency = currencies?.find(c => c.code === code);
-  
+
   return (amount: number) => {
     const decimals = getCurrencyDecimals(code);
     if (!currency) {

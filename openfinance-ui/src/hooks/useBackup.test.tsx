@@ -123,12 +123,14 @@ describe('useBackup hooks', () => {
       const { result } = renderHook(() => useRestoreBackup(), { wrapper });
 
       await act(async () => {
-        result.current.mutate(1);
+        result.current.mutate({ backupId: 1, masterPassword: 'ArchiveMaster123!' });
       });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       expect(result.current.data).toBe('Backup restored successfully');
-      expect(mockedApiClient.post).toHaveBeenCalledWith('/backup/restore/1');
+      expect(mockedApiClient.post).toHaveBeenCalledWith('/backup/restore/1', {
+        masterPassword: 'ArchiveMaster123!',
+      });
     });
   });
 
@@ -141,7 +143,7 @@ describe('useBackup hooks', () => {
 
       const file = new File(['backup data'], 'backup.db', { type: 'application/octet-stream' });
       await act(async () => {
-        result.current.mutate(file);
+        result.current.mutate({ file, masterPassword: 'ArchiveMaster123!' });
       });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -150,8 +152,10 @@ describe('useBackup hooks', () => {
         expect.any(FormData),
         expect.objectContaining({
           headers: { 'Content-Type': 'multipart/form-data' },
-        }),
+        })
       );
+      const uploaded = mockedApiClient.post.mock.calls[0][1] as FormData;
+      expect(uploaded.get('masterPassword')).toBe('ArchiveMaster123!');
     });
   });
 
@@ -210,7 +214,7 @@ describe('useBackup hooks', () => {
         }
         return originalCreateElement(tag);
       });
-      vi.spyOn(document.body, 'appendChild').mockImplementation((node) => node);
+      vi.spyOn(document.body, 'appendChild').mockImplementation(node => node);
 
       const { result } = renderHook(() => useDownloadBackup(), { wrapper });
 

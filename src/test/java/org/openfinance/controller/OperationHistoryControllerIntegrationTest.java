@@ -115,7 +115,7 @@ class OperationHistoryControllerIntegrationTest {
     }
 
     @Test
-    void undo_Redo_MarkStatusOnlyForNonCreate() throws Exception {
+    void unsupportedUndoAndRedoLeaveStatusUnchanged() throws Exception {
         // Record a mock UPDATE event directly via service
         operationHistoryService.record(
                 userId, EntityType.ACCOUNT, 999L, "Test Account", OperationType.UPDATE, "{}", "{}");
@@ -135,18 +135,24 @@ class OperationHistoryControllerIntegrationTest {
                         post("/api/v1/history/" + historyId + "/undo")
                                 .header("Authorization", "Bearer " + authToken)
                                 .header("X-Encryption-Session", encryptionSession))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.undoneAt").isNotEmpty())
-                .andExpect(jsonPath("$.redoneAt").isEmpty());
+                .andExpect(status().isBadRequest());
 
         // Redo
         mockMvc.perform(
                         post("/api/v1/history/" + historyId + "/redo")
                                 .header("Authorization", "Bearer " + authToken)
                                 .header("X-Encryption-Session", encryptionSession))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.undoneAt").isNotEmpty())
-                .andExpect(jsonPath("$.redoneAt").isNotEmpty());
+                .andExpect(status().isBadRequest());
+        org.assertj.core.api.Assertions.assertThat(
+                        operationHistoryService
+                                .getEntry(historyId.longValue(), userId)
+                                .getUndoneAt())
+                .isNull();
+        org.assertj.core.api.Assertions.assertThat(
+                        operationHistoryService
+                                .getEntry(historyId.longValue(), userId)
+                                .getRedoneAt())
+                .isNull();
     }
 
     @Test
