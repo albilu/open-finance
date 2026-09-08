@@ -520,6 +520,94 @@ class LiabilityServiceTest {
         verify(liabilityRepository, never()).delete(any(Liability.class));
     }
 
+    @Test
+    void shouldThrowException_WhenDeletingLiabilityWithDrawnTranche() {
+        // Given
+        Long liabilityId = 100L;
+        Liability liability = createLiabilityEntity(liabilityId, testUserId);
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(liability));
+        LiabilityTranche drawn =
+                LiabilityTranche.builder()
+                        .id(401L)
+                        .liabilityId(liabilityId)
+                        .userId(testUserId)
+                        .trancheNo(1)
+                        .plannedAmount(new BigDecimal("10000.00"))
+                        .drawnAmount(new BigDecimal("10000.00"))
+                        .status(TrancheStatus.DRAWN)
+                        .currency("USD")
+                        .build();
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of(drawn));
+
+        // When/Then
+        assertThatThrownBy(() -> liabilityService.deleteLiability(liabilityId, testUserId))
+                .isInstanceOf(InvalidLiabilityStateException.class)
+                .hasMessageContaining(String.valueOf(liabilityId));
+
+        verify(liabilityRepository, never()).delete(any(Liability.class));
+    }
+
+    @Test
+    void shouldThrowException_WhenDeletingLiabilityWithLinkedTransactions() {
+        // Given
+        Long liabilityId = 100L;
+        Liability liability = createLiabilityEntity(liabilityId, testUserId);
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(liability));
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of());
+        when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of(Transaction.builder().id(1L).userId(testUserId).build()));
+
+        // When/Then
+        assertThatThrownBy(() -> liabilityService.deleteLiability(liabilityId, testUserId))
+                .isInstanceOf(InvalidLiabilityStateException.class)
+                .hasMessageContaining(String.valueOf(liabilityId));
+
+        verify(liabilityRepository, never()).delete(any(Liability.class));
+    }
+
+    @Test
+    void shouldDeleteLiability_WhenOnlyPlannedOrCancelledTranchesAndNoTransactions() {
+        // Given
+        Long liabilityId = 100L;
+        Liability liability = createLiabilityEntity(liabilityId, testUserId);
+        when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
+                .thenReturn(Optional.of(liability));
+        LiabilityTranche planned =
+                LiabilityTranche.builder()
+                        .id(402L)
+                        .liabilityId(liabilityId)
+                        .userId(testUserId)
+                        .trancheNo(2)
+                        .plannedAmount(new BigDecimal("5000.00"))
+                        .status(TrancheStatus.PLANNED)
+                        .currency("USD")
+                        .build();
+        LiabilityTranche cancelled =
+                LiabilityTranche.builder()
+                        .id(403L)
+                        .liabilityId(liabilityId)
+                        .userId(testUserId)
+                        .trancheNo(3)
+                        .plannedAmount(new BigDecimal("1000.00"))
+                        .status(TrancheStatus.CANCELLED)
+                        .currency("USD")
+                        .build();
+        when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of(planned, cancelled));
+        when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
+                .thenReturn(List.of());
+
+        // When
+        liabilityService.deleteLiability(liabilityId, testUserId);
+
+        // Then — CASCADE on liability_id removes the stale tranches
+        verify(liabilityRepository).delete(liability);
+    }
+
     // ============ Get Liabilities By Type Tests ============
 
     @Test

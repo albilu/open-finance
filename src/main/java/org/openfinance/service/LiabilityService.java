@@ -462,6 +462,19 @@ public class LiabilityService {
 
         LocalDate liabilityStartDate = liability.getStartDate();
 
+        // Deletion guard: a liability with disbursed money (DRAWN tranches) or linked
+        // transactions owns historical movements — deleting it would orphan them.
+        List<LiabilityTranche> tranches =
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId);
+        if (tranches.stream().anyMatch(t -> t.getStatus() == TrancheStatus.DRAWN)) {
+            log.warn("Blocked liability deletion {}: DRAWN tranches exist", liabilityId);
+            throw InvalidLiabilityStateException.liabilityDeletionBlocked(liabilityId);
+        }
+        if (!transactionRepository.findByLiabilityIdAndUserId(liabilityId, userId).isEmpty()) {
+            log.warn("Blocked liability deletion {}: linked transactions exist", liabilityId);
+            throw InvalidLiabilityStateException.liabilityDeletionBlocked(liabilityId);
+        }
+
         // Delete liability
         liabilityRepository.delete(liability);
         searchTokenService.removeEntity("LIABILITY", liabilityId);

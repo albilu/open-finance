@@ -110,6 +110,22 @@ public class InvalidLiabilityStateException extends RuntimeException
                 new Object[] {liabilityId});
     }
 
+    /**
+     * Factory method for a deletion attempted while drawn tranches or linked transactions exist.
+     *
+     * @param liabilityId the liability that cannot be deleted
+     * @return a new InvalidLiabilityStateException
+     */
+    public static InvalidLiabilityStateException liabilityDeletionBlocked(Long liabilityId) {
+        return new InvalidLiabilityStateException(
+                String.format(
+                        "Cannot delete liability %d: drawn tranches or linked transactions exist"
+                                + " (repay or reassign them first)",
+                        liabilityId),
+                "error.liability.deletion.blocked",
+                new Object[] {liabilityId});
+    }
+
     @Override
     public String getMessageKey() {
         return messageKey;
