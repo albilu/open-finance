@@ -78,6 +78,17 @@
     "linkedLiability": "Linked Liability (Optional)",
     "linkedLiabilityHint": "Link this payment to a loan or mortgage for tracking",
     "selectLiability": "Select a liability to link",
+    "movementType": "Movement",
+    "movementHint": "Classify this expense as a capital improvement or maintenance on a property or physical asset",
+    "movementTypeNone": "None",
+    "movementProperty": "Property",
+    "movementAsset": "Physical asset",
+    "selectProperty": "Select a property…",
+    "selectPhysicalAsset": "Select a physical asset…",
+    "movementTypes": {
+      "CAPITAL_IMPROVEMENT": "Capital improvement",
+      "MAINTENANCE": "Maintenance"
+    },
     "repaymentPreviewTitle": "Repayment Breakdown",
     "repaymentPreviewPrincipal": "Principal",
     "repaymentPreviewInterest": "Interest",
@@ -99,7 +110,10 @@
       "notesTooLong": "Notes are too long",
       "payeeTooLong": "Payee is too long",
       "sameAccount": "Source and destination accounts must be different",
-      "liabilityCurrencyUnsupported": "Enter the amount in the account or liability currency."
+      "liabilityCurrencyUnsupported": "Enter the amount in the account or liability currency.",
+      "movementTargetRequired": "Select the property or physical asset this movement applies to",
+      "movementSingleTarget": "Select either a property or an asset, not both",
+      "movementLiabilityExclusive": "A transaction can be linked to a liability or target a property/asset, not both"
     },
     "types": {
       "INCOME": "Income",

@@ -16,6 +16,8 @@ import * as useTransactionTagsModule from '@/hooks/useTransactionTags';
 import * as useTransactionsModule from '@/hooks/useTransactions';
 import * as useLiabilitiesModule from '@/hooks/useLiabilities';
 import * as useCurrencyModule from '@/hooks/useCurrency';
+import * as useRealEstateModule from '@/hooks/useRealEstate';
+import * as useAssetsModule from '@/hooks/useAssets';
 import { renderWithProviders } from '@/test/test-utils';
 import type { Payee } from '@/types/payee';
 import type { Category, Transaction } from '@/types/transaction';
@@ -165,6 +167,16 @@ vi.mock('@/hooks/useLiabilities', async importOriginal => {
   return { ...actual, useLiabilities: vi.fn(), useRepaymentPreview: vi.fn() };
 });
 
+vi.mock('@/hooks/useRealEstate', async importOriginal => {
+  const actual = await importOriginal<typeof useRealEstateModule>();
+  return { ...actual, useProperties: vi.fn() };
+});
+
+vi.mock('@/hooks/useAssets', async importOriginal => {
+  const actual = await importOriginal<typeof useAssetsModule>();
+  return { ...actual, useAssets: vi.fn() };
+});
+
 vi.mock('@/hooks/useCurrency', async importOriginal => {
   const actual = await importOriginal<typeof useCurrencyModule>();
   return { ...actual, useLatestExchangeRate: vi.fn() };
@@ -178,6 +190,8 @@ const mockUseCategoryTree = vi.mocked(useTransactionsModule.useCategoryTree);
 const mockUseLiabilities = vi.mocked(useLiabilitiesModule.useLiabilities);
 const mockUseRepaymentPreview = vi.mocked(useLiabilitiesModule.useRepaymentPreview);
 const mockUseLatestExchangeRate = vi.mocked(useCurrencyModule.useLatestExchangeRate);
+const mockUseProperties = vi.mocked(useRealEstateModule.useProperties);
+const mockUseAssets = vi.mocked(useAssetsModule.useAssets);
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -315,6 +329,18 @@ describe('TransactionForm', () => {
 
     mockUseLatestExchangeRate.mockReturnValue({
       data: undefined,
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    mockUseProperties.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    mockUseAssets.mockReturnValue({
+      data: [],
       isLoading: false,
       isError: false,
     } as any);
@@ -1404,6 +1430,214 @@ describe('TransactionForm', () => {
         expect(onSubmit).toHaveBeenCalledTimes(1);
       });
       expect(screen.queryByTestId('repayment-preview')).not.toBeInTheDocument();
+    });
+  });
+
+  // ── Movement Section (manual movement entry) ────────────────────────────────
+
+  describe('Movement Section', () => {
+    const mockProperties = [
+      { id: 11, name: 'Rue de la Paix apartment' },
+      { id: 12, name: 'Lake cabin' },
+    ];
+    const mockAssets = [
+      { id: 21, name: 'Family car', type: 'VEHICLE', isPhysical: true },
+      { id: 22, name: 'VTI ETF', type: 'ETF', isPhysical: false },
+    ];
+
+    beforeEach(() => {
+      mockUseProperties.mockReturnValue({
+        data: mockProperties as any,
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockUseAssets.mockReturnValue({
+        data: mockAssets as any,
+        isLoading: false,
+        isError: false,
+      } as any);
+    });
+
+    async function selectMovementType(value: string) {
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/^movement$/i), { target: { value } });
+      });
+    }
+
+    it('is visible for EXPENSE and hidden for INCOME', async () => {
+      renderForm();
+
+      expect(screen.getByLabelText(/^movement$/i)).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/type/i), { target: { value: 'INCOME' } });
+      });
+
+      expect(screen.queryByLabelText(/^movement$/i)).not.toBeInTheDocument();
+    });
+
+    it('offers capital improvement and maintenance movement types', () => {
+      renderForm();
+
+      const select = screen.getByLabelText(/^movement$/i) as HTMLSelectElement;
+      const options = Array.from(select.options).map(o => o.value);
+      expect(options).toContain('CAPITAL_IMPROVEMENT');
+      expect(options).toContain('MAINTENANCE');
+    });
+
+    it('lists properties and only physical assets as targets', async () => {
+      renderForm();
+
+      await selectMovementType('CAPITAL_IMPROVEMENT');
+
+      const propertySelect = screen.getByLabelText('Property') as HTMLSelectElement;
+      const propertyOptions = Array.from(propertySelect.options).map(o => o.textContent);
+      expect(propertyOptions).toContain('Rue de la Paix apartment');
+      expect(propertyOptions).toContain('Lake cabin');
+
+      const assetSelect = screen.getByLabelText('Physical asset') as HTMLSelectElement;
+      const assetOptions = Array.from(assetSelect.options).map(o => o.textContent);
+      expect(assetOptions).toContain('Family car');
+      expect(assetOptions).not.toContain('VTI ETF');
+    });
+
+    it('submits realEstateId and movementType when a property and CAPITAL_IMPROVEMENT are selected', async () => {
+      const { onSubmit } = renderForm();
+
+      await selectMovementType('CAPITAL_IMPROVEMENT');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Property'), { target: { value: '11' } });
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1500' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+        screen.getByTestId('account-selector').click();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      const payload = onSubmit.mock.calls[0][0];
+      expect(payload.realEstateId).toBe(11);
+      expect(payload.movementType).toBe('CAPITAL_IMPROVEMENT');
+      expect(payload.assetId).toBeUndefined();
+    });
+
+    it('submits assetId and movementType when a physical asset and MAINTENANCE are selected', async () => {
+      const { onSubmit } = renderForm();
+
+      await selectMovementType('MAINTENANCE');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Physical asset'), { target: { value: '21' } });
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '120' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+        screen.getByTestId('account-selector').click();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      const payload = onSubmit.mock.calls[0][0];
+      expect(payload.assetId).toBe(21);
+      expect(payload.movementType).toBe('MAINTENANCE');
+      expect(payload.realEstateId).toBeUndefined();
+    });
+
+    it('blocks submit when a movement type is selected without a target', async () => {
+      const { onSubmit } = renderForm();
+
+      await selectMovementType('CAPITAL_IMPROVEMENT');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '100' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+        screen.getByTestId('account-selector').click();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByText(/select the property or physical asset/i)).toBeInTheDocument();
+      });
+    });
+
+    it('blocks submit when both a property and an asset are selected', async () => {
+      const { onSubmit } = renderForm();
+
+      await selectMovementType('CAPITAL_IMPROVEMENT');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Property'), { target: { value: '11' } });
+        fireEvent.change(screen.getByLabelText('Physical asset'), { target: { value: '21' } });
+      });
+
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '100' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+        screen.getByTestId('account-selector').click();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByText(/either a property or an asset/i)).toBeInTheDocument();
+      });
+    });
+
+    it('blocks submit with a clear message when a liability and a property are selected simultaneously', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [
+          {
+            id: 1,
+            name: 'Mortgage',
+            userId: 1,
+            type: 'MORTGAGE',
+            currentBalance: 100000,
+            currency: 'EUR',
+            interestRate: 3.5,
+            startDate: '2020-01-01',
+            isActive: true,
+            createdAt: '2020-01-01',
+          },
+        ],
+        isLoading: false,
+        isError: false,
+      } as any);
+
+      const { onSubmit } = renderForm();
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('liability-selector'), { target: { value: '1' } });
+      });
+      await selectMovementType('MAINTENANCE');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Property'), { target: { value: '11' } });
+      });
+
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '100' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+        screen.getByTestId('account-selector').click();
+      });
+
+      await act(async () => {
+        screen.getByRole('button', { name: /create transaction/i }).click();
+      });
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByText(/liability or target a property\/asset/i)).toBeInTheDocument();
+      });
     });
   });
 

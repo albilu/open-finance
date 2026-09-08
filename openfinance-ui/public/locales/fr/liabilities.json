@@ -202,6 +202,20 @@
       "cancel": "Annuler",
       "submit": "Ajouter",
       "error": "La tranche n'a pas pu être créée. Veuillez réessayer."
+    },
+    "draw": "Débloquer",
+    "disburse": "Débloquer des fonds",
+    "disburseForm": {
+      "title": "Débloquer des fonds",
+      "amount": "Montant",
+      "date": "Date",
+      "route": "Destination",
+      "routeAccount": "Vers mon compte",
+      "routeProperty": "Directement vers le bien lié",
+      "account": "Compte",
+      "cancel": "Annuler",
+      "submit": "Confirmer le déblocage",
+      "error": "Le déblocage a échoué. Veuillez réessayer."
     }
   },
   "movementTypes": {

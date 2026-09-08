@@ -78,6 +78,17 @@
     "linkedLiability": "Passif lié (Facultatif)",
     "linkedLiabilityHint": "Associez ce paiement à un prêt ou une hypothèque pour le suivi",
     "selectLiability": "Sélectionner un passif à associer",
+    "movementType": "Mouvement",
+    "movementHint": "Classez cette dépense comme amélioration (capital) ou entretien d'un bien immobilier ou d'un actif physique",
+    "movementTypeNone": "Aucun",
+    "movementProperty": "Bien immobilier",
+    "movementAsset": "Actif physique",
+    "selectProperty": "Sélectionner un bien immobilier…",
+    "selectPhysicalAsset": "Sélectionner un actif physique…",
+    "movementTypes": {
+      "CAPITAL_IMPROVEMENT": "Amélioration (capital)",
+      "MAINTENANCE": "Entretien"
+    },
     "repaymentPreviewTitle": "Répartition du remboursement",
     "repaymentPreviewPrincipal": "Capital",
     "repaymentPreviewInterest": "Intérêts",
@@ -99,7 +110,10 @@
       "notesTooLong": "Les notes sont trop longues",
       "payeeTooLong": "Le bénéficiaire est trop long",
       "sameAccount": "Les comptes source et destination doivent être différents",
-      "liabilityCurrencyUnsupported": "Saisissez le montant dans la devise du compte ou du passif."
+      "liabilityCurrencyUnsupported": "Saisissez le montant dans la devise du compte ou du passif.",
+      "movementTargetRequired": "Sélectionnez le bien immobilier ou l'actif physique concerné par ce mouvement",
+      "movementSingleTarget": "Sélectionnez un bien immobilier ou un actif, pas les deux",
+      "movementLiabilityExclusive": "Une transaction peut être liée à un passif ou cibler un bien ou un actif, pas les deux"
     },
     "types": {
       "INCOME": "Revenu",

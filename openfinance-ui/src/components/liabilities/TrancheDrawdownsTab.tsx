@@ -6,15 +6,19 @@
  * drawn / remaining amounts, linked property label and interest-only flag.
  *
  * Since Task 9 it also hosts the "Add tranche" form (planned amount, date and
- * the interest-only phase fields) posting to the tranche endpoint.
+ * the interest-only phase fields) posting to the tranche endpoint. Each
+ * PLANNED tranche carries a "Draw" action opening the shared DisburseForm
+ * (amount prefilled with the remaining planned amount, date and route —
+ * to an account or directly to the linked property).
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Layers, AlertCircle, Plus } from 'lucide-react';
+import { Layers, AlertCircle, Plus, Banknote } from 'lucide-react';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
 import { Button } from '@/components/ui/Button';
 import { DateInput } from '@/components/ui/DateInput';
 import { NumberInput } from '@/components/ui/NumberInput';
+import { DisburseForm } from '@/components/liabilities/DisburseForm';
 import { useTranches, useCreateTranche, getTrancheLabel } from '@/hooks/useTranches';
 import type { Liability, TrancheStatus } from '@/types/liability';
 import { cn } from '@/lib/utils';
@@ -139,6 +143,8 @@ export function TrancheDrawdownsTab({ liability }: { liability: Liability }) {
   const { t } = useTranslation('liabilities');
   const { data: tranches = [], isLoading, error } = useTranches(liability.id);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [drawTrancheId, setDrawTrancheId] = useState<number | null>(null);
+  const drawTranche = tranches.find(tr => tr.id === drawTrancheId) ?? null;
 
   const addButton = (
     <Button
@@ -185,6 +191,13 @@ export function TrancheDrawdownsTab({ liability }: { liability: Liability }) {
   return (
     <div className="space-y-3">
       {showAddForm && <AddTrancheForm liability={liability} onDone={() => setShowAddForm(false)} />}
+      {drawTranche && (
+        <DisburseForm
+          liability={liability}
+          tranche={drawTranche}
+          onDone={() => setDrawTrancheId(null)}
+        />
+      )}
       <div className="flex justify-end">{addButton}</div>
       <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
         {tranches.map(tranche => (
@@ -249,6 +262,18 @@ export function TrancheDrawdownsTab({ liability }: { liability: Liability }) {
                   />
                 </span>
               </span>
+              {tranche.status === 'PLANNED' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => setDrawTrancheId(tranche.id)}
+                  disabled={drawTrancheId === tranche.id}
+                >
+                  <Banknote className="h-3.5 w-3.5 mr-1" />
+                  {t('drawdowns.draw')}
+                </Button>
+              )}
             </div>
           </div>
         ))}

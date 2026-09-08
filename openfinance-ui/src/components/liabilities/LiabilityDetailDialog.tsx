@@ -14,14 +14,16 @@
  */
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CreditCard, RefreshCcw, AlertCircle } from 'lucide-react';
+import { CreditCard, RefreshCcw, AlertCircle, Banknote } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
+import { Button } from '@/components/ui/Button';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 import { AmortizationSchedule } from '@/components/liabilities/AmortizationSchedule';
 import { LiabilityBreakdownPanel } from '@/components/liabilities/LiabilityBreakdownPanel';
 import { TrancheDrawdownsTab } from '@/components/liabilities/TrancheDrawdownsTab';
+import { DisburseForm } from '@/components/liabilities/DisburseForm';
 import { AttachmentList, AttachmentUpload } from '@/components/attachments';
 import { AttachmentEntityType } from '@/types/attachment';
 import { multiply } from '@/utils/money';
@@ -401,6 +403,32 @@ function LinkedPaymentsTab({ liability }: { liability: Liability }) {
 }
 
 /**
+ * OverviewDisburse renders the generic "Disburse" action on the Overview tab
+ * when no PLANNED tranche remains: the disbursement endpoint auto-picks (or
+ * creates) the next tranche server-side.
+ */
+function OverviewDisburse({ liability }: { liability: Liability }) {
+  const { t } = useTranslation('liabilities');
+  const { data: tranches = [] } = useTranches(liability.id);
+  const [showForm, setShowForm] = useState(false);
+
+  const noPlannedRemaining = tranches.length > 0 && !tranches.some(tr => tr.status === 'PLANNED');
+  if (!noPlannedRemaining) return null;
+
+  if (showForm) {
+    return <DisburseForm liability={liability} onDone={() => setShowForm(false)} />;
+  }
+  return (
+    <div className="flex justify-end mt-4">
+      <Button variant="outline" size="sm" type="button" onClick={() => setShowForm(true)}>
+        <Banknote className="h-3.5 w-3.5 mr-1" />
+        {t('drawdowns.disburse')}
+      </Button>
+    </div>
+  );
+}
+
+/**
  * LiabilityDetailDialog — unified tabbed dialog for liability details.
  *
  * Requirement 2.1: Overview tab shows cost breakdown with total cost hero card.
@@ -516,6 +544,7 @@ export function LiabilityDetailDialog({
               <div>
                 <TotalCostHero liability={liability} />
                 <LiabilityBreakdownPanel liability={liability} />
+                <OverviewDisburse liability={liability} />
               </div>
             )}
 

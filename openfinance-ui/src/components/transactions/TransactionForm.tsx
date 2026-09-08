@@ -24,6 +24,7 @@ import { CategorySelect } from '@/components/ui/CategorySelect';
 import { AccountSelector } from '@/components/ui/AccountSelector';
 import { LiabilitySelector } from '@/components/ui/LiabilitySelector';
 import { SplitTransactionForm } from './SplitTransactionForm';
+import { MovementSection } from './MovementSection';
 import { usePopularTags } from '@/hooks/useTransactionTags';
 import { useActivePayees } from '@/hooks/usePayees';
 import { useLiabilities, useRepaymentPreview } from '@/hooks/useLiabilities';
@@ -103,6 +104,11 @@ const transactionSchema = (tValidation: (key: string) => string) =>
         .optional(),
       // Requirement 3.1: Optional link to a liability (EXPENSE transactions only)
       liabilityId: optionalNumber,
+      // Manual movement entry: improvement/maintenance classification with exactly
+      // one target (property or physical asset) — mirrors the backend @AssertTrue.
+      movementType: z.enum(['CAPITAL_IMPROVEMENT', 'MAINTENANCE']).optional(),
+      realEstateId: optionalNumber,
+      assetId: optionalNumber,
     })
     .superRefine((data, ctx) => {
       // Transfers must move funds between two different accounts.
@@ -115,6 +121,35 @@ const transactionSchema = (tValidation: (key: string) => string) =>
           code: z.ZodIssueCode.custom,
           path: ['toAccountId'],
           message: tValidation('form.validation.sameAccount'),
+        });
+      }
+      // Movement coherence: an improvement/maintenance movement must target
+      // exactly one property or physical asset (backend @AssertTrue mirror).
+      const improvementMovement =
+        data.movementType === 'CAPITAL_IMPROVEMENT' || data.movementType === 'MAINTENANCE';
+      const hasProperty = data.realEstateId !== undefined;
+      const hasAsset = data.assetId !== undefined;
+      if (improvementMovement && !hasProperty && !hasAsset) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['movementType'],
+          message: tValidation('form.validation.movementTargetRequired'),
+        });
+      }
+      if (hasProperty && hasAsset) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['realEstateId'],
+          message: tValidation('form.validation.movementSingleTarget'),
+        });
+      }
+      // Multi-instrument guard: a transaction can reference a liability OR a
+      // property/asset, never both (backend singleInstrument @AssertTrue mirror).
+      if (data.type === 'EXPENSE' && data.liabilityId !== undefined && (hasProperty || hasAsset)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['liabilityId'],
+          message: tValidation('form.validation.movementLiabilityExclusive'),
         });
       }
     });
@@ -438,6 +473,10 @@ function buildTransactionRequest(ctx: SubmitContext): TransactionRequest {
     paymentMethod: data.paymentMethod || undefined,
     // Requirement 3.1: Only include liabilityId for EXPENSE transactions
     liabilityId: data.type === 'EXPENSE' ? data.liabilityId : undefined,
+    // Manual movement entry: only include the instrument links for EXPENSE
+    realEstateId: data.type === 'EXPENSE' ? data.realEstateId : undefined,
+    assetId: data.type === 'EXPENSE' ? data.assetId : undefined,
+    movementType: data.type === 'EXPENSE' ? data.movementType : undefined,
     // REQ-SPL-2.1, REQ-SPL-2.2: include splits when split mode is active
     splits: finalSplits,
   };
@@ -536,6 +575,9 @@ export function TransactionForm({
           tags: transaction.tags || [],
           paymentMethod: transaction.paymentMethod || undefined,
           liabilityId: transaction.liabilityId,
+          movementType: transaction.movementType,
+          realEstateId: transaction.realEstateId,
+          assetId: transaction.assetId,
         }
       : {
           accountId: undefined as any,
@@ -551,6 +593,9 @@ export function TransactionForm({
           tags: [],
           paymentMethod: undefined,
           liabilityId: undefined,
+          movementType: undefined,
+          realEstateId: undefined,
+          assetId: undefined,
         },
   });
 
@@ -1132,7 +1177,39 @@ export function TransactionForm({
               />
             )}
           />
+          {errors.liabilityId && (
+            <p id="liabilityId-error" className="mt-1 text-sm text-error" role="alert">
+              {errors.liabilityId.message}
+            </p>
+          )}
         </div>
+      )}
+
+      {/* Manual movement entry (improvement/maintenance on a property or physical
+          asset) — only for EXPENSE transactions. Kept visible alongside the
+          liability picker; the zod schema rejects combining them with a clear
+          message (backend rejects the combination too). */}
+      {selectedType === 'EXPENSE' && (
+        <MovementSection
+          movementType={watch('movementType')}
+          realEstateId={watch('realEstateId')}
+          assetId={watch('assetId')}
+          onMovementTypeChange={value => {
+            setValue('movementType', value, { shouldValidate: true });
+            if (!value) {
+              setValue('realEstateId', undefined, { shouldValidate: true });
+              setValue('assetId', undefined, { shouldValidate: true });
+            }
+          }}
+          onRealEstateIdChange={value => setValue('realEstateId', value, { shouldValidate: true })}
+          onAssetIdChange={value => setValue('assetId', value, { shouldValidate: true })}
+          errors={{
+            movementType: errors.movementType?.message,
+            realEstateId: errors.realEstateId?.message,
+            assetId: errors.assetId?.message,
+          }}
+          disabled={isLoading}
+        />
       )}
 
       {/* Repayment auto-split preview (Task 5) — read-only breakdown of the repayment total,

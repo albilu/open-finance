@@ -202,6 +202,20 @@
       "cancel": "Cancel",
       "submit": "Add",
       "error": "The tranche could not be created. Please try again."
+    },
+    "draw": "Draw",
+    "disburse": "Disburse",
+    "disburseForm": {
+      "title": "Disburse funds",
+      "amount": "Amount",
+      "date": "Date",
+      "route": "Route",
+      "routeAccount": "To my account",
+      "routeProperty": "Direct to the linked property",
+      "account": "Account",
+      "cancel": "Cancel",
+      "submit": "Confirm disbursement",
+      "error": "The disbursement failed. Please try again."
     }
   },
   "movementTypes": {

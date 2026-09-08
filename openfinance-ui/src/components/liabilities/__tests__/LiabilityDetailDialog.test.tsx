@@ -13,6 +13,7 @@ import React from 'react';
 import { LiabilityDetailDialog } from '../LiabilityDetailDialog';
 import * as useLiabilitiesModule from '@/hooks/useLiabilities';
 import * as useTranchesModule from '@/hooks/useTranches';
+import * as useAccountsModule from '@/hooks/useAccounts';
 import type { Liability, LiabilityTranche } from '@/types/liability';
 
 // Mock VisibilityContext
@@ -95,8 +96,14 @@ vi.mock('@/hooks/useLiabilities', async importOriginal => {
       isLoading: false,
       error: null,
     })),
+    useDisburseLiability: vi.fn(),
     formatCurrency: vi.fn((amount: number, currency: string = 'EUR') => `€${amount.toFixed(2)}`),
   };
+});
+
+vi.mock('@/hooks/useAccounts', async importOriginal => {
+  const actual = await importOriginal<typeof useAccountsModule>();
+  return { ...actual, useAccounts: vi.fn() };
 });
 
 vi.mock('@/hooks/useTranches', async importOriginal => {
@@ -111,6 +118,8 @@ const mockUseLiabilityBreakdown = vi.mocked(useLiabilitiesModule.useLiabilityBre
 const mockUseAmortizationSchedule = vi.mocked(useLiabilitiesModule.useAmortizationSchedule);
 const mockUseLiabilityTransactions = vi.mocked(useLiabilitiesModule.useLiabilityTransactions);
 const mockUseTranches = vi.mocked(useTranchesModule.useTranches);
+const mockUseDisburseLiability = vi.mocked(useLiabilitiesModule.useDisburseLiability);
+const mockUseAccounts = vi.mocked(useAccountsModule.useAccounts);
 
 // Mock the child components
 vi.mock('../LiabilityBreakdownPanel', () => ({
@@ -162,6 +171,138 @@ describe('LiabilityDetailDialog', () => {
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+    mockUseDisburseLiability.mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue({}),
+      isLoading: false,
+      isError: false,
+    } as any);
+    mockUseAccounts.mockReturnValue({
+      data: [
+        {
+          id: 3,
+          name: 'Checking',
+          currency: 'EUR',
+          type: 'CHECKING',
+          balance: 5000,
+          userId: 1,
+          isActive: true,
+          createdAt: '2025-01-01',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    } as any);
+  });
+
+  describe('Overview Disburse (no planned tranches remaining)', () => {
+    it('shows a Disburse button on Overview when all tranches are drawn', () => {
+      mockUseLiabilityBreakdown.mockReturnValue({
+        data: mockBreakdown,
+        isLoading: false,
+        error: null,
+      });
+      mockUseTranches.mockReturnValue({
+        data: [
+          {
+            id: 1,
+            liabilityId: 1,
+            trancheNo: 1,
+            plannedAmount: 100000,
+            drawnAmount: 100000,
+            remaining: 0,
+            status: 'DRAWN',
+            currency: 'EUR',
+          },
+        ],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      expect(screen.getByRole('button', { name: /^disburse$/i })).toBeInTheDocument();
+    });
+
+    it('hides the Disburse button while a PLANNED tranche remains', () => {
+      mockUseLiabilityBreakdown.mockReturnValue({
+        data: mockBreakdown,
+        isLoading: false,
+        error: null,
+      });
+      mockUseTranches.mockReturnValue({
+        data: [
+          {
+            id: 1,
+            liabilityId: 1,
+            trancheNo: 1,
+            plannedAmount: 100000,
+            drawnAmount: null,
+            remaining: 100000,
+            status: 'PLANNED',
+            currency: 'EUR',
+          },
+        ],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      expect(screen.queryByRole('button', { name: /^disburse$/i })).not.toBeInTheDocument();
+    });
+
+    it('disburses without a trancheId so the backend auto-picks the next tranche', async () => {
+      mockUseLiabilityBreakdown.mockReturnValue({
+        data: mockBreakdown,
+        isLoading: false,
+        error: null,
+      });
+      mockUseTranches.mockReturnValue({
+        data: [
+          {
+            id: 1,
+            liabilityId: 1,
+            trancheNo: 1,
+            plannedAmount: 100000,
+            drawnAmount: 100000,
+            remaining: 0,
+            status: 'DRAWN',
+            currency: 'EUR',
+          },
+        ],
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useTranchesModule.useTranches>);
+      const mutateAsync = vi.fn().mockResolvedValue({});
+      mockUseDisburseLiability.mockReturnValue({
+        mutateAsync,
+        isLoading: false,
+        isError: false,
+      } as any);
+
+      renderWithProviders(<LiabilityDetailDialog liability={mockLiability} onClose={vi.fn()} />);
+
+      await act(async () => {
+        screen.getByRole('button', { name: /^disburse$/i }).click();
+      });
+
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '12000' } });
+        fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2025-06-15' } });
+        fireEvent.change(screen.getByLabelText(/account/i), { target: { value: '3' } });
+      });
+      await act(async () => {
+        screen.getByRole('button', { name: /confirm disbursement/i }).click();
+      });
+
+      await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+      const call = mutateAsync.mock.calls[0][0];
+      expect(call.liabilityId).toBe(1);
+      expect(call.request.trancheId).toBeUndefined();
+      expect(call.request.toAccountId).toBe(3);
+      expect(call.request.amount).toBe(12000);
+      expect(call.request.date).toBe('2025-06-15');
+    });
   });
 
   describe('Dialog Visibility', () => {
@@ -337,9 +478,7 @@ describe('LiabilityDetailDialog', () => {
         screen.getByText('Amortization Schedule').click();
       });
 
-      expect(
-        screen.getByText(/interest-only until 2027-06-01: principal 0/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/interest-only until 2027-06-01: principal 0/i)).toBeInTheDocument();
     });
 
     it('shows no interest-only banner when no active interest-only tranche exists', () => {

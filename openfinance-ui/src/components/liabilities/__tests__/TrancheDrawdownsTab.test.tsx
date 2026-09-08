@@ -11,6 +11,8 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { renderWithProviders } from '@/test/test-utils';
 import { TrancheDrawdownsTab } from '../TrancheDrawdownsTab';
 import * as useTranchesModule from '@/hooks/useTranches';
+import * as useLiabilitiesModule from '@/hooks/useLiabilities';
+import * as useAccountsModule from '@/hooks/useAccounts';
 import type { Liability, LiabilityTranche } from '@/types/liability';
 
 vi.mock('@/hooks/useTranches', async importOriginal => {
@@ -22,8 +24,20 @@ vi.mock('@/hooks/useTranches', async importOriginal => {
   };
 });
 
+vi.mock('@/hooks/useLiabilities', async importOriginal => {
+  const actual = await importOriginal<typeof useLiabilitiesModule>();
+  return { ...actual, useDisburseLiability: vi.fn() };
+});
+
+vi.mock('@/hooks/useAccounts', async importOriginal => {
+  const actual = await importOriginal<typeof useAccountsModule>();
+  return { ...actual, useAccounts: vi.fn() };
+});
+
 const mockUseTranches = vi.mocked(useTranchesModule.useTranches);
 const mockUseCreateTranche = vi.mocked(useTranchesModule.useCreateTranche);
+const mockUseDisburseLiability = vi.mocked(useLiabilitiesModule.useDisburseLiability);
+const mockUseAccounts = vi.mocked(useAccountsModule.useAccounts);
 
 const mockLiability: Liability = {
   id: 5,
@@ -60,6 +74,30 @@ const mockTranches: LiabilityTranche[] = [
     interestOnly: true,
     currency: 'USD',
   },
+  {
+    id: 3,
+    liabilityId: 5,
+    trancheNo: 3,
+    plannedAmount: 20000,
+    drawnAmount: null,
+    remaining: 20000,
+    status: 'PLANNED',
+    realEstateId: 8,
+    currency: 'USD',
+  },
+];
+
+const mockAccounts = [
+  {
+    id: 3,
+    name: 'Checking',
+    currency: 'USD',
+    type: 'CHECKING',
+    balance: 5000,
+    userId: 1,
+    isActive: true,
+    createdAt: '2025-01-01',
+  },
 ];
 
 describe('TrancheDrawdownsTab', () => {
@@ -75,6 +113,16 @@ describe('TrancheDrawdownsTab', () => {
       isLoading: false,
       isError: false,
     } as any);
+    mockUseDisburseLiability.mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue({}),
+      isLoading: false,
+      isError: false,
+    } as any);
+    mockUseAccounts.mockReturnValue({
+      data: mockAccounts,
+      isLoading: false,
+      isError: false,
+    } as any);
   });
 
   it('renders one row per tranche with its T{n} label and status badge', () => {
@@ -83,7 +131,7 @@ describe('TrancheDrawdownsTab', () => {
     expect(screen.getByText('T1')).toBeInTheDocument();
     expect(screen.getByText('T2')).toBeInTheDocument();
     expect(screen.getByText('Drawn')).toBeInTheDocument();
-    expect(screen.getByText('Planned')).toBeInTheDocument();
+    expect(screen.getAllByText('Planned')).toHaveLength(2); // T2 + T3
   });
 
   it('renders planned, drawn and remaining amounts for each tranche', () => {
@@ -234,4 +282,100 @@ describe('TrancheDrawdownsTab', () => {
       request: expect.objectContaining({ plannedAmount: 25000, interestOnly: false }),
     });
   });
+
+  // ── Draw action (tranche drawdown) ────────────────────────────────────────
+
+  it('shows a Draw action on PLANNED tranches only', () => {
+    renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
+
+    const drawButtons = screen.getAllByRole('button', { name: /^draw$/i });
+    expect(drawButtons).toHaveLength(2); // T2 and T3 are PLANNED
+  });
+
+  it('draws a PLANNED tranche to an account with the remaining amount prefilled', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockUseDisburseLiability.mockReturnValue({
+      mutateAsync,
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
+
+    // T2 row (PLANNED) — open its draw form
+    const row = screen.getByText('T2').closest('.divide-y > div') as HTMLElement;
+    await act(async () => {
+      withinRow(row, /^draw$/i).click();
+    });
+
+    // Amount prefilled with the remaining planned amount (NumberInput groups thousands)
+    const prefilled = (screen.getByLabelText(/amount/i) as HTMLInputElement).value;
+    expect(Number(prefilled.replace(/,/g, ''))).toBe(50000);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2025-06-15' } });
+      fireEvent.change(screen.getByLabelText(/account/i), { target: { value: '3' } });
+    });
+    await act(async () => {
+      screen.getByRole('button', { name: /confirm disbursement/i }).click();
+    });
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledWith({
+      liabilityId: 5,
+      request: {
+        trancheId: 2,
+        toAccountId: 3,
+        amount: 50000,
+        date: '2025-06-15',
+        directRealEstateId: undefined,
+      },
+    });
+  });
+
+  it('routes the drawdown directly to the linked property when that route is chosen', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    mockUseDisburseLiability.mockReturnValue({
+      mutateAsync,
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    renderWithProviders(<TrancheDrawdownsTab liability={mockLiability} />);
+
+    // T3 row (PLANNED with linked property)
+    const row = screen.getByText('T3').closest('.divide-y > div') as HTMLElement;
+    await act(async () => {
+      withinRow(row, /^draw$/i).click();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/route/i), { target: { value: 'property' } });
+      fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '15000' } });
+    });
+    await act(async () => {
+      screen.getByRole('button', { name: /confirm disbursement/i }).click();
+    });
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledWith({
+      liabilityId: 5,
+      request: {
+        trancheId: 3,
+        toAccountId: undefined,
+        amount: 15000,
+        date: expect.any(String),
+        directRealEstateId: 8,
+      },
+    });
+  });
 });
+
+/** Finds a button by name within a tranche row. */
+function withinRow(row: HTMLElement, name: RegExp): HTMLElement {
+  const button = Array.from(row.querySelectorAll('button')).find(b =>
+    name.test(b.textContent ?? '')
+  );
+  if (!button) throw new Error(`Button ${name} not found in row`);
+  return button;
+}
