@@ -3,7 +3,7 @@
  * Task 6.2.2: Create LiabilityForm component with validation
  * Task 6.2.15: Updated to use CurrencySelector component
  * Task 6.3.13: Updated to use baseCurrency from AuthContext
- * 
+ *
  * Form for creating and editing liabilities with Zod validation
  */
 import { useForm, Controller } from 'react-hook-form';
@@ -34,40 +34,81 @@ const liabilityTypes: LiabilityType[] = [
   'OTHER',
 ];
 
-const liabilitySchema = (tv: (key: string) => string) => z.object({
-  name: z.string().min(1, tv('form.validation.nameRequired')).max(100, tv('form.validation.nameTooLong')),
-  type: z.enum([
-    'MORTGAGE',
-    'LOAN',
-    'CREDIT_CARD',
-    'STUDENT_LOAN',
-    'AUTO_LOAN',
-    'PERSONAL_LOAN',
-    'OTHER',
-  ]),
-  principal: z.string().min(1, tv('form.validation.principalInvalid')).refine(isValidDecimalString, tv('form.validation.principalInvalid')).refine((v) => Number(v) >= 0.01, tv('form.validation.principalTooSmall')),
-  currentBalance: z.string().min(1, tv('form.validation.balanceInvalid')).refine(isValidDecimalString, tv('form.validation.balanceInvalid')).refine((v) => Number(v) >= 0, tv('form.validation.balanceNonNegative')),
-  interestRate: z.number().min(0, tv('form.validation.interestRateNonNegative')).max(100, tv('form.validation.interestRateMax')).optional().or(z.literal(0)),
-  startDate: z.string().min(1, tv('form.validation.startDateRequired')).regex(/^\d{4}-\d{2}-\d{2}$/, tv('form.validation.invalidDateFormat')),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, tv('form.validation.invalidDateFormat')).optional().or(z.literal('')),
-  minimumPayment: z.string().refine((v) => v === '' || isValidDecimalString(v), tv('form.validation.paymentInvalid')).refine((v) => v === '' || Number(v) >= 0, tv('form.validation.paymentNonNegative')).optional().or(z.literal('')),
-  currency: z.string().length(3, tv('form.validation.currencyCode')),
-  notes: z.string().max(500, tv('form.validation.notesTooLong')).optional().or(z.literal('')),
-  institutionId: z.string().optional(),
-  // Requirement 1.1: Insurance percentage (annual, 0–100%) and one-time/periodic additional fees
-  insurancePercentage: z.number().min(0, tv('form.validation.insuranceRateNonNegative')).max(100, tv('form.validation.insuranceRateMax')).optional().or(z.literal(0)),
-  additionalFees: z.string().refine((v) => v === '' || isValidDecimalString(v), tv('form.validation.feesInvalid')).refine((v) => v === '' || Number(v) >= 0, tv('form.validation.feesNonNegative')).optional().or(z.literal('')),
-  realEstateId: z.number().optional(),
-}).refine(
-  (data) => {
-    if (!data.endDate || data.endDate === '') return true;
-    return data.endDate > data.startDate;
-  },
-  {
-    message: tv('form.validation.endDateAfterStart'),
-    path: ['endDate'],
-  }
-);
+const liabilitySchema = (tv: (key: string) => string) =>
+  z
+    .object({
+      name: z
+        .string()
+        .min(1, tv('form.validation.nameRequired'))
+        .max(100, tv('form.validation.nameTooLong')),
+      type: z.enum([
+        'MORTGAGE',
+        'LOAN',
+        'CREDIT_CARD',
+        'STUDENT_LOAN',
+        'AUTO_LOAN',
+        'PERSONAL_LOAN',
+        'OTHER',
+      ]),
+      principal: z
+        .string()
+        .min(1, tv('form.validation.principalInvalid'))
+        .refine(isValidDecimalString, tv('form.validation.principalInvalid'))
+        .refine(v => Number(v) >= 0.01, tv('form.validation.principalTooSmall')),
+      currentBalance: z
+        .string()
+        .min(1, tv('form.validation.balanceInvalid'))
+        .refine(isValidDecimalString, tv('form.validation.balanceInvalid'))
+        .refine(v => Number(v) >= 0, tv('form.validation.balanceNonNegative')),
+      interestRate: z
+        .number()
+        .min(0, tv('form.validation.interestRateNonNegative'))
+        .max(100, tv('form.validation.interestRateMax'))
+        .optional()
+        .or(z.literal(0)),
+      startDate: z
+        .string()
+        .min(1, tv('form.validation.startDateRequired'))
+        .regex(/^\d{4}-\d{2}-\d{2}$/, tv('form.validation.invalidDateFormat')),
+      endDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, tv('form.validation.invalidDateFormat'))
+        .optional()
+        .or(z.literal('')),
+      minimumPayment: z
+        .string()
+        .refine(v => v === '' || isValidDecimalString(v), tv('form.validation.paymentInvalid'))
+        .refine(v => v === '' || Number(v) >= 0, tv('form.validation.paymentNonNegative'))
+        .optional()
+        .or(z.literal('')),
+      currency: z.string().length(3, tv('form.validation.currencyCode')),
+      notes: z.string().max(500, tv('form.validation.notesTooLong')).optional().or(z.literal('')),
+      institutionId: z.string().optional(),
+      // Requirement 1.1: Insurance percentage (annual, 0–100%) and one-time/periodic additional fees
+      insurancePercentage: z
+        .number()
+        .min(0, tv('form.validation.insuranceRateNonNegative'))
+        .max(100, tv('form.validation.insuranceRateMax'))
+        .optional()
+        .or(z.literal(0)),
+      additionalFees: z
+        .string()
+        .refine(v => v === '' || isValidDecimalString(v), tv('form.validation.feesInvalid'))
+        .refine(v => v === '' || Number(v) >= 0, tv('form.validation.feesNonNegative'))
+        .optional()
+        .or(z.literal('')),
+      realEstateId: z.number().optional(),
+    })
+    .refine(
+      data => {
+        if (!data.endDate || data.endDate === '') return true;
+        return data.endDate > data.startDate;
+      },
+      {
+        message: tv('form.validation.endDateAfterStart'),
+        path: ['endDate'],
+      }
+    );
 
 type LiabilityFormData = z.infer<ReturnType<typeof liabilitySchema>>;
 
@@ -97,37 +138,43 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
     resolver: zodResolver(liabilitySchema(t)),
     defaultValues: liability
       ? {
-        name: liability.name,
-        type: liability.type,
-        principal: String(liability.principal),
-        currentBalance: String(liability.currentBalance),
-        interestRate: liability.interestRate || 0,
-        startDate: liability.startDate,
-        endDate: liability.endDate || '',
-        minimumPayment: liability.minimumPayment !== undefined && liability.minimumPayment !== null ? String(liability.minimumPayment) : '',
-        currency: liability.currency,
-        notes: liability.notes || '',
-        institutionId: liability.institution?.id?.toString() || '',
-        insurancePercentage: liability.insurancePercentage || 0,
-        additionalFees: liability.additionalFees !== undefined && liability.additionalFees !== null ? String(liability.additionalFees) : '',
-        realEstateId: undefined,
-      }
+          name: liability.name,
+          type: liability.type,
+          principal: String(liability.principal),
+          currentBalance: String(liability.currentBalance),
+          interestRate: liability.interestRate || 0,
+          startDate: liability.startDate,
+          endDate: liability.endDate || '',
+          minimumPayment:
+            liability.minimumPayment !== undefined && liability.minimumPayment !== null
+              ? String(liability.minimumPayment)
+              : '',
+          currency: liability.currency,
+          notes: liability.notes || '',
+          institutionId: liability.institution?.id?.toString() || '',
+          insurancePercentage: liability.insurancePercentage || 0,
+          additionalFees:
+            liability.additionalFees !== undefined && liability.additionalFees !== null
+              ? String(liability.additionalFees)
+              : '',
+          realEstateId: undefined,
+        }
       : {
-        name: '',
-        type: 'OTHER',
-        principal: '0',
-        currentBalance: '0',
-        interestRate: 0,
-        startDate: today,
-        endDate: '',
-        minimumPayment: '',
-        currency: baseCurrency || DEFAULT_CURRENCY,
-        notes: '',
-        institutionId: '',
-        insurancePercentage: 0,
-        additionalFees: '',
-        realEstateId: undefined,
-      },
+          name: '',
+          type: 'OTHER',
+          principal: '0',
+          currentBalance: '0',
+          interestRate: 0,
+          startDate: today,
+          endDate: '',
+          minimumPayment: '',
+          currency: baseCurrency || DEFAULT_CURRENCY,
+          notes: '',
+          institutionId: '',
+          insurancePercentage: 0,
+          additionalFees: '',
+          realEstateId: undefined,
+        },
   });
 
   const selectedCurrency = watch('currency');
@@ -139,16 +186,29 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
       type: data.type,
       principal: data.principal.trim(),
       currentBalance: data.currentBalance.trim(),
-      interestRate: data.interestRate && data.interestRate > 0 ? Number(data.interestRate) : undefined,
+      interestRate:
+        data.interestRate && data.interestRate > 0 ? Number(data.interestRate) : undefined,
       startDate: data.startDate,
       endDate: data.endDate && data.endDate !== '' ? data.endDate : undefined,
-      minimumPayment: data.minimumPayment && data.minimumPayment !== '' && Number(data.minimumPayment) > 0 ? data.minimumPayment.trim() : undefined,
+      minimumPayment:
+        data.minimumPayment && data.minimumPayment !== '' && Number(data.minimumPayment) > 0
+          ? data.minimumPayment.trim()
+          : undefined,
       currency: data.currency,
       notes: data.notes && data.notes !== '' ? data.notes : undefined,
-      institutionId: data.institutionId && data.institutionId !== '__none__' && data.institutionId !== '' ? Number(data.institutionId) : undefined,
+      institutionId:
+        data.institutionId && data.institutionId !== '__none__' && data.institutionId !== ''
+          ? Number(data.institutionId)
+          : undefined,
       // Requirement 1.1: Pass insurance percentage and fees (omit if zero/unset)
-      insurancePercentage: data.insurancePercentage && data.insurancePercentage > 0 ? Number(data.insurancePercentage) : undefined,
-      additionalFees: data.additionalFees && data.additionalFees !== '' && Number(data.additionalFees) > 0 ? data.additionalFees.trim() : undefined,
+      insurancePercentage:
+        data.insurancePercentage && data.insurancePercentage > 0
+          ? Number(data.insurancePercentage)
+          : undefined,
+      additionalFees:
+        data.additionalFees && data.additionalFees !== '' && Number(data.additionalFees) > 0
+          ? data.additionalFees.trim()
+          : undefined,
       realEstateId: data.realEstateId,
     });
   });
@@ -180,15 +240,13 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
             {...register('type')}
             className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
           >
-            {liabilityTypes.map((type) => (
+            {liabilityTypes.map(type => (
               <option key={type} value={type}>
                 {getLiabilityTypeName(type)}
               </option>
             ))}
           </select>
-          {errors.type && (
-            <p className="mt-1 text-sm text-error">{errors.type.message}</p>
-          )}
+          {errors.type && <p className="mt-1 text-sm text-error">{errors.type.message}</p>}
         </div>
       </div>
 
@@ -218,7 +276,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
 
         {/* Current Balance */}
         <div>
-          <label htmlFor="currentBalance" className="block text-sm font-medium text-text-primary mb-1.5">
+          <label
+            htmlFor="currentBalance"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
             {t('form.currentBalance')} *
           </label>
           <Controller
@@ -236,6 +297,7 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
               />
             )}
           />
+          <p className="mt-1 text-xs text-text-secondary">{t('form.currentBalanceHint')}</p>
         </div>
 
         {/* Currency */}
@@ -255,9 +317,7 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
               />
             )}
           />
-          {errors.currency && (
-            <p className="mt-1 text-sm text-error">{errors.currency.message}</p>
-          )}
+          {errors.currency && <p className="mt-1 text-sm text-error">{errors.currency.message}</p>}
           {/* Show exchange rate if different from base currency */}
           {selectedCurrency && selectedCurrency !== baseCurrency && (
             <div className="mt-2">
@@ -271,7 +331,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Interest Rate */}
         <div>
-          <label htmlFor="interestRate" className="block text-sm font-medium text-text-primary mb-1.5">
+          <label
+            htmlFor="interestRate"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
             {t('form.interestRate')}
           </label>
           <Controller
@@ -280,8 +343,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
             render={({ field }) => (
               <NumberInput
                 id="interestRate"
-                value={field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''}
-                onChange={(val) => field.onChange(val === '' ? 0 : Number(val))}
+                value={
+                  field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''
+                }
+                onChange={val => field.onChange(val === '' ? 0 : Number(val))}
                 onBlur={field.onBlur}
                 placeholder="0.00"
                 error={errors.interestRate?.message}
@@ -294,7 +359,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
 
         {/* Insurance Percentage */}
         <div>
-          <label htmlFor="insurancePercentage" className="block text-sm font-medium text-text-primary mb-1.5">
+          <label
+            htmlFor="insurancePercentage"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
             {t('form.insurancePercentage')}
           </label>
           <Controller
@@ -303,8 +371,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
             render={({ field }) => (
               <NumberInput
                 id="insurancePercentage"
-                value={field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''}
-                onChange={(val) => field.onChange(val === '' ? 0 : Number(val))}
+                value={
+                  field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''
+                }
+                onChange={val => field.onChange(val === '' ? 0 : Number(val))}
                 onBlur={field.onBlur}
                 placeholder="0.00"
                 error={errors.insurancePercentage?.message}
@@ -317,7 +387,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
 
         {/* Minimum Payment */}
         <div>
-          <label htmlFor="minimumPayment" className="block text-sm font-medium text-text-primary mb-1.5">
+          <label
+            htmlFor="minimumPayment"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
             {t('form.minimumPayment')}
           </label>
           <Controller
@@ -342,7 +415,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* One-time Fee */}
         <div>
-          <label htmlFor="additionalFees" className="block text-sm font-medium text-text-primary mb-1.5">
+          <label
+            htmlFor="additionalFees"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
             {t('form.additionalFees')}
           </label>
           <Controller
@@ -407,7 +483,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
       {/* Notes and Institution */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
         <div>
-          <label htmlFor="institutionId" className="block text-sm font-medium text-text-primary mb-1.5">
+          <label
+            htmlFor="institutionId"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
             {t('form.institution')}
           </label>
           <Controller
@@ -435,17 +514,19 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
             placeholder={t('form.notesPlaceholder')}
             className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
           />
-          {errors.notes && (
-            <p className="mt-1 text-sm text-error">{errors.notes.message}</p>
-          )}
+          {errors.notes && <p className="mt-1 text-sm text-error">{errors.notes.message}</p>}
         </div>
       </div>
 
       {/* Link to Real Estate property (only shown for MORTGAGE type, creation only) */}
       {selectedType === 'MORTGAGE' && !isEditing && (
         <div className="border-t border-border pt-4">
-          <label htmlFor="realEstateId" className="block text-sm font-medium text-text-primary mb-1.5">
-            {t('form.linkToProperty')} <span className="text-text-muted font-normal">({t('form.optional')})</span>
+          <label
+            htmlFor="realEstateId"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
+            {t('form.linkToProperty')}{' '}
+            <span className="text-text-muted font-normal">({t('form.optional')})</span>
           </label>
           <Controller
             name="realEstateId"
@@ -454,11 +535,11 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
               <select
                 id="realEstateId"
                 value={field.value ?? ''}
-                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
                 className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="">— None —</option>
-                {(properties ?? []).map((p) => (
+                {(properties ?? []).map(p => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>

@@ -24,6 +24,7 @@
     "type": "Type de passif",
     "principal": "Capital initial",
     "currentBalance": "Solde actuel",
+    "currentBalanceHint": "À modifier directement uniquement en l'absence de mouvements liés ; les passifs liés se synchronisent automatiquement.",
     "currency": "Devise",
     "currencyPlaceholder": "Sélectionner une devise",
     "interestRate": "Taux d'intérêt (% annuel)",

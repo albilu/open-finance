@@ -94,6 +94,7 @@
     "repaymentPreviewInterest": "Intérêts",
     "repaymentPreviewInsurance": "Assurance",
     "repaymentApplySplit": "Appliquer la répartition",
+    "finalPaymentAdjusted": "Le capital dépasse le solde restant — le dernier paiement sera ajusté à la baisse pour solder exactement le passif.",
     "autoFilledFrom": "Rempli automatiquement depuis le bénéficiaire :",
     "dismissAutoFill": "Ignorer la suggestion de remplissage automatique",
     "createTransaction": "Créer la transaction",

@@ -94,6 +94,7 @@
     "repaymentPreviewInterest": "Interest",
     "repaymentPreviewInsurance": "Insurance",
     "repaymentApplySplit": "Apply split",
+    "finalPaymentAdjusted": "The principal exceeds the remaining balance — the final payment will be adjusted down to pay off the liability exactly.",
     "autoFilledFrom": "Auto-filled from payee:",
     "dismissAutoFill": "Dismiss auto-fill suggestion",
     "createTransaction": "Create Transaction",

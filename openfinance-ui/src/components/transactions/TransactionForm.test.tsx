@@ -965,6 +965,70 @@ describe('TransactionForm', () => {
       expect(screen.queryByTestId('repayment-preview')).not.toBeInTheDocument();
     });
 
+    // ── Overpay warning (final payment adjusted) ───────────────────────────
+
+    it('warns when the preview principal exceeds the remaining balance', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability], // currentBalance 50000
+        isLoading: false,
+        isError: false,
+      } as any);
+      // Raw principal leg 60000 > balance 50000 → the backend floors the final payment
+      mockUseRepaymentPreview.mockReturnValue({
+        data: {
+          total: 61000,
+          principal: 60000,
+          interest: 1000,
+          insurance: 0,
+          interestOnly: false,
+        },
+        isLoading: false,
+        isError: false,
+      } as any);
+
+      renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '61000' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('final-payment-adjusted')).toBeInTheDocument();
+      expect(screen.getByText(/exceeds the remaining balance/i)).toBeInTheDocument();
+    });
+
+    it('shows no overpay warning when the principal fits within the balance', async () => {
+      mockUseLiabilities.mockReturnValue({
+        data: [mortgageLiability], // currentBalance 50000
+        isLoading: false,
+        isError: false,
+      } as any);
+      mockPreviewData(); // principal 981.25 < 50000
+
+      renderForm();
+
+      await act(async () => {
+        screen.getByTestId('account-selector').click(); // EUR account
+      });
+      await selectLiability('1');
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: '1200' } });
+        fireEvent.change(screen.getByLabelText(/^Date/i), { target: { value: '2024-06-15' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('final-payment-adjusted')).not.toBeInTheDocument();
+    });
+
     it('debounces the amount before passing it to the preview hook', async () => {
       vi.useFakeTimers();
       try {

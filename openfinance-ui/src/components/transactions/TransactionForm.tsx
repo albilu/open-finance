@@ -1254,6 +1254,18 @@ export function TransactionForm({
                 {(repaymentPreview.insurance ?? 0).toFixed(2)}
               </dd>
             </dl>
+            {/* Overpay warning: the preview endpoint floors the final payment, so a raw
+                principal leg above the remaining balance means the submitted amount will
+                be adjusted down to pay off the liability exactly. */}
+            {selectedLiability?.currentBalance != null &&
+              (repaymentPreview.principal ?? 0) > selectedLiability.currentBalance && (
+                <p
+                  data-testid="final-payment-adjusted"
+                  className="text-xs text-warning border-t border-warning/30 pt-1.5"
+                >
+                  {t('form.finalPaymentAdjusted')}
+                </p>
+              )}
           </div>
         )}
 

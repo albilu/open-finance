@@ -24,6 +24,7 @@
     "type": "Liability Type",
     "principal": "Original Principal",
     "currentBalance": "Current Balance",
+    "currentBalanceHint": "Edited directly only when no linked movements; linked liabilities auto-sync.",
     "currency": "Currency",
     "currencyPlaceholder": "Select currency",
     "interestRate": "Interest Rate (% Annual)",

@@ -14,14 +14,14 @@ import * as useLiabilitiesModule from '@/hooks/useLiabilities';
 import type { Liability, LiabilityRequest } from '@/types/liability';
 
 // Mock dependencies
-vi.mock('@/context/AuthContext', async (importOriginal) => {
+vi.mock('@/context/AuthContext', async importOriginal => {
   const actual = await importOriginal<typeof import('@/context/AuthContext')>();
   return {
     ...actual,
     useAuthContext: vi.fn(),
   };
 });
-vi.mock('@/hooks/useLiabilities', async (importOriginal) => {
+vi.mock('@/hooks/useLiabilities', async importOriginal => {
   const actual = await importOriginal<typeof import('@/hooks/useLiabilities')>();
   return {
     ...actual,
@@ -30,24 +30,12 @@ vi.mock('@/hooks/useLiabilities', async (importOriginal) => {
 });
 vi.mock('@/components/ui/Input', () => ({
   Input: ({ id, type, step, min, max, ...props }: any) => (
-    <input
-      id={id}
-      type={type || 'text'}
-      step={step}
-      min={min}
-      max={max}
-      {...props}
-    />
+    <input id={id} type={type || 'text'} step={step} min={min} max={max} {...props} />
   ),
 }));
 vi.mock('@/components/ui/Button', () => ({
   Button: ({ children, variant, type, isLoading, ...props }: any) => (
-    <button
-      type={type || 'button'}
-      data-variant={variant}
-      disabled={isLoading}
-      {...props}
-    >
+    <button type={type || 'button'} data-variant={variant} disabled={isLoading} {...props}>
       {children}
     </button>
   ),
@@ -57,7 +45,7 @@ vi.mock('@/components/ui/CurrencySelector', () => ({
     <select
       data-testid="currency-selector"
       value={value}
-      onChange={(e) => onValueChange(e.target.value)}
+      onChange={e => onValueChange(e.target.value)}
       placeholder={placeholder}
     >
       <option value="USD">USD</option>
@@ -114,17 +102,13 @@ describe('LiabilityForm', () => {
       logout: vi.fn(),
       isAuthenticated: true,
     });
-    mockGetLiabilityTypeName.mockImplementation((type) => type);
+    mockGetLiabilityTypeName.mockImplementation(type => type);
   });
 
   describe('Form Rendering', () => {
     it('renders all required fields for new liability', () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       expect(screen.getByLabelText(/liability name/i)).toBeInTheDocument();
@@ -143,11 +127,7 @@ describe('LiabilityForm', () => {
 
     it('renders new insurance percentage and additional fees fields', () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       // Check that insurance and fee fields are present
@@ -160,11 +140,7 @@ describe('LiabilityForm', () => {
 
     it('shows "Create Liability" button for new liability', () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       expect(screen.getByRole('button', { name: /create liability/i })).toBeInTheDocument();
@@ -182,25 +158,34 @@ describe('LiabilityForm', () => {
 
       expect(screen.getByRole('button', { name: /update liability/i })).toBeInTheDocument();
     });
+
+    it('notes on the current balance field that linked movements auto-sync it', () => {
+      renderWithProviders(
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
+      );
+
+      expect(
+        screen.getByText(/edited directly only when no linked movements/i)
+      ).toBeInTheDocument();
+    });
   });
 
   describe('Form Validation', () => {
     it('validates required fields', async () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       const submitButton = screen.getByRole('button', { name: /create liability/i });
       fireEvent.click(submitButton);
 
       // Wait for form validation
-      await waitFor(() => {
-        expect(mockOnSubmit).not.toHaveBeenCalled();
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(mockOnSubmit).not.toHaveBeenCalled();
+        },
+        { timeout: 1000 }
+      );
 
       // The form should not submit with empty required fields
       expect(mockOnSubmit).toHaveBeenCalledTimes(0);
@@ -208,11 +193,7 @@ describe('LiabilityForm', () => {
 
     it('validates insurance percentage range', async () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       // Fill required fields first
@@ -228,9 +209,12 @@ describe('LiabilityForm', () => {
       fireEvent.click(submitButton);
 
       // Wait for form validation
-      await waitFor(() => {
-        expect(mockOnSubmit).not.toHaveBeenCalled();
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(mockOnSubmit).not.toHaveBeenCalled();
+        },
+        { timeout: 1000 }
+      );
 
       // The form should not submit with invalid insurance percentage
       expect(mockOnSubmit).toHaveBeenCalledTimes(0);
@@ -238,11 +222,7 @@ describe('LiabilityForm', () => {
 
     it('validates end date is after start date', async () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       // Fill required fields
@@ -256,9 +236,12 @@ describe('LiabilityForm', () => {
       fireEvent.click(submitButton);
 
       // Wait for form validation
-      await waitFor(() => {
-        expect(mockOnSubmit).not.toHaveBeenCalled();
-      }, { timeout: 1000 });
+      await waitFor(
+        () => {
+          expect(mockOnSubmit).not.toHaveBeenCalled();
+        },
+        { timeout: 1000 }
+      );
 
       // The form should not submit with invalid date range
       expect(mockOnSubmit).toHaveBeenCalledTimes(0);
@@ -268,21 +251,23 @@ describe('LiabilityForm', () => {
   describe('Form Submission', () => {
     it('submits correct data for new liability including new fields', async () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       // Fill required fields
-      fireEvent.change(screen.getByLabelText(/liability name/i), { target: { value: 'Test Mortgage' } });
-      fireEvent.change(screen.getByLabelText(/original principal/i), { target: { value: '300000' } });
+      fireEvent.change(screen.getByLabelText(/liability name/i), {
+        target: { value: 'Test Mortgage' },
+      });
+      fireEvent.change(screen.getByLabelText(/original principal/i), {
+        target: { value: '300000' },
+      });
       fireEvent.change(screen.getByLabelText(/current balance/i), { target: { value: '250000' } });
       fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: '2020-01-01' } });
 
       // Fill new fields
-      fireEvent.change(screen.getByLabelText(/insurance rate.*annual/i), { target: { value: '0.5' } });
+      fireEvent.change(screen.getByLabelText(/insurance rate.*annual/i), {
+        target: { value: '0.5' },
+      });
       fireEvent.change(screen.getByLabelText(/one-time fee/i), { target: { value: '500' } });
 
       const submitButton = screen.getByRole('button', { name: /create liability/i });
@@ -313,7 +298,9 @@ describe('LiabilityForm', () => {
       );
 
       // Change insurance percentage
-      fireEvent.change(screen.getByLabelText(/insurance rate.*annual/i), { target: { value: '0.75' } });
+      fireEvent.change(screen.getByLabelText(/insurance rate.*annual/i), {
+        target: { value: '0.75' },
+      });
 
       const submitButton = screen.getByRole('button', { name: /update liability/i });
       fireEvent.click(submitButton);
@@ -338,21 +325,23 @@ describe('LiabilityForm', () => {
 
     it('omits optional fields when zero or empty', async () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       // Fill required fields only
-      fireEvent.change(screen.getByLabelText(/liability name/i), { target: { value: 'Test Loan' } });
-      fireEvent.change(screen.getByLabelText(/original principal/i), { target: { value: '10000' } });
+      fireEvent.change(screen.getByLabelText(/liability name/i), {
+        target: { value: 'Test Loan' },
+      });
+      fireEvent.change(screen.getByLabelText(/original principal/i), {
+        target: { value: '10000' },
+      });
       fireEvent.change(screen.getByLabelText(/current balance/i), { target: { value: '10000' } });
       fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: '2024-01-01' } });
 
       // Leave insurance and fees as 0
-      fireEvent.change(screen.getByLabelText(/insurance rate.*annual/i), { target: { value: '0' } });
+      fireEvent.change(screen.getByLabelText(/insurance rate.*annual/i), {
+        target: { value: '0' },
+      });
       fireEvent.change(screen.getByLabelText(/one-time fee/i), { target: { value: '0' } });
 
       const submitButton = screen.getByRole('button', { name: /create liability/i });
@@ -367,11 +356,7 @@ describe('LiabilityForm', () => {
 
     it('calls onCancel when cancel button is clicked', () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       const cancelButton = screen.getByRole('button', { name: /cancel/i });
@@ -384,11 +369,7 @@ describe('LiabilityForm', () => {
   describe('Exchange Rate Display', () => {
     it('shows exchange rate when currency differs from base currency', () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       const currencySelect = screen.getByTestId('currency-selector');
@@ -400,11 +381,7 @@ describe('LiabilityForm', () => {
 
     it('does not show exchange rate when currency matches base currency', () => {
       renderWithProviders(
-        <LiabilityForm
-          onSubmit={mockOnSubmit}
-          onCancel={mockOnCancel}
-          isLoading={false}
-        />
+        <LiabilityForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} isLoading={false} />
       );
 
       expect(screen.queryByTestId('exchange-rate')).not.toBeInTheDocument();
