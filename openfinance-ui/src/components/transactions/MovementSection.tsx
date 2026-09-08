@@ -14,7 +14,18 @@ import { useProperties } from '@/hooks/useRealEstate';
 import { useAssets } from '@/hooks/useAssets';
 import type { MovementType } from '@/types/transaction';
 
-const MOVEMENT_TYPE_VALUES: Array<MovementType | ''> = ['', 'CAPITAL_IMPROVEMENT', 'MAINTENANCE'];
+/**
+ * Movement types selectable in the manual-entry UI. System-managed types
+ * (DISBURSEMENT / REPAYMENT / …) are created by the liability flows and never
+ * chosen by hand here.
+ */
+export type ImprovementMovementType = Extract<MovementType, 'CAPITAL_IMPROVEMENT' | 'MAINTENANCE'>;
+
+const MOVEMENT_TYPE_VALUES: Array<ImprovementMovementType | ''> = [
+  '',
+  'CAPITAL_IMPROVEMENT',
+  'MAINTENANCE',
+];
 
 /** Validation messages surfaced by the TransactionForm zod schema. */
 export interface MovementSectionErrors {
@@ -24,10 +35,10 @@ export interface MovementSectionErrors {
 }
 
 interface MovementSectionProps {
-  movementType: MovementType | undefined;
+  movementType: ImprovementMovementType | undefined;
   realEstateId: number | undefined;
   assetId: number | undefined;
-  onMovementTypeChange: (value: MovementType | undefined) => void;
+  onMovementTypeChange: (value: ImprovementMovementType | undefined) => void;
   onRealEstateIdChange: (value: number | undefined) => void;
   onAssetIdChange: (value: number | undefined) => void;
   errors: MovementSectionErrors;
@@ -71,7 +82,9 @@ export function MovementSection({
         id="movementType"
         value={movementType ?? ''}
         onChange={e =>
-          onMovementTypeChange(e.target.value ? (e.target.value as MovementType) : undefined)
+          onMovementTypeChange(
+            e.target.value ? (e.target.value as ImprovementMovementType) : undefined
+          )
         }
         disabled={disabled}
         aria-invalid={errors.movementType ? 'true' : 'false'}

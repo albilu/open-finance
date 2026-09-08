@@ -575,7 +575,14 @@ export function TransactionForm({
           tags: transaction.tags || [],
           paymentMethod: transaction.paymentMethod || undefined,
           liabilityId: transaction.liabilityId,
-          movementType: transaction.movementType,
+          // The form only manages improvement types; system-managed movement types
+          // (DISBURSEMENT / REPAYMENT / …) are preserved server-side via the
+          // mapper's NullValuePropertyMappingStrategy.IGNORE on update.
+          movementType:
+            transaction.movementType === 'CAPITAL_IMPROVEMENT' ||
+            transaction.movementType === 'MAINTENANCE'
+              ? transaction.movementType
+              : undefined,
           realEstateId: transaction.realEstateId,
           assetId: transaction.assetId,
         }

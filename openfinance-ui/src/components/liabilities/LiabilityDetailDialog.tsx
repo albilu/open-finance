@@ -452,7 +452,7 @@ export function LiabilityDetailDialog({
   // Interest-only phase note (Task 9): a DRAWN tranche flagged interest-only whose window is
   // still open suppresses the principal during that period.
   const { data: scheduleTranches = [] } = useTranches(
-    activeTab === 'schedule' && hasSchedule ? liability.id : null
+    activeTab === 'schedule' && hasSchedule ? (liability?.id ?? null) : null
   );
   // Local-timezone today (getToday), derived once per render batch — the UTC-based
   // toISOString().split('T')[0] would shift the interest-only window check by a day for
