@@ -37,7 +37,7 @@ export function LiabilityList({
   onEdit,
   onDelete,
   onViewDetails,
-  highlightedId
+  highlightedId,
 }: LiabilityListProps) {
   const [deletingLiability, setDeletingLiability] = useState<Liability | null>(null);
   const { t: tc } = useTranslation('common');
@@ -77,9 +77,7 @@ export function LiabilityList({
     return (
       <div className="text-center py-12">
         <CreditCard className="h-12 w-12 text-text-tertiary mx-auto mb-4" />
-        <p className="text-text-secondary">
-          {t('list.empty')}
-        </p>
+        <p className="text-text-secondary">{t('list.empty')}</p>
       </div>
     );
   }
@@ -93,8 +91,11 @@ export function LiabilityList({
 
       {/* Liability Cards */}
       <div className="space-y-4">
-        {liabilities.map((liability) => {
-          const progress = calculateProgress(liability.currentBalance, liability.principal);
+        {liabilities.map(liability => {
+          const progress = calculateProgress(
+            liability.currentBalance,
+            liability.fundedAmount ?? liability.principal
+          );
           const monthsRemaining = calculateMonthsRemaining(liability.endDate);
 
           return (
@@ -102,8 +103,9 @@ export function LiabilityList({
               key={liability.id}
               id={`liability-${liability.id}`}
               className={cn(
-                "p-5 bg-surface border border-border rounded-lg hover:border-primary/50 transition-all duration-300 relative",
-                highlightedId === liability.id && "ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5 shadow-lg scale-[1.01] z-30"
+                'p-5 bg-surface border border-border rounded-lg hover:border-primary/50 transition-all duration-300 relative',
+                highlightedId === liability.id &&
+                  'ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5 shadow-lg scale-[1.01] z-30'
               )}
             >
               {/* Header */}
@@ -119,18 +121,22 @@ export function LiabilityList({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-lg text-text-primary">
-                        {liability.name}
+                        {liability.name}{' '}
+                        {liability.fundingStatus && (
+                          <span className="text-xs text-text-secondary">
+                            {t(`fundingStatus.${liability.fundingStatus}`)}
+                          </span>
+                        )}
                       </h3>
-                      <Badge
-                        variant={getLiabilityTypeBadgeVariant(liability.type)}
-                        size="sm"
-                      >
+                      <Badge variant={getLiabilityTypeBadgeVariant(liability.type)} size="sm">
                         {getLiabilityTypeName(liability.type)}
                       </Badge>
                     </div>
                     {(liability.notes || liability.institution) && (
                       <p className="text-sm text-text-tertiary line-clamp-1">
-                        {liability.institution?.name ? `${liability.institution.name}${liability.notes ? ' • ' : ''}` : ''}
+                        {liability.institution?.name
+                          ? `${liability.institution.name}${liability.notes ? ' • ' : ''}`
+                          : ''}
                         {liability.notes || ''}
                       </p>
                     )}
@@ -144,7 +150,7 @@ export function LiabilityList({
                       size="sm"
                       onClick={() => onViewDetails(liability)}
                       aria-label={tc('aria.viewLiabilityDetails')}
-                       title={tc('viewPropertyDetails')}
+                      title={tc('viewPropertyDetails')}
                     >
                       <BarChart2 className="h-4 w-4" />
                     </Button>
@@ -188,7 +194,9 @@ export function LiabilityList({
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-text-secondary mb-1">{t('list.originalPrincipal')}</div>
+                  <div className="text-xs text-text-secondary mb-1">
+                    {t('list.originalPrincipal')}
+                  </div>
                   <div className="text-sm font-mono text-text-tertiary">
                     <ConvertedAmount
                       amount={liability.principal}
@@ -206,7 +214,8 @@ export function LiabilityList({
                   </div>
                 </div>
                 {/* Group interest rate and insurance rate into a single column */}
-                {(liability.interestRate != null || (liability.insurancePercentage != null && liability.insurancePercentage > 0)) && (
+                {(liability.interestRate != null ||
+                  (liability.insurancePercentage != null && liability.insurancePercentage > 0)) && (
                   <div>
                     <div className="text-xs text-text-secondary mb-1">
                       {liability.insurancePercentage && liability.insurancePercentage > 0
@@ -214,16 +223,23 @@ export function LiabilityList({
                         : t('list.interestRate')}
                     </div>
                     <div className="text-sm font-mono text-text-primary">
-                      {liability.interestRate != null ? `${liability.interestRate.toFixed(2)}%` : '—'}
+                      {liability.interestRate != null
+                        ? `${liability.interestRate.toFixed(2)}%`
+                        : '—'}
                       {liability.insurancePercentage && liability.insurancePercentage > 0 && (
-                        <span className="text-text-tertiary"> / {liability.insurancePercentage.toFixed(2)}%</span>
+                        <span className="text-text-tertiary">
+                          {' '}
+                          / {liability.insurancePercentage.toFixed(2)}%
+                        </span>
                       )}
                     </div>
                   </div>
                 )}
                 {liability.minimumPayment !== undefined && liability.minimumPayment > 0 && (
                   <div>
-                    <div className="text-xs text-text-secondary mb-1">{t('list.monthlyPayment')}</div>
+                    <div className="text-xs text-text-secondary mb-1">
+                      {t('list.monthlyPayment')}
+                    </div>
                     <div className="text-sm font-mono text-text-primary">
                       <ConvertedAmount
                         amount={liability.minimumPayment}
@@ -243,20 +259,41 @@ export function LiabilityList({
                 )}
               </div>
 
-              {/* Progress Bar */}
-              <div className="mb-3">
-                <div className="flex justify-between text-xs text-text-secondary mb-1">
-                   <span>{t('list.paidOff')}</span>
-                  <span>{progress.toFixed(1)}%</span>
+              {liability.type !== 'CREDIT_CARD' && liability.fundedAmount != null && (
+                <div className="flex flex-wrap gap-4 text-xs text-text-secondary mb-3">
+                  <span>
+                    {t('funding.funded')}:{' '}
+                    <ConvertedAmount
+                      amount={liability.fundedAmount}
+                      currency={liability.currency}
+                      inline
+                    />
+                  </span>
+                  <span>
+                    {t('funding.repaid')}:{' '}
+                    <ConvertedAmount
+                      amount={liability.principalPaid ?? 0}
+                      currency={liability.currency}
+                      inline
+                    />
+                  </span>
                 </div>
-                <div className="h-2 bg-surface-elevated rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-success transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
+              )}
+              {/* Payoff progress applies to term loans; revolving cards can draw again. */}
+              {liability.type !== 'CREDIT_CARD' && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs text-text-secondary mb-1">
+                    <span>{t('list.paidOff')}</span>
+                    <span>{progress.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-2 bg-surface-elevated rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-success transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-
+              )}
               {/* End Date Info */}
               {liability.endDate && (
                 <div className="text-xs text-text-tertiary">
@@ -267,7 +304,9 @@ export function LiabilityList({
                       {t('list.ends', { date: new Date(liability.endDate).toLocaleDateString() })}
                     </>
                   ) : (
-                    <>{t('list.ended', { date: new Date(liability.endDate).toLocaleDateString() })}</>
+                    <>
+                      {t('list.ended', { date: new Date(liability.endDate).toLocaleDateString() })}
+                    </>
                   )}
                 </div>
               )}
@@ -279,7 +318,7 @@ export function LiabilityList({
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         open={!!deletingLiability}
-        onOpenChange={(open) => !open && setDeletingLiability(null)}
+        onOpenChange={open => !open && setDeletingLiability(null)}
         onConfirm={handleConfirmDelete}
         title={t('dialogs.deleteTitle')}
         description={t('dialogs.deleteDescription', { name: deletingLiability?.name })}

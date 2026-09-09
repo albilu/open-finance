@@ -1,3 +1,4 @@
+import { useReverseDirectDraw } from '@/hooks/useTranches';
 /**
  * TrancheDrawdownsTab Component (Task 8)
  *
@@ -142,6 +143,9 @@ function AddTrancheForm({ liability, onDone }: { liability: Liability; onDone: (
 export function TrancheDrawdownsTab({ liability }: { liability: Liability }) {
   const { t } = useTranslation('liabilities');
   const { data: tranches = [], isLoading, error } = useTranches(liability.id);
+  const reverse = useReverseDirectDraw();
+  const [reverseId, setReverseId] = useState<number | null>(null);
+  const [reverseDate, setReverseDate] = useState(new Date().toISOString().slice(0, 10));
   const [showAddForm, setShowAddForm] = useState(false);
   const [drawTrancheId, setDrawTrancheId] = useState<number | null>(null);
   const drawTranche = tranches.find(tr => tr.id === drawTrancheId) ?? null;
@@ -262,6 +266,50 @@ export function TrancheDrawdownsTab({ liability }: { liability: Liability }) {
                   />
                 </span>
               </span>
+              {tranche.directDisbursement && tranche.status === 'DRAWN' && (
+                <Button
+                  variant="ghost"
+                  disabled={reverse.isPending}
+                  onClick={() => setReverseId(tranche.id)}
+                >
+                  {t('drawdowns.reverse')}
+                </Button>
+              )}
+              {tranche.reversedDate && (
+                <p className="text-sm">
+                  {t('drawdowns.reversedOn', { date: tranche.reversedDate })}
+                </p>
+              )}
+              {reverseId === tranche.id && (
+                <div className="space-y-2">
+                  <p className="text-sm">{t('drawdowns.reverseHint')}</p>
+                  <label htmlFor={`reverse-date-${tranche.id}`}>{t('drawdowns.reverseDate')}</label>
+                  <DateInput
+                    id={`reverse-date-${tranche.id}`}
+                    value={reverseDate}
+                    onChange={setReverseDate}
+                  />
+                  <Button
+                    disabled={reverse.isPending}
+                    onClick={() =>
+                      reverse.mutate(
+                        { trancheId: tranche.id, date: reverseDate },
+                        { onSuccess: () => setReverseId(null) }
+                      )
+                    }
+                  >
+                    {t('drawdowns.reverse')}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setReverseId(null)}>
+                    {t('drawdowns.add.cancel')}
+                  </Button>
+                  {reverse.error && (
+                    <p role="alert" className="text-error">
+                      {t('drawdowns.reverseError')}
+                    </p>
+                  )}
+                </div>
+              )}
               {tranche.status === 'PLANNED' && (
                 <Button
                   variant="outline"

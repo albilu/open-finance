@@ -27,6 +27,7 @@ import org.openfinance.entity.PropertyType;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RealEstatePropertyResponse {
+    private org.openfinance.entity.AcquisitionType acquisitionType;
 
     /** Unique identifier of the property. */
     private Long id;
@@ -189,6 +190,12 @@ public class RealEstatePropertyResponse {
      * <p>Null if no mortgage is linked or mortgage data unavailable.
      */
     private BigDecimal mortgageBalance;
+
+    private BigDecimal allocatedDebt;
+    private Long assetId;
+    private BigDecimal mortgageOriginalBalance;
+    private String mortgageCurrency;
+    private BigDecimal mortgageExchangeRate;
 
     /**
      * Number of years since purchase.

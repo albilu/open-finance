@@ -87,6 +87,8 @@ public class RealEstateService {
     private final RealEstateMapper realEstateMapper;
     private final EncryptionService encryptionService;
     private final AssetService assetService;
+    private final AssetFinancingService assetFinancingService;
+    private final org.openfinance.repository.TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final ExchangeRateService exchangeRateService;
     private final NetWorthRepository netWorthRepository;
@@ -142,10 +144,17 @@ public class RealEstateService {
         // Validate mortgage ownership if mortgageId is provided
         if (request.getMortgageId() != null) {
             validateMortgageOwnership(request.getMortgageId(), userId);
+            if (realEstateRepository.findByMortgageId(request.getMortgageId()).stream()
+                    .anyMatch(p -> p.isActive() && !java.util.Objects.equals(p.getId(), null))) {
+                throw new org.openfinance.exception.InvalidTransactionException(
+                        "This mortgage already has a primary property; use explicit asset financing allocations for shared debt");
+            }
         }
 
         // Map request to entity
         RealEstateProperty property = realEstateMapper.toEntity(request);
+        if (property.getAcquisitionType() == null)
+            property.setAcquisitionType(org.openfinance.entity.AcquisitionType.PURCHASE);
         property.setUserId(userId);
         property.setCurrencyId(resolveCurrencyId(property.getCurrency()));
 
@@ -272,15 +281,37 @@ public class RealEstateService {
         if (request.getMortgageId() != null
                 && !request.getMortgageId().equals(property.getMortgageId())) {
             validateMortgageOwnership(request.getMortgageId(), userId);
+            if (realEstateRepository.findByMortgageId(request.getMortgageId()).stream()
+                    .anyMatch(
+                            p ->
+                                    p.isActive()
+                                            && !java.util.Objects.equals(p.getId(), propertyId))) {
+                throw new org.openfinance.exception.InvalidTransactionException(
+                        "This mortgage already has a primary property; use explicit asset financing allocations for shared debt");
+            }
         }
 
         // Capture old currentValue and purchase date before overwriting, for change
         // detection
         String oldEncryptedValue = property.getCurrentValue();
         LocalDate oldPurchaseDate = property.getPurchaseDate();
+        boolean currencyChanged =
+                request.getCurrency() != null
+                        && !request.getCurrency().equalsIgnoreCase(property.getCurrency());
 
+        if (currencyChanged
+                && !transactionRepository
+                        .findByRealEstateIdAndUserId(propertyId, userId)
+                        .isEmpty()) {
+            throw new org.openfinance.exception.InvalidTransactionException(
+                    "Reverse property cost movements before correcting its currency");
+        }
         // Update entity fields (MapStruct will skip null values)
         realEstateMapper.updateEntityFromRequest(request, property);
+        if (request.isMortgageIdPresent() || request.getMortgageId() != null) {
+            property.setMortgageId(request.getMortgageId());
+            property.setMortgage(null);
+        }
         property.setCurrencyId(resolveCurrencyId(property.getCurrency()));
 
         // Re-encrypt sensitive fields
@@ -297,7 +328,9 @@ public class RealEstateService {
                         (oldEncryptedValue != null && !oldEncryptedValue.isBlank())
                                 ? new BigDecimal(oldEncryptedValue)
                                 : null;
-                if (oldValue == null || oldValue.compareTo(request.getCurrentValue()) != 0) {
+                if (currencyChanged
+                        || oldValue == null
+                        || oldValue.compareTo(request.getCurrentValue()) != 0) {
                     recordValueHistory(updatedProperty, request.getCurrentValue());
                 }
             } catch (Exception e) {
@@ -310,17 +343,8 @@ public class RealEstateService {
             }
         }
 
-        // Sync with Assets module
         if (updatedProperty.getAssetId() != null) {
-            try {
-                updateLinkedAsset(userId, updatedProperty, request);
-            } catch (Exception e) {
-                log.error(
-                        "Failed to sync updated real estate property {} with assets: {}",
-                        propertyId,
-                        e.getMessage());
-                // Non-fatal, but logged
-            }
+            updateLinkedAsset(userId, updatedProperty, request);
         }
 
         log.info("Property updated successfully: id={}, userId={}", propertyId, userId);
@@ -401,7 +425,7 @@ public class RealEstateService {
         // Sync with Assets module - HARD DELETE the asset to remove from net worth
         if (property.getAssetId() != null) {
             try {
-                assetService.deleteAsset(property.getAssetId(), userId);
+                assetService.deletePropertyAsset(property.getAssetId(), userId);
                 property.setAssetId(null); // Clear the link
                 realEstateRepository.save(property);
             } catch (Exception e) {
@@ -765,17 +789,23 @@ public class RealEstateService {
         }
 
         if (mortgage != null) {
-            mortgageBalance = new BigDecimal(mortgage.getCurrentBalance());
+            mortgageBalance = mortgageBalanceInPropertyCurrency(mortgage, property.getCurrency());
             mortgageId = mortgage.getId();
             hasMortgage = true;
         }
 
-        // Calculate equity
+        mortgageBalance =
+                assetFinancingService.propertyDebt(
+                        userId,
+                        property.getAssetId(),
+                        property.getMortgageId(),
+                        property.getCurrency());
+        // Includes allocated financing even when the lender holds no mortgage.
         BigDecimal equity = currentValue.subtract(mortgageBalance);
 
         // Calculate percentages
-        BigDecimal equityPercentage = BigDecimal.ZERO;
-        BigDecimal loanToValueRatio = BigDecimal.ZERO;
+        BigDecimal equityPercentage = null;
+        BigDecimal loanToValueRatio = null;
 
         if (currentValue.compareTo(BigDecimal.ZERO) > 0) {
             equityPercentage =
@@ -783,7 +813,7 @@ public class RealEstateService {
                             .multiply(MathConstants.HUNDRED)
                             .setScale(2, RoundingMode.HALF_UP);
 
-            if (hasMortgage) {
+            {
                 loanToValueRatio =
                         mortgageBalance
                                 .divide(currentValue, SCALE, RoundingMode.HALF_UP)
@@ -853,7 +883,7 @@ public class RealEstateService {
 
         // Calculate appreciation
         BigDecimal appreciation = currentValue.subtract(purchasePrice);
-        BigDecimal appreciationPercentage = BigDecimal.ZERO;
+        BigDecimal appreciationPercentage = null;
 
         if (purchasePrice.compareTo(BigDecimal.ZERO) > 0) {
             appreciationPercentage =
@@ -866,12 +896,18 @@ public class RealEstateService {
         // Calculate holding period
         long yearsOwned = 0;
         if (property.getPurchaseDate() != null) {
-            yearsOwned = ChronoUnit.YEARS.between(property.getPurchaseDate(), LocalDate.now());
+            yearsOwned =
+                    Math.max(
+                            0,
+                            ChronoUnit.YEARS.between(property.getPurchaseDate(), LocalDate.now()));
         }
 
         long monthsOwned = 0;
         if (property.getPurchaseDate() != null) {
-            monthsOwned = ChronoUnit.MONTHS.between(property.getPurchaseDate(), LocalDate.now());
+            monthsOwned =
+                    Math.max(
+                            0,
+                            ChronoUnit.MONTHS.between(property.getPurchaseDate(), LocalDate.now()));
         }
 
         // Handle rental income
@@ -898,7 +934,7 @@ public class RealEstateService {
         }
 
         // Calculate total ROI
-        BigDecimal totalROI = BigDecimal.ZERO;
+        BigDecimal totalROI = null;
         BigDecimal annualizedReturn = null;
 
         if (purchasePrice.compareTo(BigDecimal.ZERO) > 0) {
@@ -1058,7 +1094,8 @@ public class RealEstateService {
                 partialUpdate.setCurrency(assetResponse.getCurrency());
                 partialUpdate.setPurchaseDate(assetResponse.getPurchaseDate());
 
-                assetService.updateAsset(updatedProperty.getAssetId(), userId, partialUpdate);
+                assetService.updatePropertyAsset(
+                        updatedProperty.getAssetId(), userId, partialUpdate);
 
             } catch (Exception e) {
                 log.error(
@@ -1107,6 +1144,10 @@ public class RealEstateService {
                                 () ->
                                         RealEstatePropertyNotFoundException.byIdAndUser(
                                                 propertyId, userId));
+        if (property.getAcquisitionType() == org.openfinance.entity.AcquisitionType.PLANNED) {
+            throw new InvalidTransactionException(
+                    "Complete the property's acquisition before capitalizing improvements");
+        }
         if (movementCurrency != null
                 && property.getCurrency() != null
                 && !property.getCurrency().equalsIgnoreCase(movementCurrency)) {
@@ -1121,7 +1162,7 @@ public class RealEstateService {
             AssetRequest assetUpdate = new AssetRequest();
             assetUpdate.setCurrentPrice(updated);
             assetUpdate.setPurchasePrice(savedProperty.getPurchasePriceDecimal());
-            assetService.updateAsset(savedProperty.getAssetId(), userId, assetUpdate);
+            assetService.updatePropertyAsset(savedProperty.getAssetId(), userId, assetUpdate);
         }
         recordValueHistory(savedProperty, updated, movementDate);
         invalidateSnapshotsFrom(userId, movementDate);
@@ -1161,7 +1202,7 @@ public class RealEstateService {
             AssetRequest assetUpdate = new AssetRequest();
             assetUpdate.setCurrentPrice(updated);
             assetUpdate.setPurchasePrice(savedProperty.getPurchasePriceDecimal());
-            assetService.updateAsset(savedProperty.getAssetId(), userId, assetUpdate);
+            assetService.updatePropertyAsset(savedProperty.getAssetId(), userId, assetUpdate);
         }
         recordValueHistory(savedProperty, updated, movementDate);
         invalidateSnapshotsFrom(userId, movementDate);
@@ -1188,28 +1229,21 @@ public class RealEstateService {
      */
     private void recordValueHistory(
             RealEstateProperty property, BigDecimal plainValue, LocalDate effectiveDate) {
-        try {
-            RealEstateValueHistory entry =
-                    RealEstateValueHistory.builder()
-                            .propertyId(property.getId())
-                            .userId(property.getUserId())
-                            .effectiveDate(effectiveDate != null ? effectiveDate : LocalDate.now())
-                            .recordedValue(plainValue.toString())
-                            .currency(property.getCurrency())
-                            .currencyId(property.getCurrencyId())
-                            .build();
-            valueHistoryRepository.save(entry);
-            log.debug(
-                    "Recorded value history for property {}: {} {}",
-                    property.getId(),
-                    plainValue,
-                    property.getCurrency());
-        } catch (Exception e) {
-            log.error(
-                    "Failed to record value history for property {}: {}",
-                    property.getId(),
-                    e.getMessage());
-        }
+        RealEstateValueHistory entry =
+                RealEstateValueHistory.builder()
+                        .propertyId(property.getId())
+                        .userId(property.getUserId())
+                        .effectiveDate(effectiveDate != null ? effectiveDate : LocalDate.now())
+                        .recordedValue(plainValue.toString())
+                        .currency(property.getCurrency())
+                        .currencyId(property.getCurrencyId())
+                        .build();
+        valueHistoryRepository.save(entry);
+        log.debug(
+                "Recorded value history for property {}: {} {}",
+                property.getId(),
+                plainValue,
+                property.getCurrency());
     }
 
     /**
@@ -1262,6 +1296,8 @@ public class RealEstateService {
         assetRequest.setCurrentPrice(request.getCurrentValue());
         assetRequest.setCurrency(request.getCurrency());
         assetRequest.setPurchaseDate(request.getPurchaseDate());
+        assetRequest.setCurrency(property.getCurrency());
+        assetRequest.setAcquisitionType(property.getAcquisitionType());
         assetRequest.setNotes("Linked to Real Estate Property: " + request.getAddress());
 
         // Physical asset fields
@@ -1274,7 +1310,7 @@ public class RealEstateService {
         // if
         // needed
 
-        AssetResponse createdAsset = assetService.createAsset(userId, assetRequest);
+        AssetResponse createdAsset = assetService.createPropertyAsset(userId, assetRequest);
         property.setAssetId(createdAsset.getId());
     }
 
@@ -1289,11 +1325,13 @@ public class RealEstateService {
         assetRequest.setCurrentPrice(request.getCurrentValue());
         assetRequest.setPurchasePrice(request.getPurchasePrice()); // In case it was corrected
         assetRequest.setPurchaseDate(request.getPurchaseDate());
+        assetRequest.setCurrency(property.getCurrency());
+        assetRequest.setAcquisitionType(property.getAcquisitionType());
 
         // We don't want to overwrite other fields if they are null in the request?
         // RealEstatePropertyRequest usually has all fields for update.
 
-        assetService.updateAsset(property.getAssetId(), userId, assetRequest);
+        assetService.updatePropertyAsset(property.getAssetId(), userId, assetRequest);
     }
 
     /**
@@ -1304,6 +1342,19 @@ public class RealEstateService {
      * @param encryptionKey the decryption key
      * @return the response DTO with decrypted data and calculated fields
      */
+    private BigDecimal mortgageNativeBalance(Liability mortgage) {
+        return mortgage.getRepresentedByAccountId() == null
+                ? new BigDecimal(mortgage.getCurrentBalance())
+                : assetFinancingService.outstandingBalance(mortgage.getUserId(), mortgage.getId());
+    }
+
+    private BigDecimal mortgageBalanceInPropertyCurrency(Liability mortgage, String currency) {
+        BigDecimal balance = mortgageNativeBalance(mortgage);
+        return mortgage.getCurrency().equalsIgnoreCase(currency)
+                ? balance
+                : exchangeRateService.convert(balance, mortgage.getCurrency(), currency);
+    }
+
     private RealEstatePropertyResponse toResponseWithDecryption(RealEstateProperty property) {
         // Map basic fields using MapStruct
         RealEstatePropertyResponse response = realEstateMapper.toResponse(property);
@@ -1361,7 +1412,10 @@ public class RealEstateService {
 
         // Calculate years owned
         if (property.getPurchaseDate() != null) {
-            long yearsOwned = ChronoUnit.YEARS.between(property.getPurchaseDate(), LocalDate.now());
+            long yearsOwned =
+                    Math.max(
+                            0,
+                            ChronoUnit.YEARS.between(property.getPurchaseDate(), LocalDate.now()));
             response.setYearsOwned(yearsOwned);
         }
 
@@ -1375,8 +1429,16 @@ public class RealEstateService {
         if (mortgage != null) {
             response.setMortgageName(mortgage.getName());
 
-            BigDecimal mortgageBalance = new BigDecimal(mortgage.getCurrentBalance());
+            BigDecimal mortgageBalance =
+                    mortgageBalanceInPropertyCurrency(mortgage, property.getCurrency());
             response.setMortgageBalance(mortgageBalance);
+            response.setMortgageOriginalBalance(mortgageNativeBalance(mortgage));
+            response.setMortgageCurrency(mortgage.getCurrency());
+            response.setMortgageExchangeRate(
+                    mortgage.getCurrency().equalsIgnoreCase(property.getCurrency())
+                            ? BigDecimal.ONE
+                            : exchangeRateService.getExchangeRate(
+                                    mortgage.getCurrency(), property.getCurrency(), null));
 
             // Calculate equity
             BigDecimal equity = currentValue.subtract(mortgageBalance);
@@ -1392,8 +1454,24 @@ public class RealEstateService {
         } else {
             // No mortgage - equity equals current value
             response.setEquity(currentValue);
-            response.setEquityPercentage(new BigDecimal("100.00"));
+            response.setEquityPercentage(
+                    currentValue.signum() > 0 ? new BigDecimal("100.00") : null);
         }
+
+        BigDecimal allocatedDebt =
+                assetFinancingService.propertyDebt(
+                        property.getUserId(),
+                        property.getAssetId(),
+                        property.getMortgageId(),
+                        property.getCurrency());
+        response.setAllocatedDebt(allocatedDebt);
+        response.setEquity(currentValue.subtract(allocatedDebt));
+        response.setEquityPercentage(
+                currentValue.signum() > 0
+                        ? response.getEquity()
+                                .divide(currentValue, SCALE, RoundingMode.HALF_UP)
+                                .multiply(MathConstants.HUNDRED)
+                        : null);
 
         // Calculate ROI (simplified - just appreciation for now, full calculation in
         // calculateROI method)

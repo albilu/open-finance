@@ -106,48 +106,6 @@ public class EncryptedUserDataServiceImpl implements EncryptedUserDataService {
         return targetKey == null ? plain : encryption.encrypt(plain, targetKey);
     }
 
-    /**
-     * Legacy users have no sentinel yet; authenticate every encrypted value before enrolling one.
-     */
-    public void protectLegacyPayloads(Long userId, SecretKey key) {
-        if (key == null) return;
-        for (Map.Entry<String, String> field :
-                Map.of("import_sessions", "metadata", "real_estate_simulations", "data")
-                        .entrySet()) {
-            for (Map<String, Object> row : rows(field.getKey(), userId)) {
-                Object value = row.get(field.getValue());
-                if (value instanceof String plain && !looksEncrypted(plain)) {
-                    jdbc.update(
-                            "UPDATE "
-                                    + identifier(field.getKey())
-                                    + " SET "
-                                    + identifier(field.getValue())
-                                    + " = ? WHERE id = ? AND user_id = ? AND "
-                                    + identifier(field.getValue())
-                                    + " = ?",
-                            encryption.encrypt(plain, key),
-                            row.get("id"),
-                            userId,
-                            plain);
-                }
-            }
-        }
-    }
-
-    public void verifyLegacyKey(Long userId, SecretKey key) {
-        for (Map.Entry<String, List<String>> table : columns.entrySet()) {
-            for (Map<String, Object> row : rows(table.getKey(), userId)) {
-                for (String column : table.getValue()) {
-                    Object value = row.get(column);
-                    if (value != null) plaintext(value.toString(), key);
-                }
-            }
-        }
-        for (Map<String, Object> row : rows("attachments", userId)) {
-            if (row.get("file_data") instanceof byte[] bytes) encryption.decryptBytes(bytes, key);
-        }
-    }
-
     /** Must run within the same transaction that changes the user's salt and verifier. */
     public void rotate(Long userId, SecretKey sourceKey, SecretKey targetKey) {
         for (Map.Entry<String, List<String>> table : columns.entrySet()) {

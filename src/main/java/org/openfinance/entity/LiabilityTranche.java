@@ -1,6 +1,7 @@
 package org.openfinance.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -25,12 +26,14 @@ import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.openfinance.converter.EncryptedBigDecimalConverter;
+import org.openfinance.converter.EncryptedStringConverter;
 
 /**
  * Entity representing a single tranche (planned drawdown) of a liability such as a construction
  * loan or a mortgage released in stages.
  *
- * <p>Monetary amounts are stored as plain {@link BigDecimal} values (no encrypted converter).
+ * <p>Monetary amounts and notes use the owner's encryption key.
  */
 @Entity
 @Table(
@@ -72,10 +75,12 @@ public class LiabilityTranche {
     private Integer trancheNo;
 
     @NotNull(message = "{liabilityTranche.plannedAmount.notnull}")
-    @Column(name = "planned_amount", nullable = false, precision = 19, scale = 2)
+    @Convert(converter = EncryptedBigDecimalConverter.class)
+    @Column(name = "planned_amount", columnDefinition = "TEXT", nullable = false)
     private BigDecimal plannedAmount;
 
-    @Column(name = "drawn_amount", precision = 19, scale = 2)
+    @Convert(converter = EncryptedBigDecimalConverter.class)
+    @Column(name = "drawn_amount", columnDefinition = "TEXT")
     private BigDecimal drawnAmount;
 
     @Column(name = "planned_date")
@@ -84,7 +89,14 @@ public class LiabilityTranche {
     @Column(name = "drawn_date")
     private LocalDate drawnDate;
 
-    @Column(name = "fee", precision = 19, scale = 2)
+    @Column(name = "direct_disbursement", nullable = false)
+    private boolean directDisbursement;
+
+    @Column(name = "reversed_date")
+    private LocalDate reversedDate;
+
+    @Convert(converter = EncryptedBigDecimalConverter.class)
+    @Column(name = "fee", columnDefinition = "TEXT")
     private BigDecimal fee;
 
     @Builder.Default
@@ -102,6 +114,7 @@ public class LiabilityTranche {
     @Column(name = "real_estate_id")
     private Long realEstateId;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

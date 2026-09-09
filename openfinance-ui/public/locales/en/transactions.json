@@ -132,7 +132,11 @@
       "DIRECT_DEBIT": "Direct Debit",
       "ONLINE": "Online",
       "OTHER": "Other"
-    }
+    },
+    "repaymentUnavailable": "The estimated payment cannot be applied. Check the amount, or turn off the estimate and enter the actual principal component.",
+    "manualPrincipal": "Principal repaid ({{currency}})",
+    "manualPrincipalHint": "Enter 0 for interest, insurance or fees only. Leave empty to apply the full payment to principal.",
+    "repaymentExceedsDebt": "Principal exceeds the outstanding debt. Check the payment amount."
   },
   "detail": {
     "edit": "Edit",

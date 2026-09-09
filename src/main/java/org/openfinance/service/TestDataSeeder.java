@@ -429,6 +429,8 @@ public class TestDataSeeder implements CommandLineRunner {
 
             l.setPrincipal(principal.toPlainString());
             l.setCurrentBalance(balance.toPlainString());
+            l.setOpeningPrincipal(principal);
+            l.setOpeningBalance(balance);
             l.setInterestRate(interestRateValue.toPlainString());
 
             // Set start date and end date so amortization schedule can be generated

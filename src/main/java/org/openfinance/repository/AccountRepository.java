@@ -32,6 +32,11 @@ public interface AccountRepository
      */
     List<Account> findByUserId(Long userId);
 
+    @Query(
+            "SELECT COUNT(l) > 0 FROM Liability l WHERE l.representedByAccountId = :accountId AND l.userId = :userId")
+    boolean isLiabilityBalanceSource(
+            @Param("accountId") Long accountId, @Param("userId") Long userId);
+
     /**
      * Finds all accounts for a user, eagerly fetching the associated institution.
      *

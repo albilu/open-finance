@@ -928,12 +928,7 @@ public class TransactionService {
         Long oldRealEstateId = transaction.getRealEstateId();
         Long oldAssetId = transaction.getAssetId();
         Long oldTrancheId = transaction.getTrancheId();
-        ReversibleMovement oldMovement =
-                snapshotOf(
-                        transaction,
-                        oldLiabilityId != null
-                                ? transactionSplitService.getSplitsForTransaction(transactionId)
-                                : List.of());
+        ReversibleMovement oldMovement = snapshotOf(transaction);
 
         // Validate the transaction request
         validateTransactionRequest(userId, request);
@@ -944,6 +939,12 @@ public class TransactionService {
 
         // Update fields from request (only non-null fields will be copied)
         transactionMapper.updateEntityFromRequest(request, transaction);
+        transaction.setLiabilityId(request.getLiabilityId());
+        transaction.setTrancheId(request.getTrancheId());
+        transaction.setRealEstateId(request.getRealEstateId());
+        transaction.setAssetId(request.getAssetId());
+        transaction.setMovementType(request.getMovementType());
+        transaction.setPrincipalAmount(null);
 
         // Resolve or create Payee entity and link
         resolveAndLinkPayee(transaction, userId);
@@ -1200,11 +1201,7 @@ public class TransactionService {
                     transaction.getRealEstateId(),
                     transaction.getAssetId(),
                     transaction.getTrancheId(),
-                    snapshotOf(
-                            transaction,
-                            transaction.getLiabilityId() != null
-                                    ? transactionSplitService.getSplitsForTransaction(transactionId)
-                                    : List.of()),
+                    snapshotOf(transaction),
                     true);
 
             log.info(
@@ -1541,6 +1538,28 @@ public class TransactionService {
      * @throws CategoryNotFoundException if category doesn't exist or doesn't belong to user
      */
     private void validateTransactionRequest(Long userId, TransactionRequest request) {
+        if (request.getLiabilityId() != null) {
+            if (request.getMovementType() == null) {
+                request.setMovementType(
+                        request.getType() == TransactionType.INCOME
+                                ? MovementType.DISBURSEMENT
+                                : MovementType.REPAYMENT);
+            }
+            boolean draw = request.getMovementType() == MovementType.DISBURSEMENT;
+            boolean payment = request.getMovementType() == MovementType.REPAYMENT;
+            boolean charge = isLiabilityCharge(request.getMovementType());
+            if ((!draw && !payment && !charge)
+                    || (draw && request.getType() != TransactionType.INCOME)
+                    || (!draw && request.getType() != TransactionType.EXPENSE)) {
+                throw new InvalidTransactionException(
+                        "Invalid liability movement direction or classification");
+            }
+        } else if (request.getPrincipalAmount() != null
+                || isLiabilityCharge(request.getMovementType())
+                || request.getMovementType() == MovementType.REPAYMENT) {
+            throw new InvalidTransactionException(
+                    "A principal or charge movement requires a liability");
+        }
         // Validate account ownership
         Account account =
                 accountRepository
@@ -1831,6 +1850,11 @@ public class TransactionService {
 
         // Create response with basic fields
         TransactionResponse response = transactionMapper.toResponse(transaction);
+        if (transaction.getLiabilityId() != null && transaction.getPrincipalAmount() != null) {
+            response.setPrincipalAllocations(
+                    liabilityTrancheService.allocations(
+                            transaction.getUserId(), transaction.getId()));
+        }
         response.setDescription(decryptedDescription);
         response.setNotes(decryptedNotes);
 
@@ -2257,6 +2281,10 @@ public class TransactionService {
 
             // Currency guard: the liability's currency must match the movement currency. When a
             // conversion was applied the original currency is what the user actually moved.
+            if (liability.getRepresentedByAccountId() != null) {
+                throw new InvalidTransactionException(
+                        "Record payments as transfers to the linked credit-card account; its ledger owns this balance");
+            }
             String movementCurrency =
                     request.getOriginalCurrency() != null
                             ? request.getOriginalCurrency()
@@ -2276,22 +2304,53 @@ public class TransactionService {
             BigDecimal liabilityTotal =
                     converted ? request.getOriginalAmount() : request.getAmount();
 
-            BigDecimal delta;
-            if (transaction.getMovementType() == MovementType.DISBURSEMENT) {
-                delta = roundMoney(liabilityTotal);
-            } else {
-                delta =
-                        principalLegOf(
-                                        liabilityTotal,
-                                        request.getSplits(),
-                                        request.getConversionRate())
-                                .negate();
+            BigDecimal principal = BigDecimal.ZERO;
+            if (transaction.getMovementType() != MovementType.DISBURSEMENT) {
+                principal = request.getPrincipalAmount();
+                if (principal == null) {
+                    principal =
+                            isLiabilityCharge(transaction.getMovementType())
+                                    ? BigDecimal.ZERO
+                                    : principalLegOf(
+                                            liabilityTotal,
+                                            request.getSplits(),
+                                            request.getConversionRate());
+                }
+                if (principal.signum() < 0
+                        || principal.compareTo(liabilityTotal) > 0
+                        || (isLiabilityCharge(transaction.getMovementType())
+                                && principal.signum() != 0)) {
+                    throw new InvalidTransactionException(
+                            "Invalid principal component for this payment");
+                }
+                if (request.getPrincipalAmount() == null
+                        && request.getCategoryId() != null
+                        && (request.getSplits() == null || request.getSplits().isEmpty())
+                        && categoryRepository
+                                .findByIdAndUserId(request.getCategoryId(), userId)
+                                .map(
+                                        c ->
+                                                java.util.Set.of(
+                                                                "category.interest.expense",
+                                                                "category.insurance",
+                                                                "category.bank.fees")
+                                                        .contains(
+                                                                c.getNameKey() == null
+                                                                        ? ""
+                                                                        : c.getNameKey()))
+                                .orElse(false)) {
+                    principal = BigDecimal.ZERO;
+                }
+                principal = roundMoney(principal);
             }
+            transaction.setPrincipalAmount(principal);
+            transactionRepository.save(transaction);
+            BigDecimal delta =
+                    transaction.getMovementType() == MovementType.DISBURSEMENT
+                            ? roundMoney(liabilityTotal)
+                            : principal.negate();
 
-            // Mirror LiabilityService.disburse's fail-fast: on a staged loan (tranches exist) the
-            // balance must never exceed what the DRAWN tranches account for — otherwise this
-            // movement would silently rely on untracked money that the reconciler would clamp
-            // away. Checked before any mutation so the flow rolls back untouched.
+            // Validate the existing position before adding more borrowing.
             if (transaction.getMovementType() == MovementType.DISBURSEMENT
                     && !liabilityTrancheRepository
                             .findByLiabilityIdAndUserId(liability.getId(), userId)
@@ -2299,21 +2358,13 @@ public class TransactionService {
                 liabilityTrancheService.assertDisbursementAllowed(liability, userId);
             }
 
-            // Mirror LiabilityService.disburse's contract: the tranche is (re-)marked DRAWN
-            // BEFORE the balance change, so the mid-flow reconcile clamp inside
-            // adjustLiabilityBalance already counts this drawdown. In the update flow
-            // reverseLinkedMovements has already reverted the tranche to PLANNED; marking it
-            // drawn only after the clamp would let the clamp destroy the new balance.
+            // Record the draw's dated principal before applying the balance delta.
             if (transaction.getMovementType() == MovementType.DISBURSEMENT
                     && transaction.getTrancheId() != null) {
                 markTrancheDrawn(userId, transaction.getTrancheId(), delta, request.getDate());
             }
 
-            // Task 7: repayments allocate their principal leg to a tranche (explicit target or
-            // FIFO pick of the oldest DRAWN tranche with remaining principal) BEFORE the balance
-            // change: the single reconcile inside adjustLiabilityBalance must already see the
-            // persisted trancheId link so the re-derived invariant counts this repayment —
-            // exactly one reconcile per write, WARN only on genuine drift.
+            // Persist all tranche/opening-debt allocations before adjusting the total.
             if (transaction.getMovementType() == MovementType.REPAYMENT) {
                 liabilityTrancheService.allocateRepayment(
                         userId, liability, transaction, delta.negate());
@@ -2380,6 +2431,12 @@ public class TransactionService {
         return PrincipalLegs.of(total, categorized);
     }
 
+    private boolean isLiabilityCharge(MovementType type) {
+        return type == MovementType.INTEREST
+                || type == MovementType.INSURANCE
+                || type == MovementType.FEE;
+    }
+
     /** Rounds a monetary value to 2 decimals HALF_UP (balance-write scale). */
     private BigDecimal roundMoney(BigDecimal value) {
         return value != null ? value.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
@@ -2395,34 +2452,32 @@ public class TransactionService {
      * @param originalCurrency the old original currency (nullable)
      * @param conversionRate the old conversion rate (nullable)
      * @param date the old movement date
-     * @param splits the old stored split lines (account currency)
      */
     private record ReversibleMovement(
+            Long transactionId,
             MovementType movementType,
+            BigDecimal principalAmount,
             BigDecimal amount,
             BigDecimal originalAmount,
             String originalCurrency,
             BigDecimal conversionRate,
-            LocalDate date,
-            List<TransactionSplitResponse> splits) {}
+            LocalDate date) {}
 
     /**
      * Builds a {@link ReversibleMovement} snapshot from a persisted transaction entity.
      *
      * @param transaction the persisted (still-old on the update path) transaction
-     * @param splits its stored split lines (account currency, empty list when unlinked)
      */
-    private ReversibleMovement snapshotOf(
-            Transaction transaction, List<TransactionSplitResponse> splits) {
+    private ReversibleMovement snapshotOf(Transaction transaction) {
         return new ReversibleMovement(
+                transaction.getId(),
                 transaction.getMovementType(),
+                transaction.getPrincipalAmount(),
                 transaction.getAmount(),
                 transaction.getOriginalAmount(),
                 transaction.getOriginalCurrency(),
                 transaction.getConversionRate(),
-                transaction.getDate(),
-                // Defensive copy: the snapshot must not observe later mutations of the list
-                List.copyOf(splits));
+                transaction.getDate());
     }
 
     /**
@@ -2431,21 +2486,9 @@ public class TransactionService {
      * values), including FX rows where the instrument-currency total is the snapshot's {@code
      * originalAmount} and the account-native splits are converted by the stored rate.
      *
-     * <p>For a DISBURSEMENT linked to a tranche, the tranche is reverted to PLANNED (drawnAmount
-     * and drawnDate cleared) <em>before</em> the balance delta is applied: the reconciler inside
-     * {@link #adjustLiabilityBalance(Liability, BigDecimal, boolean)} re-derives the balance from
-     * the tranches, so it must already see the reverted state — reverting afterwards would leave
-     * the stale DRAWN sum as the balance with no drawn tranche backing it (invariant broken). In
-     * the update flow the new legs are applied right after, re-marking the tranche DRAWN so the
-     * final reconcile lands on the new amount.
-     *
-     * <p><strong>Update-path reconcile suppression (Task 7 deferred minor):</strong> on update the
-     * new transaction row and splits are already persisted when this reverse runs, so a reconcile
-     * here would re-derive from the NEW state and WARN about "untracked money" that is simply the
-     * not-yet-applied new leg — a false positive on every amount change. The update path therefore
-     * skips the reverse-leg reconcile; the single reconcile inside the subsequent {@link
-     * #applyLinkedMovements} sees the final state and WARNs only on genuine drift. The delete path
-     * keeps the reverse-leg reconcile (the soft-deleted row no longer contributes).
+     * <p>Repayments reverse their stored principal and remove their allocation rows. Account
+     * drawdowns return their tranche to PLANNED only after allocated repayments have been reversed.
+     * Opening debt remains part of the authoritative loan balance throughout both operations.
      *
      * @param userId the owner's ID
      * @param liabilityId the old liability link (nullable)
@@ -2475,28 +2518,15 @@ public class TransactionService {
                                                     liabilityId, userId));
             boolean converted = old.originalCurrency() != null && old.conversionRate() != null;
             BigDecimal instrumentTotal = converted ? old.originalAmount() : old.amount();
-            BigDecimal delta;
-            if (movementType == MovementType.DISBURSEMENT) {
-                delta = roundMoney(instrumentTotal).negate();
-            } else {
-                BigDecimal categorized = BigDecimal.ZERO;
-                if (old.splits() != null) {
-                    for (TransactionSplitResponse split : old.splits()) {
-                        if (split.getCategoryId() != null) {
-                            categorized = categorized.add(split.getAmount());
-                        }
-                    }
-                }
-                delta =
-                        converted
-                                ? PrincipalLegs.ofConverted(
-                                        instrumentTotal, categorized, old.conversionRate())
-                                : PrincipalLegs.of(instrumentTotal, categorized);
-            }
+            BigDecimal delta =
+                    movementType == MovementType.DISBURSEMENT
+                            ? roundMoney(instrumentTotal).negate()
+                            : old.principalAmount();
 
             if (movementType == MovementType.DISBURSEMENT && trancheId != null) {
                 revertDisbursedTranche(userId, trancheId);
             }
+            liabilityTrancheService.removeRepayment(userId, old.transactionId());
             adjustLiabilityBalance(liability, delta, reconcileTranches);
         }
 
@@ -2530,6 +2560,10 @@ public class TransactionService {
                 .findByIdAndUserId(trancheId, userId)
                 .ifPresent(
                         tranche -> {
+                            if (liabilityTrancheService.allocatedPrincipal(tranche).signum() > 0) {
+                                throw new InvalidTransactionException(
+                                        "Reverse allocated repayments before changing this draw");
+                            }
                             tranche.setStatus(TrancheStatus.PLANNED);
                             tranche.setDrawnAmount(null);
                             tranche.setDrawnDate(null);
@@ -2589,7 +2623,10 @@ public class TransactionService {
     private void adjustLiabilityBalance(
             Liability liability, BigDecimal delta, boolean reconcileTranches) {
         BigDecimal previous = parseEncryptedAmount(liability.getCurrentBalance());
-        BigDecimal updated = previous.add(delta).max(BigDecimal.ZERO);
+        BigDecimal updated = previous.add(delta);
+        if (updated.signum() < 0) {
+            throw new InvalidTransactionException("Principal payment exceeds outstanding debt");
+        }
         liability.setCurrentBalance(updated.toPlainString());
         if (reconcileTranches) {
             liabilityTrancheService.reconcile(liability);

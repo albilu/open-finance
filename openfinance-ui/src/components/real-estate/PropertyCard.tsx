@@ -1,15 +1,32 @@
 /**
  * PropertyCard Component
  * Task 9.1.10: Create PropertyCard component
- * 
+ *
  * Displays property information in a card format with action buttons
  */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
-import { Edit2, Trash2, Eye, Home, Building2, Mountain, Building, Factory, MapPin } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/Dialog';
+import {
+  Edit2,
+  Trash2,
+  Eye,
+  Home,
+  Building2,
+  Mountain,
+  Building,
+  Factory,
+  MapPin,
+} from 'lucide-react';
 import { ConvertedAmount } from '@/components/ui/ConvertedAmount';
 import { multiply } from '@/utils/money';
 import { useSecondaryConversion } from '@/hooks/useSecondaryConversion';
@@ -42,7 +59,11 @@ function getPropertyTypeIcon(type: string): React.ReactNode {
 export function PropertyCard({ property, onEdit, onView, isHighlighted }: PropertyCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const deleteMutation = useDeleteProperty();
-  const { convert, secondaryCurrency: secCurrency, secondaryExchangeRate } = useSecondaryConversion(property.currency);
+  const {
+    convert,
+    secondaryCurrency: secCurrency,
+    secondaryExchangeRate,
+  } = useSecondaryConversion(property.currency);
   const { t: tc } = useTranslation('common');
   const { t } = useTranslation('realEstate');
 
@@ -71,8 +92,9 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
       <Card
         id={`property-${property.id}`}
         className={cn(
-          "p-6 hover:bg-surface-elevated transition-all duration-300 group cursor-pointer relative",
-          isHighlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5 shadow-lg scale-[1.02] z-30"
+          'p-6 hover:bg-surface-elevated transition-all duration-300 group cursor-pointer relative',
+          isHighlighted &&
+            'ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5 shadow-lg scale-[1.02] z-30'
         )}
         onClick={() => onView(property.id)}
       >
@@ -86,13 +108,18 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
 
             {/* Name and Type */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-semibold text-text-primary truncate">
-                {property.name}
-              </h3>
-              <div className={cn(
-                'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border mt-1',
-                getPropertyTypeBadgeColor(property.propertyType)
-              )}>
+              <h3 className="text-lg font-semibold text-text-primary truncate">{property.name}</h3>
+              {property.acquisitionType && property.acquisitionType !== 'PURCHASE' && (
+                <p className="text-xs text-text-secondary">
+                  {t(`form.acquisitionTypes.${property.acquisitionType}`)}
+                </p>
+              )}
+              <div
+                className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border mt-1',
+                  getPropertyTypeBadgeColor(property.propertyType)
+                )}
+              >
                 {getPropertyTypeName(property.propertyType)}
               </div>
             </div>
@@ -101,12 +128,12 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
           {/* Actions */}
           <div
             className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             <Button
               variant="ghost"
               size="sm"
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onView(property.id);
               }}
@@ -118,7 +145,7 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
             <Button
               variant="ghost"
               size="sm"
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 onEdit(property);
               }}
@@ -130,7 +157,7 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
             <Button
               variant="ghost"
               size="sm"
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 setShowDeleteDialog(true);
               }}
@@ -162,7 +189,10 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
           <div className="flex justify-between">
             <span className="text-text-secondary">{t('card.purchased')}</span>
             <span className="text-text-primary font-medium">
-              {new Date(property.purchaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              {new Date(property.purchaseDate).toLocaleDateString('en-US', {
+                month: 'short',
+                year: 'numeric',
+              })}
             </span>
           </div>
 
@@ -173,9 +203,11 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
               <ConvertedAmount
                 amount={property.purchasePrice}
                 currency={property.currency}
-                convertedAmount={property.isConverted && property.exchangeRate
-                  ? multiply(property.purchasePrice, property.exchangeRate)
-                  : undefined}
+                convertedAmount={
+                  property.isConverted && property.exchangeRate
+                    ? multiply(property.purchasePrice, property.exchangeRate)
+                    : undefined
+                }
                 baseCurrency={property.baseCurrency}
                 exchangeRate={property.exchangeRate}
                 isConverted={property.isConverted}
@@ -202,7 +234,7 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
           </div>
 
           {/* Appreciation */}
-          {property.appreciation !== undefined && property.appreciationPercentage !== undefined && (
+          {property.appreciation != null && property.appreciationPercentage != null && (
             <div className="flex justify-between">
               <span className="text-text-secondary">{t('card.appreciation')}</span>
               <span className={cn('font-medium flex items-center gap-1', appreciationColor)}>
@@ -210,28 +242,39 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
                 <ConvertedAmount
                   amount={property.appreciation}
                   currency={property.currency}
-                  convertedAmount={property.isConverted && property.exchangeRate
-                    ? multiply(property.appreciation, property.exchangeRate)
-                    : undefined}
+                  convertedAmount={
+                    property.isConverted && property.exchangeRate
+                      ? multiply(property.appreciation, property.exchangeRate)
+                      : undefined
+                  }
                   baseCurrency={property.baseCurrency}
                   exchangeRate={property.exchangeRate}
                   isConverted={property.isConverted}
                   inline
                 />
-                <span>({property.appreciationPercentage >= 0 ? '+' : ''}{property.appreciationPercentage.toFixed(2)}%)</span>
+                <span>
+                  ({property.appreciationPercentage >= 0 ? '+' : ''}
+                  {property.appreciationPercentage.toFixed(2)}%)
+                </span>
               </span>
             </div>
           )}
 
-          {/* Equity (if has mortgage) */}
-          {property.mortgageId && property.equity !== undefined && (
+          {/* Equity includes explicit financing as well as a primary mortgage. */}
+          {(property.mortgageId || property.allocatedDebt > 0) && property.equity != null && (
             <div className="flex justify-between">
               <span className="text-text-secondary">{t('card.equity')}</span>
-              <span className="text-green-400 font-medium">
+              <span
+                className={`font-medium ${property.equity < 0 ? 'text-error' : 'text-green-400'}`}
+              >
                 <ConvertedAmount
                   amount={property.equity}
                   currency={property.currency}
-                  convertedAmount={property.isConverted && property.exchangeRate ? multiply(property.equity!, property.exchangeRate) : undefined}
+                  convertedAmount={
+                    property.isConverted && property.exchangeRate
+                      ? multiply(property.equity!, property.exchangeRate)
+                      : undefined
+                  }
                   baseCurrency={property.baseCurrency}
                   exchangeRate={property.exchangeRate}
                   isConverted={property.isConverted}
@@ -253,7 +296,8 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
                   secondaryCurrency={secCurrency}
                   secondaryExchangeRate={secondaryExchangeRate}
                   inline
-                />/mo
+                />
+                /mo
               </span>
             </div>
           )}
@@ -280,11 +324,7 @@ export function PropertyCard({ property, onEdit, onView, isHighlighted }: Proper
             <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant="danger"
-              onClick={handleDelete}
-              isLoading={deleteMutation.isPending}
-            >
+            <Button variant="danger" onClick={handleDelete} isLoading={deleteMutation.isPending}>
               Delete
             </Button>
           </DialogFooter>

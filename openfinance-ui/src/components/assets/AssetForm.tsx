@@ -5,7 +5,7 @@
  * Task 6.3.13: Updated to use baseCurrency from AuthContext
  * Task 9.2.5: Added conditional fields for physical assets
  * Task 12.1.12: Integrate attachments into forms
- * 
+ *
  * Form for creating and editing assets with Zod validation and file attachments
  */
 import { useEffect, useMemo } from 'react';
@@ -43,14 +43,7 @@ const assetTypes: AssetType[] = [
   'OTHER',
 ];
 
-const assetConditions: AssetCondition[] = [
-  'NEW',
-  'EXCELLENT',
-  'GOOD',
-  'FAIR',
-  'POOR',
-];
-
+const assetConditions: AssetCondition[] = ['NEW', 'EXCELLENT', 'GOOD', 'FAIR', 'POOR'];
 
 // Helper to check if asset type is physical
 const isPhysicalAssetType = (type: AssetType): boolean => {
@@ -69,87 +62,127 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
   const { baseCurrency } = useAuthContext();
   const { t } = useTranslation('assets');
 
-  const assetSchema = useMemo(() => z.object({
-    accountId: z.number().optional(),
-    name: z.string().min(1, t('validation.nameRequired')).max(100, t('validation.nameTooLong')),
-    type: z.enum([
-      'STOCK',
-      'ETF',
-      'CRYPTO',
-      'BOND',
-      'MUTUAL_FUND',
-      'COMMODITY',
-      'VEHICLE',
-      'JEWELRY',
-      'COLLECTIBLE',
-      'ELECTRONICS',
-      'FURNITURE',
-      'OTHER',
-    ]),
-    symbol: z.string().max(20, t('validation.symbolTooLong')).optional().or(z.literal('')),
-    quantity: z.string().min(1, t('validation.quantityInvalid')).refine(isValidDecimalString, t('validation.quantityInvalid')).refine((v) => Number(v) >= 0.000001, t('validation.quantityRequired')),
-    purchasePrice: z.string().min(1, t('validation.purchasePriceInvalid')).refine(isValidDecimalString, t('validation.purchasePriceInvalid')).refine((v) => Number(v) >= 0.000001, t('validation.purchasePriceRequired')),
-    currentPrice: z.string().min(1, t('validation.currentPriceInvalid')).refine(isValidDecimalString, t('validation.currentPriceInvalid')).refine((v) => Number(v) >= 0.000001, t('validation.currentPriceRequired')),
-    currency: z.string().length(3, t('validation.currencyInvalid')),
-    purchaseDate: z.string().min(1, t('validation.purchaseDateRequired')),
-    notes: z.string().max(500, t('validation.notesTooLong')).optional().or(z.literal('')),
-    serialNumber: z.string().max(100).optional().or(z.literal('')),
-    brand: z.string().max(100).optional().or(z.literal('')),
-    model: z.string().max(100).optional().or(z.literal('')),
-    condition: z.enum(['NEW', 'EXCELLENT', 'GOOD', 'FAIR', 'POOR']).optional().nullable(),
-    warrantyExpiration: z.string().optional().or(z.literal('')),
-    usefulLifeYears: z.number().int().min(1).max(50).optional().or(z.nan()),
-  }), [t]);
+  const assetSchema = useMemo(
+    () =>
+      z
+        .object({
+          accountId: z.number().optional(),
+          name: z
+            .string()
+            .min(1, t('validation.nameRequired'))
+            .max(100, t('validation.nameTooLong')),
+          type: z.enum([
+            'STOCK',
+            'ETF',
+            'CRYPTO',
+            'BOND',
+            'MUTUAL_FUND',
+            'COMMODITY',
+            'VEHICLE',
+            'JEWELRY',
+            'COLLECTIBLE',
+            'ELECTRONICS',
+            'FURNITURE',
+            'OTHER',
+          ]),
+          acquisitionType: z.enum(['PURCHASE', 'GIFT', 'PLANNED']).optional(),
+          symbol: z.string().max(20, t('validation.symbolTooLong')).optional().or(z.literal('')),
+          quantity: z
+            .string()
+            .min(1, t('validation.quantityInvalid'))
+            .refine(isValidDecimalString, t('validation.quantityInvalid'))
+            .refine(v => Number(v) >= 0.000001, t('validation.quantityRequired')),
+          purchasePrice: z
+            .string()
+            .min(1, t('validation.purchasePriceInvalid'))
+            .refine(isValidDecimalString, t('validation.purchasePriceInvalid'))
+            .refine(v => Number(v) >= 0, t('validation.purchasePriceRequired')),
+          currentPrice: z
+            .string()
+            .min(1, t('validation.currentPriceInvalid'))
+            .refine(isValidDecimalString, t('validation.currentPriceInvalid'))
+            .refine(v => Number(v) >= 0, t('validation.currentPriceRequired')),
+          currency: z.string().length(3, t('validation.currencyInvalid')),
+          purchaseDate: z.string().min(1, t('validation.purchaseDateRequired')),
+          notes: z.string().max(500, t('validation.notesTooLong')).optional().or(z.literal('')),
+          serialNumber: z.string().max(100).optional().or(z.literal('')),
+          brand: z.string().max(100).optional().or(z.literal('')),
+          model: z.string().max(100).optional().or(z.literal('')),
+          condition: z.preprocess(
+            value => (value === '' || value == null ? undefined : value),
+            z.enum(['NEW', 'EXCELLENT', 'GOOD', 'FAIR', 'POOR']).optional()
+          ),
+          warrantyExpiration: z.string().optional().or(z.literal('')),
+          usefulLifeYears: z.number().int().min(1).max(50).optional().or(z.nan()),
+        })
+        .superRefine((data, ctx) => {
+          if (data.acquisitionType === 'PLANNED' && Number(data.currentPrice) !== 0) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['currentPrice'],
+              message: t('validation.plannedValueZero'),
+            });
+          }
+          if (
+            data.acquisitionType !== 'PLANNED' &&
+            data.purchaseDate > new Date().toISOString().split('T')[0]
+          ) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['purchaseDate'],
+              message: t('validation.purchaseDateFuture'),
+            });
+          }
+        }),
+    [t]
+  );
 
   type AssetFormData = z.infer<typeof assetSchema>;
 
   // Get today's date in YYYY-MM-DD format for max date validation
   const today = new Date().toISOString().split('T')[0];
 
-  // Get tomorrow's date for warranty min date validation
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
   const defaultValues = useMemo<AssetFormData>(
     () =>
       asset
         ? {
-          accountId: asset.accountId ?? undefined,
-          name: asset.name,
-          type: asset.type as any, // Cast to avoid type mismatch if asset is REAL_ESTATE
-          symbol: asset.symbol || '',
-          quantity: String(asset.quantity),
-          purchasePrice: String(asset.purchasePrice),
-          currentPrice: String(asset.currentPrice),
-          currency: asset.currency,
-          purchaseDate: asset.purchaseDate,
-          notes: asset.notes || '',
-          serialNumber: asset.serialNumber || '',
-          brand: asset.brand || '',
-          model: asset.model || '',
-          condition: asset.condition ?? undefined,
-          warrantyExpiration: asset.warrantyExpiration || '',
-          usefulLifeYears: asset.usefulLifeYears || undefined,
-        }
+            accountId: asset.accountId ?? undefined,
+            name: asset.name,
+            type: asset.type as any, // Cast to avoid type mismatch if asset is REAL_ESTATE
+            symbol: asset.symbol || '',
+            quantity: String(asset.quantity),
+            purchasePrice: String(asset.purchasePrice),
+            acquisitionType: asset.acquisitionType ?? 'PURCHASE',
+            currentPrice: String(asset.currentPrice),
+            currency: asset.currency,
+            purchaseDate: asset.purchaseDate,
+            notes: asset.notes || '',
+            serialNumber: asset.serialNumber || '',
+            brand: asset.brand || '',
+            model: asset.model || '',
+            condition: asset.condition ?? undefined,
+            warrantyExpiration: asset.warrantyExpiration || '',
+            usefulLifeYears: asset.usefulLifeYears || undefined,
+          }
         : {
-          accountId: undefined,
-          name: '',
-          type: 'STOCK',
-          symbol: '',
-          quantity: '0',
-          purchasePrice: '0',
-          currentPrice: '0',
-          currency: baseCurrency || DEFAULT_CURRENCY,
-          purchaseDate: today,
-          notes: '',
-          serialNumber: '',
-          brand: '',
-          model: '',
-          condition: undefined,
-          warrantyExpiration: '',
-          usefulLifeYears: undefined,
-        },
+            accountId: undefined,
+            name: '',
+            type: 'STOCK',
+            symbol: '',
+            quantity: '0',
+            purchasePrice: '0',
+            acquisitionType: 'PURCHASE',
+            currentPrice: '0',
+            currency: baseCurrency || DEFAULT_CURRENCY,
+            purchaseDate: today,
+            notes: '',
+            serialNumber: '',
+            brand: '',
+            model: '',
+            condition: undefined,
+            warrantyExpiration: '',
+            usefulLifeYears: undefined,
+          },
     [asset, today]
   );
 
@@ -171,35 +204,35 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
 
   const selectedCurrency = watch('currency');
   const selectedType = watch('type');
+  const acquisitionType = watch('acquisitionType');
   const isPhysicalAsset = isPhysicalAssetType(selectedType);
 
-  const handleFormSubmit = handleSubmit(
-    (data) => {
-      const requestData: AssetRequest = {
-        accountId: data.accountId || undefined,
-        name: data.name,
-        type: data.type,
-        symbol: data.symbol || undefined,
-        quantity: data.quantity.trim(),
-        purchasePrice: data.purchasePrice.trim(),
-        currentPrice: data.currentPrice.trim(),
-        currency: data.currency,
-        purchaseDate: data.purchaseDate,
-        notes: data.notes || undefined,
-      };
-      // Add physical asset fields if applicable
-      if (isPhysicalAsset) {
-        requestData.serialNumber = data.serialNumber || undefined;
-        requestData.brand = data.brand || undefined;
-        requestData.model = data.model || undefined;
-        requestData.condition = data.condition ?? undefined;
-        requestData.warrantyExpiration = data.warrantyExpiration || undefined;
-        requestData.usefulLifeYears = data.usefulLifeYears || undefined;
-      }
-
-      onSubmit(requestData);
+  const handleFormSubmit = handleSubmit(data => {
+    const requestData: AssetRequest = {
+      accountId: data.accountId || undefined,
+      name: data.name,
+      type: data.type,
+      symbol: data.symbol || undefined,
+      quantity: data.quantity.trim(),
+      purchasePrice: data.purchasePrice.trim(),
+      acquisitionType: data.acquisitionType,
+      currentPrice: data.currentPrice.trim(),
+      currency: data.currency,
+      purchaseDate: data.purchaseDate,
+      notes: data.notes || undefined,
+    };
+    // Add physical asset fields if applicable
+    if (isPhysicalAsset) {
+      requestData.serialNumber = data.serialNumber || undefined;
+      requestData.brand = data.brand || undefined;
+      requestData.model = data.model || undefined;
+      requestData.condition = data.condition ?? undefined;
+      requestData.warrantyExpiration = data.warrantyExpiration || undefined;
+      requestData.usefulLifeYears = data.usefulLifeYears || undefined;
     }
-  );
+
+    onSubmit(requestData);
+  });
 
   return (
     <>
@@ -216,20 +249,21 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
               {...register('type')}
               className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             >
-              {assetTypes.map((type) => (
+              {assetTypes.map(type => (
                 <option key={type} value={type}>
                   {getAssetTypeName(type)}
                 </option>
               ))}
             </select>
-            {errors.type && (
-              <p className="mt-1 text-sm text-error">{errors.type.message}</p>
-            )}
+            {errors.type && <p className="mt-1 text-sm text-error">{errors.type.message}</p>}
           </div>
 
           {/* Account (Optional) */}
           <div>
-            <label htmlFor="accountId" className="block text-sm font-medium text-text-primary mb-1.5">
+            <label
+              htmlFor="accountId"
+              className="block text-sm font-medium text-text-primary mb-1.5"
+            >
               {t('form.account')}
             </label>
             <Controller
@@ -249,10 +283,26 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
           </div>
         </div>
 
+        {isPhysicalAsset && (
+          <div>
+            <label htmlFor="acquisitionType">{t('form.acquisitionType')}</label>
+            <select
+              id="acquisitionType"
+              {...register('acquisitionType')}
+              className="w-full rounded border border-border bg-surface p-2"
+            >
+              {(['PURCHASE', 'GIFT', 'PLANNED'] as const).map(type => (
+                <option key={type} value={type}>
+                  {t(`form.acquisitionTypes.${type}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {/* Second Row: Name and Symbol */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Asset Name */}
-          <div className={isPhysicalAsset ? "md:col-span-2" : ""}>
+          <div className={isPhysicalAsset ? 'md:col-span-2' : ''}>
             <label htmlFor="name" className="block text-sm font-medium text-text-primary mb-1.5">
               {t('form.assetName')} *
             </label>
@@ -267,7 +317,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
           {/* Symbol (Optional) - Hide for physical assets */}
           {!isPhysicalAsset && (
             <div>
-              <label htmlFor="symbol" className="block text-sm font-medium text-text-primary mb-1.5">
+              <label
+                htmlFor="symbol"
+                className="block text-sm font-medium text-text-primary mb-1.5"
+              >
                 {t('form.symbol')}
               </label>
               <Input
@@ -286,7 +339,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
             {/* Brand and Model Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="brand" className="block text-sm font-medium text-text-primary mb-1.5">
+                <label
+                  htmlFor="brand"
+                  className="block text-sm font-medium text-text-primary mb-1.5"
+                >
                   {t('form.brand')}
                 </label>
                 <Input
@@ -297,7 +353,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
                 />
               </div>
               <div>
-                <label htmlFor="model" className="block text-sm font-medium text-text-primary mb-1.5">
+                <label
+                  htmlFor="model"
+                  className="block text-sm font-medium text-text-primary mb-1.5"
+                >
                   {t('form.model')}
                 </label>
                 <Input
@@ -310,7 +369,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
             </div>
             {/* Serial Number */}
             <div>
-              <label htmlFor="serialNumber" className="block text-sm font-medium text-text-primary mb-1.5">
+              <label
+                htmlFor="serialNumber"
+                className="block text-sm font-medium text-text-primary mb-1.5"
+              >
                 {t('form.serialNumber')}
               </label>
               <Input
@@ -321,10 +383,12 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
               />
             </div>
 
-
             {/* Condition */}
             <div>
-              <label htmlFor="condition" className="block text-sm font-medium text-text-primary mb-1.5">
+              <label
+                htmlFor="condition"
+                className="block text-sm font-medium text-text-primary mb-1.5"
+              >
                 {t('form.condition')} *
               </label>
               <select
@@ -333,7 +397,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
                 className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="">{t('form.selectCondition')}</option>
-                {assetConditions.map((condition) => (
+                {assetConditions.map(condition => (
                   <option key={condition} value={condition}>
                     {t(`form.conditions.${condition}`)}
                   </option>
@@ -346,7 +410,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
             {/* Warranty Expiration and Useful Life */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="warrantyExpiration" className="block text-sm font-medium text-text-primary mb-1.5">
+                <label
+                  htmlFor="warrantyExpiration"
+                  className="block text-sm font-medium text-text-primary mb-1.5"
+                >
                   {t('form.warrantyExpiration')}
                 </label>
                 <Controller
@@ -358,7 +425,6 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
                       value={field.value}
                       onChange={field.onChange}
                       onBlur={field.onBlur}
-                      min={tomorrowStr}
                       error={errors.warrantyExpiration?.message}
                     />
                   )}
@@ -366,7 +432,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
               </div>
               <div>
                 <div className="flex items-center gap-1 mb-1.5">
-                  <label htmlFor="usefulLifeYears" className="block text-sm font-medium text-text-primary">
+                  <label
+                    htmlFor="usefulLifeYears"
+                    className="block text-sm font-medium text-text-primary"
+                  >
                     {t('form.usefulLifeYears')}
                   </label>
                   <HelpTooltip text={t('form.usefulLifeHint')} side="right" />
@@ -377,8 +446,12 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
                   render={({ field }) => (
                     <NumberInput
                       id="usefulLifeYears"
-                      value={field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''}
-                      onChange={(val) => field.onChange(val === '' ? undefined : Number(val))}
+                      value={
+                        field.value !== undefined && !Number.isNaN(field.value)
+                          ? String(field.value)
+                          : ''
+                      }
+                      onChange={val => field.onChange(val === '' ? undefined : Number(val))}
                       onBlur={field.onBlur}
                       placeholder={t('form.usefulLifePlaceholder')}
                       error={errors.usefulLifeYears?.message}
@@ -396,7 +469,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Quantity */}
           <div>
-            <label htmlFor="quantity" className="block text-sm font-medium text-text-primary mb-1.5">
+            <label
+              htmlFor="quantity"
+              className="block text-sm font-medium text-text-primary mb-1.5"
+            >
               {t('form.quantity')} *
             </label>
             <Controller
@@ -418,7 +494,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
 
           {/* Purchase Price */}
           <div>
-            <label htmlFor="purchasePrice" className="block text-sm font-medium text-text-primary mb-1.5">
+            <label
+              htmlFor="purchasePrice"
+              className="block text-sm font-medium text-text-primary mb-1.5"
+            >
               {t('form.purchasePrice')} *
             </label>
             <Controller
@@ -432,7 +511,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
                   onBlur={field.onBlur}
                   placeholder="0.00"
                   error={errors.purchasePrice?.message}
-                  min="0.01"
+                  min="0"
                 />
               )}
             />
@@ -440,7 +519,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
 
           {/* Current Price */}
           <div>
-            <label htmlFor="currentPrice" className="block text-sm font-medium text-text-primary mb-1.5">
+            <label
+              htmlFor="currentPrice"
+              className="block text-sm font-medium text-text-primary mb-1.5"
+            >
               {t('form.currentPrice')} *
             </label>
             <Controller
@@ -454,7 +536,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
                   onBlur={field.onBlur}
                   placeholder="0.00"
                   error={errors.currentPrice?.message}
-                  min="0.01"
+                  min="0"
                 />
               )}
             />
@@ -465,7 +547,10 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Currency */}
           <div>
-            <label htmlFor="currency" className="block text-sm font-medium text-text-primary mb-1.5">
+            <label
+              htmlFor="currency"
+              className="block text-sm font-medium text-text-primary mb-1.5"
+            >
               {t('form.currency')} *
             </label>
             <Controller
@@ -491,10 +576,12 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
             )}
           </div>
 
-
           {/* Purchase Date */}
           <div>
-            <label htmlFor="purchaseDate" className="block text-sm font-medium text-text-primary mb-1.5">
+            <label
+              htmlFor="purchaseDate"
+              className="block text-sm font-medium text-text-primary mb-1.5"
+            >
               {t('form.purchaseDate')} *
             </label>
             <Controller
@@ -506,7 +593,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
-                  max={today}
+                  max={acquisitionType === 'PLANNED' ? undefined : today}
                   error={errors.purchaseDate?.message}
                 />
               )}
@@ -526,9 +613,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isLoading }: AssetFormPro
             placeholder={t('form.notesPlaceholder')}
             className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
           />
-          {errors.notes && (
-            <p className="mt-1 text-sm text-error">{errors.notes.message}</p>
-          )}
+          {errors.notes && <p className="mt-1 text-sm text-error">{errors.notes.message}</p>}
         </div>
 
         {/* Actions */}

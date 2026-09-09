@@ -180,6 +180,11 @@ public class TransactionResponse {
     /** Classification of the financial movement (e.g. DISBURSEMENT, REPAYMENT). */
     private MovementType movementType;
 
+    /** Principal component in liability currency; zero for interest, insurance and fees. */
+    private BigDecimal principalAmount;
+
+    private java.util.List<PrincipalAllocationResponse> principalAllocations;
+
     /**
      * Flag indicating whether the transaction has been reconciled.
      *

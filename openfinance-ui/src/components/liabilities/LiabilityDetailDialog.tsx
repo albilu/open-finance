@@ -1,3 +1,4 @@
+import { AssetFinancingSection } from '@/components/assets/AssetFinancingSection';
 /**
  * LiabilityDetailDialog Component
  * Unified tabbed dialog for viewing all details of a liability.
@@ -68,7 +69,7 @@ function TotalCostHero({ liability }: { liability: Liability }) {
   const totalInterest = breakdown.interestPaid + breakdown.projectedInterest;
   const totalInsurance = breakdown.insurancePaid + breakdown.projectedInsurance;
   const totalFees = breakdown.feesPaid; // one-time fee — no projected portion
-  const totalPrincipal = breakdown.principal;
+  const totalPrincipal = liability.fundedAmount ?? breakdown.principal;
 
   /** Convert a native amount to base currency if the liability has conversion data */
   const toBase = (amount: number): number | undefined =>
@@ -364,13 +365,29 @@ function LinkedPaymentsTab({ liability }: { liability: Liability }) {
                       {t(`movementTypes.${tx.movementType}`)}
                     </span>
                   )}
-                  {tx.trancheId != null && trancheLabelById.has(tx.trancheId) && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/30 text-xs font-mono font-medium flex-shrink-0">
-                      {trancheLabelById.get(tx.trancheId)}
-                    </span>
-                  )}
+                  {tx.trancheId != null &&
+                    !tx.principalAllocations?.length &&
+                    trancheLabelById.has(tx.trancheId) && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/30 text-xs font-mono font-medium flex-shrink-0">
+                        {trancheLabelById.get(tx.trancheId)}
+                      </span>
+                    )}
                 </div>
                 <div className="text-xs text-text-tertiary">
+                  {tx.principalAllocations?.map((allocation, index) => (
+                    <span className="block" key={index}>
+                      {allocation.trancheId == null
+                        ? t('payments.openingPrincipal')
+                        : (trancheLabelById.get(allocation.trancheId) ??
+                          `#${allocation.trancheId}`)}
+                      {': '}
+                      <ConvertedAmount
+                        amount={allocation.amount}
+                        currency={liability.currency}
+                        inline
+                      />
+                    </span>
+                  ))}
                   {tx.accountName && <span>{tx.accountName} · </span>}
                   {new Date(tx.date).toLocaleDateString(i18n.language, {
                     year: 'numeric',
@@ -542,9 +559,15 @@ export function LiabilityDetailDialog({
             {/* Tab 1: Overview */}
             {activeTab === 'overview' && (
               <div>
-                <TotalCostHero liability={liability} />
-                <LiabilityBreakdownPanel liability={liability} />
-                <OverviewDisburse liability={liability} />
+                {liability.representedByAccountId != null ? (
+                  <p className="text-sm text-text-secondary">{t('form.accountSourceHint')}</p>
+                ) : (
+                  <>
+                    <TotalCostHero liability={liability} />
+                    <LiabilityBreakdownPanel liability={liability} />
+                    <OverviewDisburse liability={liability} />
+                  </>
+                )}
               </div>
             )}
 
@@ -575,14 +598,23 @@ export function LiabilityDetailDialog({
             {/* Tab 3: Linked Payments */}
             {activeTab === 'payments' && (
               <div>
-                <LinkedPaymentsTab liability={liability} />
+                {liability.representedByAccountId != null ? (
+                  <p className="text-sm text-text-secondary">{t('form.accountSourceHint')}</p>
+                ) : (
+                  <LinkedPaymentsTab liability={liability} />
+                )}
               </div>
             )}
 
             {/* Tab 4: Drawdowns (staged loan tranches) */}
             {activeTab === 'drawdowns' && (
               <div>
-                <TrancheDrawdownsTab liability={liability} />
+                {liability.representedByAccountId != null ? (
+                  <p className="text-sm text-text-secondary">{t('form.accountSourceHint')}</p>
+                ) : (
+                  <TrancheDrawdownsTab liability={liability} />
+                )}
+                <AssetFinancingSection liabilityId={liability.id} />
               </div>
             )}
 

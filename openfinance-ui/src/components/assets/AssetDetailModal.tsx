@@ -1,3 +1,4 @@
+import { AssetFinancingSection } from '@/components/assets/AssetFinancingSection';
 /**
  * AssetDetailModal Component
  * Task 5.4.4: Create AssetDetailModal component
@@ -157,6 +158,11 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
         <div className="sticky top-0 z-10 bg-surface px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-foreground">{asset.name}</h2>
+            {asset.acquisitionType && asset.acquisitionType !== 'PURCHASE' && (
+              <p className="text-sm text-text-secondary">
+                {t(`form.acquisitionTypes.${asset.acquisitionType}`)}
+              </p>
+            )}
             {asset.symbol && <p className="text-sm text-muted-foreground">{asset.symbol}</p>}
           </div>
           <button
@@ -484,6 +490,7 @@ export function AssetDetailModal({ asset, onClose, onEdit, onDelete }: AssetDeta
 
                   {/* Asset Costs (Task 8): capitalized improvements vs maintenance */}
                   <AssetCostsSection asset={asset} />
+                  <AssetFinancingSection assetId={asset.id} />
                 </>
               )}
 

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 /** Repository for Liability entity Task 6.1.3: Create LiabilityRepository */
 @Repository
 public interface LiabilityRepository extends JpaRepository<Liability, Long> {
+    boolean existsByRepresentedByAccountIdAndUserId(Long accountId, Long userId);
 
     /** Find all liabilities for a specific user */
     @Query("SELECT l FROM Liability l WHERE l.userId = :userId ORDER BY l.createdAt DESC")

@@ -495,6 +495,8 @@ public class LiveDemoData implements CommandLineRunner {
                 mortgage.setType(LiabilityType.MORTGAGE);
                 mortgage.setPrincipal(enc("280000.00"));
                 mortgage.setCurrentBalance(enc("241500.00"));
+                mortgage.setOpeningPrincipal(new BigDecimal("280000.00"));
+                mortgage.setOpeningBalance(new BigDecimal("241500.00"));
                 mortgage.setInterestRate(enc("1.15"));
                 mortgage.setMinimumPayment(null);
                 mortgage.setCurrency("EUR");
@@ -508,6 +510,8 @@ public class LiveDemoData implements CommandLineRunner {
                 carLoan.setType(LiabilityType.LOAN);
                 carLoan.setPrincipal(enc("18500.00"));
                 carLoan.setCurrentBalance(enc("8750.00"));
+                carLoan.setOpeningPrincipal(new BigDecimal("18500.00"));
+                carLoan.setOpeningBalance(new BigDecimal("8750.00"));
                 carLoan.setInterestRate(enc("3.9"));
                 carLoan.setMinimumPayment(null);
                 carLoan.setCurrency("EUR");
@@ -521,6 +525,8 @@ public class LiveDemoData implements CommandLineRunner {
                 creditCard.setType(LiabilityType.CREDIT_CARD);
                 creditCard.setPrincipal(enc("5000.00"));
                 creditCard.setCurrentBalance(enc("1240.50"));
+                creditCard.setOpeningPrincipal(new BigDecimal("5000.00"));
+                creditCard.setOpeningBalance(new BigDecimal("1240.50"));
                 creditCard.setInterestRate(enc("18.5"));
                 creditCard.setMinimumPayment(null);
                 creditCard.setCurrency("EUR");

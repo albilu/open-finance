@@ -49,11 +49,12 @@ const propertySchema = (tv: (key: string) => string) =>
         PropertyType.INDUSTRIAL,
         PropertyType.OTHER,
       ] as const),
+      acquisitionType: z.enum(['PURCHASE', 'GIFT', 'PLANNED']),
       purchasePrice: z
         .string()
         .min(1, tv('form.validation.priceInvalid'))
         .refine(isValidDecimalString, tv('form.validation.priceInvalid'))
-        .refine(v => Number(v) >= 0.01, tv('form.validation.priceTooSmall')),
+        .refine(v => Number(v) >= 0, tv('form.validation.priceTooSmall')),
       purchaseDate: z
         .string()
         .min(1, tv('form.validation.purchaseDateRequired'))
@@ -84,10 +85,18 @@ const propertySchema = (tv: (key: string) => string) =>
         .optional(),
       isActive: z.boolean().optional(),
     })
+    .refine(data => data.acquisitionType !== 'PURCHASE' || Number(data.purchasePrice) > 0, {
+      message: tv('form.validation.priceTooSmall'),
+      path: ['purchasePrice'],
+    })
+    .refine(data => data.acquisitionType !== 'PLANNED' || Number(data.currentValue) === 0, {
+      message: tv('form.plannedValue'),
+      path: ['currentValue'],
+    })
     .refine(
       data => {
         const today = new Date().toISOString().split('T')[0];
-        return data.purchaseDate <= today;
+        return data.acquisitionType === 'PLANNED' || data.purchaseDate <= today;
       },
       {
         message: tv('form.validation.purchaseDateFuture'),
@@ -124,6 +133,7 @@ export function RealEstateForm({ property, onSubmit, onCancel, isLoading }: Real
           address: property.address,
           propertyType: property.propertyType,
           purchasePrice: String(property.purchasePrice),
+          acquisitionType: property.acquisitionType ?? 'PURCHASE',
           purchaseDate: property.purchaseDate,
           currentValue: String(property.currentValue),
           currency: property.currency,
@@ -142,6 +152,7 @@ export function RealEstateForm({ property, onSubmit, onCancel, isLoading }: Real
           address: '',
           propertyType: PropertyType.RESIDENTIAL,
           purchasePrice: '0',
+          acquisitionType: 'PURCHASE',
           purchaseDate: today,
           currentValue: '0',
           currency: baseCurrency || DEFAULT_CURRENCY,
@@ -155,6 +166,7 @@ export function RealEstateForm({ property, onSubmit, onCancel, isLoading }: Real
   });
 
   const selectedCurrency = watch('currency');
+  const acquisitionType = watch('acquisitionType');
 
   const handleFormSubmit = handleSubmit(async (data: PropertyFormData) => {
     const request: RealEstatePropertyRequest = {
@@ -162,6 +174,7 @@ export function RealEstateForm({ property, onSubmit, onCancel, isLoading }: Real
       address: data.address,
       propertyType: data.propertyType,
       purchasePrice: data.purchasePrice.trim(),
+      acquisitionType: data.acquisitionType,
       purchaseDate: data.purchaseDate,
       currentValue: data.currentValue.trim(),
       currency: data.currency,
@@ -186,6 +199,21 @@ export function RealEstateForm({ property, onSubmit, onCancel, isLoading }: Real
 
   return (
     <form onSubmit={handleFormSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="acquisitionType">{t('form.acquisitionType')}</label>
+        <select
+          id="acquisitionType"
+          {...register('acquisitionType')}
+          className="w-full rounded border border-border bg-surface p-2"
+        >
+          {(['PURCHASE', 'GIFT', 'PLANNED'] as const).map(type => (
+            <option key={type} value={type}>
+              {t(`form.acquisitionTypes.${type}`)}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-text-secondary">{t('form.acquisitionHint')}</p>
+      </div>
       {/* Top Row: Property Name & Type */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Property Name */}
@@ -261,7 +289,7 @@ export function RealEstateForm({ property, onSubmit, onCancel, isLoading }: Real
                 onBlur={field.onBlur}
                 placeholder="0.00"
                 error={errors.purchasePrice?.message}
-                min="0.01"
+                min="0"
               />
             )}
           />
@@ -284,7 +312,7 @@ export function RealEstateForm({ property, onSubmit, onCancel, isLoading }: Real
                 value={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
-                max={today}
+                max={acquisitionType === 'PLANNED' ? undefined : today}
                 error={errors.purchaseDate?.message}
               />
             )}

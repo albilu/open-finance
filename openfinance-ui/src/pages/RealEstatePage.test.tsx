@@ -37,7 +37,18 @@ vi.mock('@/components/real-estate/RealEstateForm', () => ({
   RealEstateForm: ({ property, onSubmit, onCancel }: any) => (
     <div data-testid="real-estate-form">
       {property && <span data-testid="editing-name">{property.name}</span>}
-      <button onClick={() => onSubmit({ name: 'New Prop', propertyType: 'RESIDENTIAL', currentValue: 100000, currency: 'USD' })}>Submit</button>
+      <button
+        onClick={() =>
+          onSubmit({
+            name: 'New Prop',
+            propertyType: 'RESIDENTIAL',
+            currentValue: 100000,
+            currency: 'USD',
+          })
+        }
+      >
+        Submit
+      </button>
       <button onClick={onCancel}>Cancel</button>
     </div>
   ),
@@ -54,7 +65,7 @@ vi.mock('@/components/ui/CurrencySelector', () => ({
   CurrencySelector: () => <select data-testid="currency-selector" />,
 }));
 vi.mock('@/components/ui/ConvertedAmount', () => ({
-  ConvertedAmount: () => <span data-testid="converted-amount" />,
+  ConvertedAmount: ({ amount }: { amount: number }) => <span>{amount}</span>,
 }));
 
 import RealEstatePage from './RealEstatePage';
@@ -100,6 +111,7 @@ describe('RealEstatePage', () => {
           isActive: true,
           isConverted: false,
           purchasePrice: 400000,
+          allocatedDebt: 200000,
           mortgageBalance: 200000,
           monthlyRentalIncome: 0,
         },
@@ -139,6 +151,7 @@ describe('RealEstatePage', () => {
           isActive: true,
           isConverted: false,
           purchasePrice: 250000,
+          allocatedDebt: 100000,
           mortgageBalance: 100000,
           monthlyRentalIncome: 2000,
         },
@@ -162,8 +175,25 @@ describe('RealEstatePage', () => {
   it('opens edit form when clicking edit on property card', async () => {
     const user = userEvent.setup();
     mockData = {
-      content: [{ id: 1, name: 'Beach House', propertyType: 'RESIDENTIAL', currentValue: 500000, currency: 'USD', isActive: true, isConverted: false, purchasePrice: 400000, mortgageBalance: 200000, monthlyRentalIncome: 0 }],
-      totalPages: 1, totalElements: 1, number: 0, size: 20,
+      content: [
+        {
+          id: 1,
+          name: 'Beach House',
+          propertyType: 'RESIDENTIAL',
+          currentValue: 500000,
+          currency: 'USD',
+          isActive: true,
+          isConverted: false,
+          purchasePrice: 400000,
+          allocatedDebt: 200000,
+          mortgageBalance: 200000,
+          monthlyRentalIncome: 0,
+        },
+      ],
+      totalPages: 1,
+      totalElements: 1,
+      number: 0,
+      size: 20,
     };
     renderWithProviders(<RealEstatePage />);
     await user.click(screen.getByRole('button', { name: /^edit$/i }));
@@ -174,8 +204,25 @@ describe('RealEstatePage', () => {
   it('opens detail view when clicking view on property card', async () => {
     const user = userEvent.setup();
     mockData = {
-      content: [{ id: 1, name: 'Beach House', propertyType: 'RESIDENTIAL', currentValue: 500000, currency: 'USD', isActive: true, isConverted: false, purchasePrice: 400000, mortgageBalance: 200000, monthlyRentalIncome: 0 }],
-      totalPages: 1, totalElements: 1, number: 0, size: 20,
+      content: [
+        {
+          id: 1,
+          name: 'Beach House',
+          propertyType: 'RESIDENTIAL',
+          currentValue: 500000,
+          currency: 'USD',
+          isActive: true,
+          isConverted: false,
+          purchasePrice: 400000,
+          allocatedDebt: 200000,
+          mortgageBalance: 200000,
+          monthlyRentalIncome: 0,
+        },
+      ],
+      totalPages: 1,
+      totalElements: 1,
+      number: 0,
+      size: 20,
     };
     renderWithProviders(<RealEstatePage />);
     await user.click(screen.getByRole('button', { name: /^view$/i }));
@@ -186,8 +233,25 @@ describe('RealEstatePage', () => {
   it('closes detail view', async () => {
     const user = userEvent.setup();
     mockData = {
-      content: [{ id: 1, name: 'Beach House', propertyType: 'RESIDENTIAL', currentValue: 500000, currency: 'USD', isActive: true, isConverted: false, purchasePrice: 400000, mortgageBalance: 200000, monthlyRentalIncome: 0 }],
-      totalPages: 1, totalElements: 1, number: 0, size: 20,
+      content: [
+        {
+          id: 1,
+          name: 'Beach House',
+          propertyType: 'RESIDENTIAL',
+          currentValue: 500000,
+          currency: 'USD',
+          isActive: true,
+          isConverted: false,
+          purchasePrice: 400000,
+          allocatedDebt: 200000,
+          mortgageBalance: 200000,
+          monthlyRentalIncome: 0,
+        },
+      ],
+      totalPages: 1,
+      totalElements: 1,
+      number: 0,
+      size: 20,
     };
     renderWithProviders(<RealEstatePage />);
     await user.click(screen.getByRole('button', { name: /^view$/i }));
@@ -208,8 +272,25 @@ describe('RealEstatePage', () => {
   it('submits update form for existing property', async () => {
     const user = userEvent.setup();
     mockData = {
-      content: [{ id: 1, name: 'Beach House', propertyType: 'RESIDENTIAL', currentValue: 500000, currency: 'USD', isActive: true, isConverted: false, purchasePrice: 400000, mortgageBalance: 200000, monthlyRentalIncome: 0 }],
-      totalPages: 1, totalElements: 1, number: 0, size: 20,
+      content: [
+        {
+          id: 1,
+          name: 'Beach House',
+          propertyType: 'RESIDENTIAL',
+          currentValue: 500000,
+          currency: 'USD',
+          isActive: true,
+          isConverted: false,
+          purchasePrice: 400000,
+          allocatedDebt: 200000,
+          mortgageBalance: 200000,
+          monthlyRentalIncome: 0,
+        },
+      ],
+      totalPages: 1,
+      totalElements: 1,
+      number: 0,
+      size: 20,
     };
     mockUpdateMutateAsync.mockResolvedValue({});
     renderWithProviders(<RealEstatePage />);
@@ -243,5 +324,48 @@ describe('RealEstatePage', () => {
     await user.click(screen.getByRole('button', { name: /submit/i }));
     // Should not crash
     expect(mockCreateMutateAsync).toHaveBeenCalled();
+  });
+  it('keeps negative equity when a property has zero value', () => {
+    mockData = {
+      content: [
+        {
+          id: 1,
+          name: 'Underwater',
+          propertyType: 'RESIDENTIAL',
+          currentValue: 0,
+          currency: 'EUR',
+          isActive: true,
+          allocatedDebt: 80,
+          mortgageBalance: 80,
+          mortgageId: 10,
+        },
+      ],
+      totalPages: 1,
+      totalElements: 1,
+      number: 0,
+      size: 20,
+    };
+    renderWithProviders(<RealEstatePage />);
+    expect(screen.getByText('Total Equity').parentElement).toHaveTextContent('-80');
+  });
+
+  it('sums explicit financing allocations across properties', () => {
+    mockData = {
+      content: [1, 2].map(id => ({
+        id,
+        name: `Home ${id}`,
+        propertyType: 'RESIDENTIAL',
+        currentValue: 200,
+        currency: 'EUR',
+        isActive: true,
+        allocatedDebt: id === 1 ? 40 : 60,
+      })),
+      totalPages: 1,
+      totalElements: 2,
+      number: 0,
+      size: 20,
+    };
+    renderWithProviders(<RealEstatePage />);
+    expect(screen.getByText('Total Equity').parentElement).toHaveTextContent('300');
   });
 });

@@ -110,14 +110,16 @@
     "nameTooLong": "Name is too long",
     "quantityRequired": "Quantity must be greater than 0",
     "quantityInvalid": "Enter a valid quantity (e.g. 1.5)",
-    "purchasePriceRequired": "Purchase price must be greater than 0",
+    "purchasePriceRequired": "Purchase price cannot be negative",
     "purchasePriceInvalid": "Enter a valid price (e.g. 1234.56)",
-    "currentPriceRequired": "Current price must be greater than 0",
+    "currentPriceRequired": "Current price cannot be negative",
     "currentPriceInvalid": "Enter a valid price (e.g. 1234.56)",
     "currencyInvalid": "Currency must be a 3-letter code",
     "purchaseDateRequired": "Purchase date is required",
     "notesTooLong": "Notes are too long",
-    "symbolTooLong": "Symbol is too long"
+    "symbolTooLong": "Symbol is too long",
+    "plannedValueZero": "A planned asset must have zero current value.",
+    "purchaseDateFuture": "An acquired asset cannot have a future acquisition date."
   },
   "form": {
     "assetType": "Asset Type",
@@ -158,6 +160,12 @@
       "GOOD": "Good",
       "FAIR": "Fair",
       "POOR": "Poor"
+    },
+    "acquisitionType": "Acquisition",
+    "acquisitionTypes": {
+      "PURCHASE": "Purchased",
+      "GIFT": "Gift / inheritance",
+      "PLANNED": "Planned acquisition"
     }
   },
   "types": {
@@ -184,6 +192,36 @@
       "CAPITAL_IMPROVEMENT": "Capitalized",
       "MAINTENANCE": "Maintenance"
     },
-    "error": "Failed to load costs. Please try again."
+    "error": "Failed to load costs. Please try again.",
+    "acquisition": "Acquisition and other payments"
+  },
+  "financing": {
+    "title": "Financing and collateral",
+    "hint": "Financing allocates a share of the outstanding debt. Collateral records security only. Links do not move money or change asset value.",
+    "loan": "Manage a liability",
+    "allLoans": "All linked liabilities",
+    "asset": "Asset",
+    "relationship": "Relationship",
+    "FINANCING": "Financing",
+    "COLLATERAL": "Collateral",
+    "share": "Debt share (%)",
+    "remove": "Remove",
+    "allocated": "Allocated: {{percentage}}% of this liability",
+    "add": "Add asset",
+    "save": "Save links",
+    "cancel": "Cancel",
+    "empty": "No explicit asset relationships.",
+    "edit": "Edit relationships",
+    "error": "Could not save or load relationships. Check for duplicates and allocations above 100%.",
+    "loading": "Loading relationships…",
+    "value": "Recorded value",
+    "debt": "Allocated debt",
+    "equity": "Equity"
+  },
+  "movementPaging": {
+    "label": "Movement history pages",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}} of {{total}}"
   }
 }

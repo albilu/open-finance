@@ -13,7 +13,7 @@ import * as useLiabilitiesModule from '@/hooks/useLiabilities';
 import type { Liability } from '@/types/liability';
 
 // Mock the hooks
-vi.mock('@/hooks/useLiabilities', async (importOriginal) => {
+vi.mock('@/hooks/useLiabilities', async importOriginal => {
   const actual = await importOriginal<typeof useLiabilitiesModule>();
   return {
     ...actual,
@@ -61,7 +61,15 @@ vi.mock('@/components/ui/Button', () => ({
 }));
 
 vi.mock('@/components/ConfirmationDialog', () => ({
-  ConfirmationDialog: ({ open, onOpenChange, onConfirm, title, description, confirmText, variant }: any) => (
+  ConfirmationDialog: ({
+    open,
+    onOpenChange,
+    onConfirm,
+    title,
+    description,
+    confirmText,
+    variant,
+  }: any) =>
     open ? (
       <div data-testid="confirmation-dialog">
         <h2>{title}</h2>
@@ -71,8 +79,7 @@ vi.mock('@/components/ConfirmationDialog', () => ({
         </button>
         <button onClick={() => onOpenChange(false)}>Cancel</button>
       </div>
-    ) : null
-  ),
+    ) : null,
 }));
 
 // Test fixtures
@@ -142,14 +149,12 @@ describe('LiabilityList', () => {
 
     it('does NOT render "View Details" button when onViewDetails is undefined', () => {
       renderWithProviders(
-        <LiabilityList
-          liabilities={[mockLiability]}
-          onEdit={mockOnEdit}
-          onDelete={mockOnDelete}
-        />
+        <LiabilityList liabilities={[mockLiability]} onEdit={mockOnEdit} onDelete={mockOnDelete} />
       );
 
-      expect(screen.queryByRole('button', { name: /view liability details/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /view liability details/i })
+      ).not.toBeInTheDocument();
       expect(screen.queryByTestId('bar-chart-icon')).not.toBeInTheDocument();
     });
   });
@@ -167,9 +172,10 @@ describe('LiabilityList', () => {
 
       // Should not have any calendar or schedule related buttons
       const buttons = screen.getAllByTestId('button');
-      const hasCalendarButton = buttons.some(button =>
-        button.textContent?.toLowerCase().includes('calendar') ||
-        button.textContent?.toLowerCase().includes('schedule')
+      const hasCalendarButton = buttons.some(
+        button =>
+          button.textContent?.toLowerCase().includes('calendar') ||
+          button.textContent?.toLowerCase().includes('schedule')
       );
       expect(hasCalendarButton).toBe(false);
     });
@@ -224,7 +230,11 @@ describe('LiabilityList', () => {
 
       expect(screen.getByTestId('confirmation-dialog')).toBeInTheDocument();
       expect(screen.getByText('Delete Liability')).toBeInTheDocument();
-      expect(screen.getByText(`Are you sure you want to delete "Home Mortgage"? This action cannot be undone.`)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          `Are you sure you want to delete "Home Mortgage"? This action cannot be undone.`
+        )
+      ).toBeInTheDocument();
     });
   });
 
@@ -239,7 +249,9 @@ describe('LiabilityList', () => {
         />
       );
 
-      expect(screen.getByText('No liabilities found. Create your first liability!')).toBeInTheDocument();
+      expect(
+        screen.getByText('No liabilities found. Create your first liability!')
+      ).toBeInTheDocument();
       expect(screen.getByTestId('credit-card-icon')).toBeInTheDocument();
     });
   });
@@ -321,7 +333,7 @@ describe('LiabilityList', () => {
       // Check currency appears in body text (may be split by PrivateAmount)
       const body = document.body.textContent || '';
       expect(body).toContain('€280,000');
-      expect(screen.getByText('Original Principal')).toBeInTheDocument();
+      expect(screen.getByText('Original or approved principal')).toBeInTheDocument();
       expect(body).toContain('€300,000');
     });
 
@@ -603,11 +615,7 @@ describe('LiabilityList', () => {
     it('does not show remaining months when endDate is undefined', () => {
       const noEndDate = { ...mockLiability, endDate: undefined };
       renderWithProviders(
-        <LiabilityList
-          liabilities={[noEndDate]}
-          onEdit={mockOnEdit}
-          onDelete={mockOnDelete}
-        />
+        <LiabilityList liabilities={[noEndDate]} onEdit={mockOnEdit} onDelete={mockOnDelete} />
       );
       expect(screen.queryByText(/months remaining/)).not.toBeInTheDocument();
     });
@@ -617,11 +625,7 @@ describe('LiabilityList', () => {
     it('shows overdue text for past end dates', () => {
       const pastEnd = { ...mockLiability, endDate: '2020-01-01' };
       renderWithProviders(
-        <LiabilityList
-          liabilities={[pastEnd]}
-          onEdit={mockOnEdit}
-          onDelete={mockOnDelete}
-        />
+        <LiabilityList liabilities={[pastEnd]} onEdit={mockOnEdit} onDelete={mockOnDelete} />
       );
       // Should show ended/overdue text since end date is in the past
       expect(screen.getByText(/Ends|Ended/)).toBeInTheDocument();
@@ -631,11 +635,7 @@ describe('LiabilityList', () => {
   describe('Single liability count', () => {
     it('shows singular text for one liability', () => {
       renderWithProviders(
-        <LiabilityList
-          liabilities={[mockLiability]}
-          onEdit={mockOnEdit}
-          onDelete={mockOnDelete}
-        />
+        <LiabilityList liabilities={[mockLiability]} onEdit={mockOnEdit} onDelete={mockOnDelete} />
       );
       expect(screen.getByText(/Showing 1 liabilit/)).toBeInTheDocument();
     });

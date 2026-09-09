@@ -217,6 +217,9 @@ public class TransactionRequest {
     /** Classification of the financial movement (e.g. DISBURSEMENT, REPAYMENT). */
     private MovementType movementType;
 
+    /** Principal component in liability currency; zero for interest, insurance and fees. */
+    private BigDecimal principalAmount;
+
     /**
      * Optional list of split lines for this transaction.
      *

@@ -152,6 +152,9 @@ export function useCreateTransaction() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate all dashboard queries to refresh cash flow, net worth, etc.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
       // Invalidate budget queries so spent amounts reflect new transactions
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     },
@@ -177,6 +180,9 @@ export function useCreateTransfer() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate all dashboard queries to refresh cash flow, net worth, etc.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
       // Invalidate budget queries so spent amounts reflect new transactions
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     },
@@ -203,6 +209,9 @@ export function useUpdateTransaction() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate all dashboard queries to refresh cash flow, net worth, etc.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
       // Invalidate budget queries so spent amounts reflect updated transactions
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     },
@@ -233,6 +242,9 @@ export function useUpdateTransfer() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate all dashboard queries to refresh cash flow, net worth, etc.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
       // Invalidate budget queries so spent amounts reflect updated transactions
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     },
@@ -257,6 +269,9 @@ export function useDeleteTransaction() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate all dashboard queries to refresh cash flow, net worth, etc.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
       // Invalidate budget queries so spent amounts reflect deleted transactions
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
     },

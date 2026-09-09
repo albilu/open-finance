@@ -19,6 +19,7 @@ import { InstitutionSelector } from '@/components/ui/InstitutionSelector';
 import { ExchangeRateInline } from '@/components/ui/ExchangeRateDisplay';
 import { useAuthContext } from '@/context/AuthContext';
 import { getLiabilityTypeName } from '@/hooks/useLiabilities';
+import { useAccounts } from '@/hooks/useAccounts';
 import { useProperties } from '@/hooks/useRealEstate';
 import { DEFAULT_CURRENCY } from '@/utils/currency';
 import { isValidDecimalString } from '@/utils/money';
@@ -54,7 +55,7 @@ const liabilitySchema = (tv: (key: string) => string) =>
         .string()
         .min(1, tv('form.validation.principalInvalid'))
         .refine(isValidDecimalString, tv('form.validation.principalInvalid'))
-        .refine(v => Number(v) >= 0.01, tv('form.validation.principalTooSmall')),
+        .refine(v => Number(v) >= 0, tv('form.validation.principalTooSmall')),
       currentBalance: z
         .string()
         .min(1, tv('form.validation.balanceInvalid'))
@@ -98,11 +99,24 @@ const liabilitySchema = (tv: (key: string) => string) =>
         .optional()
         .or(z.literal('')),
       realEstateId: z.number().optional(),
+      creditLimit: z
+        .string()
+        .refine(
+          v => v === '' || (isValidDecimalString(v) && Number(v) >= 0),
+          tv('form.validation.balanceNonNegative')
+        )
+        .optional(),
+      previouslyFunded: z.boolean().optional(),
+      representedByAccountId: z.string().optional(),
+    })
+    .refine(data => data.type === 'CREDIT_CARD' || Number(data.principal) > 0, {
+      message: tv('form.validation.principalTooSmall'),
+      path: ['principal'],
     })
     .refine(
       data => {
         if (!data.endDate || data.endDate === '') return true;
-        return data.endDate > data.startDate;
+        return data.endDate >= data.startDate;
       },
       {
         message: tv('form.validation.endDateAfterStart'),
@@ -127,9 +141,11 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
   const { baseCurrency } = useAuthContext();
   // Real estate properties for mortgage linking (ISSUE-005)
   const { data: properties } = useProperties();
+  const { data: accounts } = useAccounts();
 
   const {
     register,
+    setValue,
     handleSubmit,
     control,
     watch,
@@ -157,7 +173,10 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
             liability.additionalFees !== undefined && liability.additionalFees !== null
               ? String(liability.additionalFees)
               : '',
-          realEstateId: undefined,
+          realEstateId: liability.linkedPropertyId,
+          creditLimit: liability.creditLimit == null ? '' : String(liability.creditLimit),
+          previouslyFunded: liability.fundingStatus !== 'UNDRAWN',
+          representedByAccountId: liability.representedByAccountId?.toString() ?? '',
         }
       : {
           name: '',
@@ -209,7 +228,12 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
         data.additionalFees && data.additionalFees !== '' && Number(data.additionalFees) > 0
           ? data.additionalFees.trim()
           : undefined,
-      realEstateId: data.realEstateId,
+      realEstateId: data.realEstateId ?? null,
+      creditLimit: data.creditLimit || undefined,
+      previouslyFunded: data.previouslyFunded,
+      representedByAccountId: data.representedByAccountId
+        ? Number(data.representedByAccountId)
+        : undefined,
     });
   });
 
@@ -250,6 +274,59 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
         </div>
       </div>
 
+      {watch('type') === 'CREDIT_CARD' && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label htmlFor="creditLimit">{t('form.creditLimit')}</label>
+            <Input
+              id="creditLimit"
+              type="number"
+              min="0"
+              step="0.01"
+              {...register('creditLimit')}
+              error={errors.creditLimit?.message}
+            />
+          </div>
+          <div>
+            <label htmlFor="representedByAccountId">{t('form.accountSource')}</label>
+            <select
+              id="representedByAccountId"
+              {...register('representedByAccountId')}
+              disabled={isEditing}
+              onChange={e => {
+                setValue('representedByAccountId', e.target.value);
+                const account = accounts?.find(a => a.id === Number(e.target.value));
+                if (account) {
+                  setValue('currency', account.currency);
+                  setValue(
+                    'currentBalance',
+                    String(Math.max(-(account.ownBalance ?? account.balance), 0))
+                  );
+                }
+              }}
+              className="w-full h-10 rounded-lg border border-border bg-surface px-3"
+            >
+              <option value="">{t('form.separateBalance')}</option>
+              {accounts
+                ?.filter(a => a.type === 'CREDIT_CARD')
+                .map(a => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+            <p className="text-xs text-text-secondary">{t('form.accountSourceHint')}</p>
+          </div>
+        </div>
+      )}
+      {!liability?.balanceLocked &&
+        Number(watch('currentBalance')) === 0 &&
+        watch('type') !== 'CREDIT_CARD' && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" {...register('previouslyFunded')} />
+            {t('form.previouslyFunded')}
+          </label>
+        )}
       {/* Principal, Balance, and Currency Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Principal Amount */}
@@ -268,7 +345,7 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
                 onBlur={field.onBlur}
                 placeholder="0.00"
                 error={errors.principal?.message}
-                min="0.01"
+                min={watch('type') === 'CREDIT_CARD' ? '0' : '0.01'}
               />
             )}
           />
@@ -293,11 +370,14 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
                 onBlur={field.onBlur}
                 placeholder="0.00"
                 error={errors.currentBalance?.message}
+                disabled={!!liability?.balanceLocked}
                 min="0"
               />
             )}
           />
-          <p className="mt-1 text-xs text-text-secondary">{t('form.currentBalanceHint')}</p>
+          <p className="mt-1 text-xs text-text-secondary">
+            {t(liability?.balanceLocked ? 'form.balanceLocked' : 'form.currentBalanceHint')}
+          </p>
         </div>
 
         {/* Currency */}
@@ -313,6 +393,7 @@ export function LiabilityForm({ liability, onSubmit, onCancel, isLoading }: Liab
                 value={field.value}
                 onValueChange={field.onChange}
                 placeholder={t('form.currencyPlaceholder')}
+                disabled={!!liability?.balanceLocked}
                 className="w-full"
               />
             )}

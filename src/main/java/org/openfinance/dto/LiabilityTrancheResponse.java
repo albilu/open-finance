@@ -47,6 +47,9 @@ public class LiabilityTrancheResponse {
     /** Actual drawdown date. */
     private LocalDate drawnDate;
 
+    private boolean directDisbursement;
+    private LocalDate reversedDate;
+
     /** Fee associated with this tranche. */
     private BigDecimal fee;
 

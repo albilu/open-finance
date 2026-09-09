@@ -82,6 +82,24 @@ public class Liability {
     @Convert(converter = EncryptedStringConverter.class)
     private String principal;
 
+    @Column(name = "represented_by_account_id")
+    private Long representedByAccountId;
+
+    @jakarta.persistence.Convert(
+            converter = org.openfinance.converter.EncryptedBigDecimalConverter.class)
+    @Column(name = "opening_principal", nullable = false, columnDefinition = "TEXT")
+    private java.math.BigDecimal openingPrincipal = java.math.BigDecimal.ZERO;
+
+    @jakarta.persistence.Convert(
+            converter = org.openfinance.converter.EncryptedBigDecimalConverter.class)
+    @Column(name = "opening_balance", nullable = false, columnDefinition = "TEXT")
+    private java.math.BigDecimal openingBalance = java.math.BigDecimal.ZERO;
+
+    @jakarta.persistence.Convert(
+            converter = org.openfinance.converter.EncryptedBigDecimalConverter.class)
+    @Column(name = "credit_limit", columnDefinition = "TEXT")
+    private java.math.BigDecimal creditLimit;
+
     /** Current outstanding balance (encrypted) Max encrypted length: 512 chars */
     @Column(name = "current_balance", nullable = false, length = 512)
     @NotNull(message = "{liability.currentBalance.notnull}")

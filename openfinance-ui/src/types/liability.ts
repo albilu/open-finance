@@ -40,7 +40,13 @@ export interface Liability {
   monthlyInsuranceCost?: number;
   totalInsuranceCost?: number;
   totalCost?: number;
-  principalPaid?: number;
+  principalPaid?: number | null;
+  fundedAmount?: number | null;
+  approvedAmount?: number;
+  creditLimit?: number;
+  fundingStatus?: 'UNDRAWN' | 'ACTIVE' | 'PAID' | 'NO_BALANCE';
+  balanceLocked?: boolean;
+  representedByAccountId?: number;
   interestPaid?: number;
   createdAt: string;
   updatedAt: string;
@@ -61,6 +67,9 @@ export interface LiabilityRequest {
   type: LiabilityType;
   // Exact decimal strings as entered by the user — never JS numbers.
   principal: string;
+  creditLimit?: string;
+  previouslyFunded?: boolean;
+  representedByAccountId?: number;
   currentBalance: string;
   interestRate?: number;
   startDate: string; // ISO date string (YYYY-MM-DD)
@@ -73,7 +82,7 @@ export interface LiabilityRequest {
   insurancePercentage?: number;
   additionalFees?: string;
   /** Optional real estate property ID to link this mortgage to on creation */
-  realEstateId?: number;
+  realEstateId?: number | null;
 }
 
 export interface AmortizationPayment {
@@ -173,6 +182,8 @@ export interface LiabilityTranche {
   remaining: number;
   plannedDate?: string | null;
   drawnDate?: string | null;
+  directDisbursement?: boolean;
+  reversedDate?: string | null;
   fee?: number | null;
   interestOnly?: boolean | null;
   interestOnlyUntil?: string | null;

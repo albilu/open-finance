@@ -392,9 +392,8 @@ class LiabilityDisburseApiTest {
     }
 
     @Test
-    @DisplayName(
-            "Disbursement fails fast (409) when the balance already exceeds the drawn tranches")
-    void disburseFailsFastWhenBalanceExceedsDrawnTranches() throws Exception {
+    @DisplayName("Disbursement preserves existing debt when adding the first tranche")
+    void disbursementPreservesOpeningDebt() throws Exception {
         Long liabilityId = createLiabilityWithBalance(new BigDecimal("200000.00"));
         Long propertyId = createProperty();
 
@@ -407,9 +406,9 @@ class LiabilityDisburseApiTest {
                                 .header("X-Encryption-Session", encKey)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk());
 
-        // Not a silent clamp: the balance is untouched and no tranche was created
+        // Opening debt is retained and the new draw adds one tranche.
         String getResp =
                 mockMvc.perform(
                                 get("/api/v1/liabilities/" + liabilityId)
@@ -420,14 +419,14 @@ class LiabilityDisburseApiTest {
                         .getResponse()
                         .getContentAsString();
         String persistedBalance = objectMapper.readTree(getResp).get("currentBalance").asText();
-        assertThat(new BigDecimal(persistedBalance).compareTo(new BigDecimal("200000.00")))
+        assertThat(new BigDecimal(persistedBalance).compareTo(new BigDecimal("240000.00")))
                 .isZero();
         mockMvc.perform(
                         get("/api/v1/liabilities/" + liabilityId + "/tranches")
                                 .header("Authorization", "Bearer " + token)
                                 .header("X-Encryption-Session", encKey))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.length()").value(1));
     }
 
     // ---------- route validation ----------

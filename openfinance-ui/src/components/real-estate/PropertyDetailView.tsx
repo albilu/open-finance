@@ -1,3 +1,4 @@
+import { AssetFinancingSection } from '@/components/assets/AssetFinancingSection';
 /**
  * PropertyDetailView Component
  * Task 9.1.11: Create PropertyDetailView component
@@ -225,8 +226,8 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                           <TrendingUp className="h-4 w-4 text-text-secondary" />
                           <p className="text-sm text-text-secondary">{t('card.appreciation')}</p>
                         </div>
-                        {property.appreciation !== undefined &&
-                        property.appreciationPercentage !== undefined ? (
+                        {property.appreciation != null &&
+                        property.appreciationPercentage != null ? (
                           <p
                             className={cn(
                               'text-2xl font-bold',
@@ -407,6 +408,7 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
 
                     {/* Costs + Loan movements (Task 8) */}
                     <PropertyMovementsSection property={property} />
+                    <AssetFinancingSection assetId={property.assetId} />
                   </div>
                 )}
 
@@ -418,11 +420,23 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                     ) : equity ? (
                       <>
                         {/* Equity Summary Card */}
-                        <Card className="p-6 bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+                        <Card
+                          className={cn(
+                            'p-6',
+                            equity.equity < 0
+                              ? 'bg-error/5 border-error/20'
+                              : 'bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20'
+                          )}
+                        >
                           <h3 className="text-xl font-semibold text-text-primary mb-4">
                             {t('propertyDetail.propertyEquity')}
                           </h3>
-                          <p className="text-4xl font-bold text-green-400 mb-2">
+                          <p
+                            className={cn(
+                              'text-4xl font-bold mb-2',
+                              equity.equity < 0 ? 'text-error' : 'text-green-400'
+                            )}
+                          >
                             <ConvertedAmount
                               amount={equity.equity}
                               currency={equity.currency}
@@ -438,7 +452,7 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                           </p>
                           <p className="text-text-secondary">
                             {t('propertyDetail.percentOfValue', {
-                              percentage: equity.equityPercentage.toFixed(2),
+                              percentage: equity.equityPercentage?.toFixed(2) ?? '—',
                             })}
                           </p>
                         </Card>
@@ -470,7 +484,7 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                             </div>
 
                             {/* Mortgage Balance */}
-                            {equity.hasMortgage && (
+                            {(equity.hasMortgage || equity.mortgageBalance > 0) && (
                               <>
                                 <div className="flex justify-between items-center text-lg">
                                   <span className="text-text-secondary">
@@ -499,7 +513,12 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                                     <span className="text-text-primary font-semibold">
                                       {t('propertyDetail.totalEquity')}
                                     </span>
-                                    <span className="text-green-400 font-bold">
+                                    <span
+                                      className={cn(
+                                        'font-bold',
+                                        equity.equity < 0 ? 'text-error' : 'text-green-400'
+                                      )}
+                                    >
                                       <ConvertedAmount
                                         amount={equity.equity}
                                         currency={equity.currency}
@@ -524,14 +543,16 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                                 <span>{t('propertyDetail.equityVsDebt')}</span>
                                 <span>
                                   {t('propertyDetail.equityPercent', {
-                                    percentage: equity.equityPercentage.toFixed(1),
+                                    percentage: equity.equityPercentage?.toFixed(1) ?? '—',
                                   })}
                                 </span>
                               </div>
                               <div className="h-4 bg-surface rounded-full overflow-hidden">
                                 <div
                                   className="h-full bg-green-500 transition-all duration-300"
-                                  style={{ width: `${equity.equityPercentage}%` }}
+                                  style={{
+                                    width: `${Math.min(100, Math.max(0, equity.equityPercentage ?? 0))}%`,
+                                  }}
                                 />
                               </div>
                               <div className="flex justify-between text-xs text-text-tertiary mt-1">
@@ -541,7 +562,7 @@ export function PropertyDetailView({ propertyId, onClose }: PropertyDetailViewPr
                             </div>
                           </div>
 
-                          {!equity.hasMortgage && (
+                          {!equity.hasMortgage && equity.mortgageBalance === 0 && (
                             <p className="mt-4 text-sm text-text-tertiary italic">
                               {t('propertyDetail.noMortgage')}
                             </p>

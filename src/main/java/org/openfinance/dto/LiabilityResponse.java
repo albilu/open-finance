@@ -55,6 +55,8 @@ public class LiabilityResponse {
      */
     private BigDecimal principal;
 
+    private Long representedByAccountId;
+
     /**
      * Current outstanding balance owed (decrypted).
      *
@@ -168,6 +170,12 @@ public class LiabilityResponse {
      * <p>Requirement REQ-LIA-3.4: Breakdown of principal paid
      */
     private BigDecimal principalPaid;
+
+    private BigDecimal approvedAmount;
+    private BigDecimal fundedAmount;
+    private BigDecimal creditLimit;
+    private String fundingStatus;
+    private Boolean balanceLocked;
 
     /** Timestamp when the liability record was created. */
     private LocalDateTime createdAt;

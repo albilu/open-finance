@@ -34,7 +34,6 @@ import org.openfinance.entity.RealEstateValueHistory;
 import org.openfinance.entity.TrancheStatus;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
-import org.openfinance.exception.InvalidLiabilityStateException;
 import org.openfinance.exception.InvalidTransactionException;
 import org.openfinance.mapper.TransactionMapper;
 import org.openfinance.repository.AccountRepository;
@@ -100,6 +99,7 @@ class TransactionLiabilitySyncTest {
     @Mock private AssetService assetService;
 
     @InjectMocks private TransactionService transactionService;
+    private org.openfinance.repository.LiabilityPrincipalAllocationRepository allocations;
 
     @BeforeEach
     void setUp() {
@@ -130,6 +130,8 @@ class TransactionLiabilitySyncTest {
                         realEstateMapper,
                         encryptionService,
                         assetService,
+                        org.mockito.Mockito.mock(AssetFinancingService.class),
+                        transactionRepository,
                         userRepository,
                         exchangeRateService,
                         netWorthRepository,
@@ -142,7 +144,10 @@ class TransactionLiabilitySyncTest {
         // Real tranche allocator/reconciler (Task 7): the clamp/invariant logic it owns must run
         LiabilityTrancheService liabilityTrancheService =
                 new LiabilityTrancheService(
-                        liabilityTrancheRepository, transactionRepository, transactionSplitService);
+                        liabilityTrancheRepository,
+                        (allocations =
+                                org.openfinance.testutil.PrincipalAllocationRepositoryMocks
+                                        .create()));
         ReflectionTestUtils.setField(
                 transactionService, "liabilityTrancheService", liabilityTrancheService);
     }
@@ -181,7 +186,10 @@ class TransactionLiabilitySyncTest {
             BigDecimal amount, MovementType movementType, String currency) {
         return TransactionRequest.builder()
                 .accountId(ACCOUNT_ID)
-                .type(TransactionType.EXPENSE)
+                .type(
+                        movementType == MovementType.DISBURSEMENT
+                                ? TransactionType.INCOME
+                                : TransactionType.EXPENSE)
                 .amount(amount)
                 .currency(currency)
                 .date(LocalDate.now())
@@ -197,7 +205,10 @@ class TransactionLiabilitySyncTest {
                 .id(id)
                 .userId(1L)
                 .accountId(ACCOUNT_ID)
-                .type(TransactionType.EXPENSE)
+                .type(
+                        movementType == MovementType.DISBURSEMENT
+                                ? TransactionType.INCOME
+                                : TransactionType.EXPENSE)
                 .amount(amount)
                 .currency(currency)
                 .date(LocalDate.now())
@@ -285,6 +296,7 @@ class TransactionLiabilitySyncTest {
     void deleteRestoresLiabilityBalance() {
         Transaction existing =
                 linkedEntity(TX_ID, new BigDecimal("1200.00"), MovementType.REPAYMENT, "USD");
+        existing.setPrincipalAmount(new BigDecimal("800.00"));
         when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
                 .thenReturn(Optional.of(existing));
         when(transactionRepository.save(any(Transaction.class)))
@@ -316,6 +328,7 @@ class TransactionLiabilitySyncTest {
     void updateReversesOldAndAppliesNewLiabilityMovement() {
         Transaction existing =
                 linkedEntity(TX_ID, new BigDecimal("1200.00"), MovementType.REPAYMENT, "USD");
+        existing.setPrincipalAmount(new BigDecimal("800.00"));
         when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
                 .thenReturn(Optional.of(existing));
         when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID))
@@ -404,7 +417,7 @@ class TransactionLiabilitySyncTest {
 
     @Test
     @DisplayName("DISBURSEMENT balance is clamped to SUM(drawn) of DRAWN tranches")
-    void disbursementClampedToDrawnTrancheSum() {
+    void disbursementAddsToOpeningBalance() {
         TransactionRequest request =
                 linkedRequest(new BigDecimal("2000.00"), MovementType.DISBURSEMENT, "USD");
         stubCreate(
@@ -441,7 +454,7 @@ class TransactionLiabilitySyncTest {
 
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
         verify(liabilityRepository).save(captor.capture());
-        assertThat(captor.getValue().getCurrentBalance()).isEqualTo("6000.00");
+        assertThat(captor.getValue().getCurrentBalance()).isEqualTo("7000.00");
     }
 
     // ---------- DISBURSEMENT tranche lifecycle on delete/update ----------
@@ -449,7 +462,7 @@ class TransactionLiabilitySyncTest {
     @Test
     @DisplayName(
             "Creating a raw DISBURSEMENT fails fast when the balance exceeds the drawn tranches")
-    void rawDisbursementFailsFastWhenBalanceExceedsDrawnTranches() {
+    void rawDisbursementPreservesOpeningPrincipal() {
         TransactionRequest request =
                 linkedRequest(new BigDecimal("2000.00"), MovementType.DISBURSEMENT, "USD");
         stubCreate(
@@ -461,9 +474,10 @@ class TransactionLiabilitySyncTest {
         when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
                 .thenReturn(List.of(drawnTrancheFixture(new BigDecimal("40000.00"))));
 
-        assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
-                .isInstanceOf(InvalidLiabilityStateException.class)
-                .hasMessageContaining("exceeds");
+        transactionService.createTransaction(USER_ID, request);
+        ArgumentCaptor<Liability> balance = ArgumentCaptor.forClass(Liability.class);
+        verify(liabilityRepository).save(balance.capture());
+        assertThat(balance.getValue().getCurrentBalance()).isEqualTo("52000.00");
     }
 
     private Transaction disbursementEntity(BigDecimal amount) {
@@ -720,7 +734,7 @@ class TransactionLiabilitySyncTest {
         stubCreate(request, mapped, saved);
         LiabilityTranche tranche = drawnTrancheFixture(new BigDecimal("5000.00"));
         when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
-                .thenReturn(Optional.of(liabilityFixture("4200.00", "USD")));
+                .thenReturn(Optional.of(liabilityFixture("5000.00", "USD")));
         when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
                 .thenReturn(List.of(tranche));
         when(transactionRepository.findByTrancheIdAndUserId(TRANCHE_ID, USER_ID))
@@ -737,7 +751,12 @@ class TransactionLiabilitySyncTest {
         transactionService.createTransaction(USER_ID, request);
 
         // Principal leg = 1200 − 100/0.5 = 1000 USD; tranche remaining 5000 − 1000 = 4000
-        assertThat(saved.getTrancheId()).isEqualTo(TRANCHE_ID);
+        assertThat(
+                        allocations
+                                .findByTransactionIdAndUserId(saved.getId(), USER_ID)
+                                .getFirst()
+                                .getTrancheId())
+                .isEqualTo(TRANCHE_ID);
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
         verify(liabilityRepository).save(captor.capture());
         assertThat(captor.getValue().getCurrentBalance()).isEqualTo("4000.00");
@@ -751,6 +770,7 @@ class TransactionLiabilitySyncTest {
         existing.setOriginalAmount(new BigDecimal("1310.04"));
         existing.setOriginalCurrency("USD");
         existing.setConversionRate(new BigDecimal("0.9160"));
+        existing.setPrincipalAmount(new BigDecimal("1310.04"));
         when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
                 .thenReturn(Optional.of(existing));
         when(transactionRepository.save(any(Transaction.class)))
@@ -845,6 +865,7 @@ class TransactionLiabilitySyncTest {
         Transaction existing =
                 linkedEntity(TX_ID, new BigDecimal("1200.00"), MovementType.REPAYMENT, "USD");
         existing.setTrancheId(TRANCHE_ID);
+        existing.setPrincipalAmount(new BigDecimal("800.00"));
         when(transactionRepository.findByIdAndUserId(TX_ID, USER_ID))
                 .thenReturn(Optional.of(existing));
         when(transactionRepository.save(any(Transaction.class)))
@@ -871,9 +892,17 @@ class TransactionLiabilitySyncTest {
                         List.of(
                                 storedSplit(new BigDecimal("600.00"), null),
                                 storedSplit(new BigDecimal("300.00"), 5L)));
+        Liability existingLoan = liabilityFixture("4200.00", "USD");
+        java.util.List<String> savedBalances = new java.util.ArrayList<>();
         when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
-                .thenAnswer(inv -> Optional.of(liabilityFixture("4200.00", "USD")));
-        when(liabilityRepository.save(any(Liability.class))).thenAnswer(inv -> inv.getArgument(0));
+                .thenReturn(Optional.of(existingLoan));
+        when(liabilityRepository.save(any(Liability.class)))
+                .thenAnswer(
+                        inv -> {
+                            Liability saved = inv.getArgument(0);
+                            savedBalances.add(saved.getCurrentBalance());
+                            return saved;
+                        });
         when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
                 .thenReturn(List.of(tranche));
         when(transactionRepository.findByTrancheIdAndUserId(TRANCHE_ID, USER_ID))
@@ -904,8 +933,7 @@ class TransactionLiabilitySyncTest {
         // already sees the new 600 principal). Apply leg: 5000 − 600 with the single reconcile.
         ArgumentCaptor<Liability> captor = ArgumentCaptor.forClass(Liability.class);
         verify(liabilityRepository, times(2)).save(captor.capture());
-        assertThat(captor.getAllValues().get(0).getCurrentBalance()).isEqualTo("5000.00");
-        assertThat(captor.getAllValues().get(1).getCurrentBalance()).isEqualTo("4400.00");
+        assertThat(savedBalances).containsExactly("5000.00", "4400.00");
     }
 
     @Test

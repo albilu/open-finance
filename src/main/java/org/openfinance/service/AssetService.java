@@ -82,6 +82,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AssetService {
 
     private final AssetRepository assetRepository;
+    private final org.openfinance.repository.TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
     private final CurrencyRepository currencyRepository;
     private final AssetMapper assetMapper;
@@ -127,6 +128,20 @@ public class AssetService {
                 @CacheEvict(value = "portfolioPerformance", allEntries = true)
             })
     public AssetResponse createAsset(Long userId, AssetRequest request) {
+        return createAssetInternal(userId, request, false);
+    }
+
+    public AssetResponse createPropertyAsset(Long userId, AssetRequest request) {
+        return createAssetInternal(userId, request, true);
+    }
+
+    private AssetResponse createAssetInternal(
+            Long userId, AssetRequest request, boolean propertyWrite) {
+        if (!propertyWrite && request != null && request.getType() == AssetType.REAL_ESTATE) {
+            throw new org.openfinance.exception.InvalidTransactionException(
+                    "Manage real estate through its property record");
+        }
+
         if (userId == null) {
             throw new IllegalArgumentException("User ID cannot be null");
         }
@@ -146,6 +161,8 @@ public class AssetService {
 
         // Map request to entity
         Asset asset = assetMapper.toEntity(request);
+        if (asset.getAcquisitionType() == null)
+            asset.setAcquisitionType(org.openfinance.entity.AcquisitionType.PURCHASE);
         asset.setUserId(userId);
         asset.setCurrencyId(resolveCurrencyId(asset.getCurrency()));
 
@@ -233,6 +250,15 @@ public class AssetService {
                 @CacheEvict(value = "portfolioPerformance", allEntries = true)
             })
     public AssetResponse updateAsset(Long assetId, Long userId, AssetRequest request) {
+        return updateAssetInternal(assetId, userId, request, false);
+    }
+
+    public AssetResponse updatePropertyAsset(Long assetId, Long userId, AssetRequest request) {
+        return updateAssetInternal(assetId, userId, request, true);
+    }
+
+    private AssetResponse updateAssetInternal(
+            Long assetId, Long userId, AssetRequest request, boolean propertyWrite) {
         log.debug("Updating asset {}: userId={}", assetId, userId);
 
         if (assetId == null) {
@@ -249,7 +275,19 @@ public class AssetService {
                 assetRepository
                         .findByIdAndUserId(assetId, userId)
                         .orElseThrow(() -> AssetNotFoundException.byIdAndUser(assetId, userId));
+        if (!propertyWrite
+                && (asset.getType() == AssetType.REAL_ESTATE
+                        || request.getType() == AssetType.REAL_ESTATE)) {
+            throw new org.openfinance.exception.InvalidTransactionException(
+                    "Manage real estate through its property record");
+        }
 
+        if (request.getCurrency() != null
+                && !request.getCurrency().equalsIgnoreCase(asset.getCurrency())
+                && !transactionRepository.findByAssetIdAndUserId(assetId, userId).isEmpty()) {
+            throw new InvalidTransactionException(
+                    "Reverse asset cost movements before correcting its currency");
+        }
         // Capture snapshot before update for history
         AssetResponse beforeAssetSnapshot = toResponseWithDecryption(asset);
 
@@ -370,6 +408,10 @@ public class AssetService {
             LocalDate movementDate,
             String movementCurrency) {
         Asset asset = findPhysicalAsset(assetId, userId);
+        if (asset.getAcquisitionType() == org.openfinance.entity.AcquisitionType.PLANNED) {
+            throw new InvalidTransactionException(
+                    "Complete the asset's acquisition before capitalizing improvements");
+        }
         assertImprovementCurrencyMatches(
                 "asset", asset.getId(), asset.getCurrency(), movementCurrency);
         BigDecimal updated =
@@ -485,6 +527,14 @@ public class AssetService {
                 @CacheEvict(value = "portfolioPerformance", allEntries = true)
             })
     public void deleteAsset(Long assetId, Long userId) {
+        deleteAssetInternal(assetId, userId, false);
+    }
+
+    public void deletePropertyAsset(Long assetId, Long userId) {
+        deleteAssetInternal(assetId, userId, true);
+    }
+
+    private void deleteAssetInternal(Long assetId, Long userId, boolean propertyWrite) {
         log.debug(
                 "Deleting asset {}: userId={}, keyPresent={}",
                 assetId,
@@ -503,6 +553,10 @@ public class AssetService {
                 assetRepository
                         .findByIdAndUserId(assetId, userId)
                         .orElseThrow(() -> AssetNotFoundException.byIdAndUser(assetId, userId));
+        if (!propertyWrite && (asset.getType() == AssetType.REAL_ESTATE)) {
+            throw new org.openfinance.exception.InvalidTransactionException(
+                    "Manage real estate through its property record");
+        }
 
         // Capture snapshot before delete for history (only if key provided)
         AssetResponse beforeDeleteSnapshot = null;

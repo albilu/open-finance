@@ -19,7 +19,6 @@ import org.openfinance.entity.NetWorth;
 import org.openfinance.entity.RealEstateProperty;
 import org.openfinance.entity.RealEstateValueHistory;
 import org.openfinance.entity.Transaction;
-import org.openfinance.entity.TransactionSplit;
 import org.openfinance.entity.TransactionType;
 import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.AssetRepository;
@@ -28,8 +27,6 @@ import org.openfinance.repository.LiabilityRepository;
 import org.openfinance.repository.NetWorthRepository;
 import org.openfinance.repository.RealEstateValueHistoryRepository;
 import org.openfinance.repository.TransactionRepository;
-import org.openfinance.repository.TransactionSplitRepository;
-import org.openfinance.util.PrincipalLegs;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -88,7 +85,7 @@ public class NetWorthService {
     private final ExchangeRateService exchangeRateService;
     private final AccountCurrencyService accountCurrencyService;
     private final TransactionRepository transactionRepository;
-    private final TransactionSplitRepository transactionSplitRepository;
+    private final org.openfinance.repository.LiabilityTrancheRepository liabilityTrancheRepository;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
     private final NetWorthSnapshotWriter snapshotWriter;
 
@@ -232,6 +229,10 @@ public class NetWorthService {
                 assetRepository.findByUserId(userId).stream()
                         .filter(
                                 asset ->
+                                        asset.getAcquisitionType()
+                                                != org.openfinance.entity.AcquisitionType.PLANNED)
+                        .filter(
+                                asset ->
                                         asset.getType()
                                                 != org.openfinance.entity.AssetType.REAL_ESTATE)
                         .map(
@@ -246,6 +247,10 @@ public class NetWorthService {
         // conversion)
         BigDecimal realEstateAssets =
                 realEstateRepository.findByUserIdAndIsActive(userId, true).stream()
+                        .filter(
+                                property ->
+                                        property.getAcquisitionType()
+                                                != org.openfinance.entity.AcquisitionType.PLANNED)
                         .map(
                                 property -> {
                                     try {
@@ -340,6 +345,7 @@ public class NetWorthService {
         // Calculate liability entity balances (decrypted via JPA converters)
         BigDecimal liabilityDebts =
                 liabilityRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                        .filter(liability -> liability.getRepresentedByAccountId() == null)
                         .map(
                                 liability -> {
                                     String balanceStr = liability.getCurrentBalance();
@@ -757,19 +763,12 @@ public class NetWorthService {
                         .collect(Collectors.groupingBy(RealEstateValueHistory::getPropertyId));
 
         // Pre-group liability-linked movement transactions by liability ID. REPAYMENT movements
-        // (and legacy payments without a movementType) reduce the outstanding balance by their
-        // principal leg; DISBURSEMENT movements increase it by their full amount.
+        // reverse their stored principal; DISBURSEMENT movements increase debt by their full
+        // amount.
         Map<Long, List<Transaction>> movementsByLiability =
                 allTransactions.stream()
                         .filter(t -> t.getLiabilityId() != null)
                         .collect(Collectors.groupingBy(Transaction::getLiabilityId));
-
-        // Split lines of the liability-linked movements, grouped by transaction ID. Only the
-        // principal leg of a repayment (total − categorized splits) reduced the balance, so the
-        // historical reconstruction below must reverse exactly that leg — reversing the full
-        // payment total would inflate historical debt with interest/insurance legs. The principal
-        // leg arithmetic lives in PrincipalLegs, the single shared source.
-        Map<Long, List<TransactionSplit>> splitsByTransaction = loadSplitsFor(movementsByLiability);
 
         int savedCount = 0;
         LocalDate current = startDate.withDayOfMonth(1);
@@ -821,6 +820,8 @@ public class NetWorthService {
                 // gated by purchaseDate. Skip REAL_ESTATE type to avoid double-counting
                 // with RealEstateProperty entities below.
                 for (Asset asset : assets) {
+                    if (asset.getAcquisitionType()
+                            == org.openfinance.entity.AcquisitionType.PLANNED) continue;
                     if (asset.getType() == org.openfinance.entity.AssetType.REAL_ESTATE) {
                         continue;
                     }
@@ -857,6 +858,8 @@ public class NetWorthService {
                     // (latest history entry whose effectiveDate <= targetDate),
                     // falling back to purchasePrice if no history entry exists yet.
                     for (RealEstateProperty property : realEstateProps) {
+                        if (property.getAcquisitionType()
+                                == org.openfinance.entity.AcquisitionType.PLANNED) continue;
                         if (property.getPurchaseDate() != null
                                 && property.getPurchaseDate().isAfter(targetDate)) {
                             continue; // not yet owned at this point in history
@@ -869,10 +872,13 @@ public class NetWorthService {
                             Optional<RealEstateValueHistory> historyEntry =
                                     history.stream()
                                             .filter(h -> !h.getEffectiveDate().isAfter(targetDate))
+                                            .filter(h -> valuationAppliesAt(h, targetDate))
                                             .max(
                                                     Comparator.comparing(
-                                                            RealEstateValueHistory
-                                                                    ::getEffectiveDate));
+                                                                    RealEstateValueHistory
+                                                                            ::getEffectiveDate)
+                                                            .thenComparing(
+                                                                    RealEstateValueHistory::getId));
 
                             BigDecimal value;
                             if (historyEntry.isPresent()) {
@@ -890,7 +896,11 @@ public class NetWorthService {
 
                             BigDecimal converted =
                                     convertToBaseCurrency(
-                                            value, property.getCurrency(), baseCurrency);
+                                            value,
+                                            historyEntry
+                                                    .map(RealEstateValueHistory::getCurrency)
+                                                    .orElse(property.getCurrency()),
+                                            baseCurrency);
                             if (converted.compareTo(BigDecimal.ZERO) > 0) {
                                 totalAssets = totalAssets.add(converted);
                             }
@@ -907,6 +917,7 @@ public class NetWorthService {
                     // back), while disbursements raised it (subtract the full drawdown, which was
                     // not yet in the balance at targetDate).
                     for (Liability liability : liabilities) {
+                        if (liability.getRepresentedByAccountId() != null) continue;
                         if (liability.getStartDate() != null
                                 && liability.getStartDate().isAfter(targetDate)) {
                             continue; // liability didn't exist yet
@@ -914,10 +925,7 @@ public class NetWorthService {
                         try {
                             BigDecimal historicalBalance =
                                     computeHistoricalLiabilityBalance(
-                                            liability,
-                                            targetDate,
-                                            movementsByLiability,
-                                            splitsByTransaction);
+                                            liability, targetDate, movementsByLiability);
                             BigDecimal converted =
                                     convertToBaseCurrency(
                                             historicalBalance,
@@ -971,34 +979,20 @@ public class NetWorthService {
         return savedCount;
     }
 
-    /**
-     * Computes the outstanding liability balance at a given historical date.
-     *
-     * <p>Starts from the current (latest) balance and reverses the liability-linked movements made
-     * after the target date, partitioned by movement type:
-     *
-     * <ul>
-     *   <li>{@code REPAYMENT} (and legacy payments without a movementType): add back the
-     *       <em>principal leg</em> — only that leg reduced the balance, so reversing exactly it
-     *       restores the earlier outstanding balance. The leg is {@code total − categorized
-     *       splits}, computed by {@link PrincipalLegs} — the single shared source also used by the
-     *       write path.
-     *   <li>{@code DISBURSEMENT}: subtract the <em>full amount</em> — the drawdown was not yet in
-     *       the balance at the target date, so an outstanding current balance that includes it must
-     *       be deflated for earlier snapshots.
-     * </ul>
-     *
-     * @param liability the liability entity (must have currentBalance decryptable)
-     * @param targetDate the historical date to reconstruct the balance for
-     * @param movementsByLiability map of liabilityId to list of linked movement transactions
-     * @param splitsByTransaction map of transactionId to stored split lines for those movements
-     * @return the reconstructed outstanding balance at targetDate
-     */
+    /** A reversed direct draw stops contributing its valuation on the reversal date. */
+    private boolean valuationAppliesAt(RealEstateValueHistory history, LocalDate date) {
+        if (history.getSourceTrancheId() == null) return true;
+        return liabilityTrancheRepository
+                .findByIdAndUserId(history.getSourceTrancheId(), history.getUserId())
+                .map(t -> t.getReversedDate() == null || t.getReversedDate().isAfter(date))
+                .orElse(true);
+    }
+
+    /** Reverses dated draws and exact booked principal to reconstruct outstanding debt. */
     private BigDecimal computeHistoricalLiabilityBalance(
             Liability liability,
             LocalDate targetDate,
-            Map<Long, List<Transaction>> movementsByLiability,
-            Map<Long, List<TransactionSplit>> splitsByTransaction) {
+            Map<Long, List<Transaction>> movementsByLiability) {
         String balanceStr = liability.getCurrentBalance();
         if (balanceStr == null || balanceStr.isBlank()) {
             return BigDecimal.ZERO;
@@ -1016,60 +1010,29 @@ public class NetWorthService {
         BigDecimal reversed = BigDecimal.ZERO;
         for (Transaction t : movementsAfter) {
             if (t.getMovementType() == MovementType.DISBURSEMENT) {
-                reversed = reversed.subtract(t.getAmount());
-            } else {
                 reversed =
-                        reversed.add(
-                                principalLeg(
-                                        t, splitsByTransaction.getOrDefault(t.getId(), List.of())));
+                        reversed.subtract(
+                                t.getOriginalCurrency() != null
+                                        ? t.getOriginalAmount()
+                                        : t.getAmount());
+            } else {
+                reversed = reversed.add(t.getPrincipalAmount());
             }
         }
 
+        for (org.openfinance.entity.LiabilityTranche tranche :
+                liabilityTrancheRepository.findByLiabilityIdAndUserId(
+                        liability.getId(), liability.getUserId())) {
+            if (!tranche.isDirectDisbursement() || tranche.getDrawnAmount() == null) continue;
+            if (tranche.getDrawnDate().isAfter(targetDate))
+                reversed = reversed.subtract(tranche.getDrawnAmount());
+            if (tranche.getReversedDate() != null
+                    && tranche.getReversedDate().isAfter(targetDate)) {
+                reversed = reversed.add(tranche.getDrawnAmount());
+            }
+        }
         BigDecimal historical = currentBalance.add(reversed);
-        // Balance cannot exceed original principal (guard against data anomalies)
-        if (liability.getPrincipal() != null && !liability.getPrincipal().isBlank()) {
-            try {
-                BigDecimal principal = new BigDecimal(liability.getPrincipal());
-                if (historical.compareTo(principal) > 0) {
-                    historical = principal;
-                }
-            } catch (Exception ignored) {
-                // If we can't decrypt principal, just use the computed value
-            }
-        }
         return historical.max(BigDecimal.ZERO);
-    }
-
-    /**
-     * Returns the stored split lines of the given liability-linked movements, grouped by
-     * transaction ID. Skips the repository call entirely when there are no linked movements.
-     */
-    private Map<Long, List<TransactionSplit>> loadSplitsFor(
-            Map<Long, List<Transaction>> movementsByLiability) {
-        List<Long> movementIds =
-                movementsByLiability.values().stream()
-                        .flatMap(List::stream)
-                        .map(Transaction::getId)
-                        .collect(Collectors.toList());
-        if (movementIds.isEmpty()) {
-            return Map.of();
-        }
-        return transactionSplitRepository.findByTransactionIdIn(movementIds).stream()
-                .collect(Collectors.groupingBy(TransactionSplit::getTransactionId));
-    }
-
-    /**
-     * Principal leg of a stored repayment: the total minus the sum of split amounts that carry a
-     * {@code categoryId}, floored at zero. The arithmetic itself lives in {@link PrincipalLegs} —
-     * the single shared source.
-     */
-    private BigDecimal principalLeg(Transaction payment, List<TransactionSplit> splits) {
-        BigDecimal categorized =
-                splits.stream()
-                        .filter(split -> split.getCategoryId() != null)
-                        .map(TransactionSplit::getAmount)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return PrincipalLegs.of(payment.getAmount(), categorized);
     }
 
     /**

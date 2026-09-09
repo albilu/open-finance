@@ -114,6 +114,7 @@ public class LiabilityService {
     private final DefaultCurrencyProvider defaultCurrencyProvider;
     private final CurrencyConversionHelper currencyConversionHelper;
     private final LiabilityTrancheRepository liabilityTrancheRepository;
+    private final AssetFinancingService assetFinancingService;
     private final AccountRepository accountRepository;
     private final RealEstateValueHistoryRepository realEstateValueHistoryRepository;
     private final LiabilityTrancheService liabilityTrancheService;
@@ -174,6 +175,16 @@ public class LiabilityService {
         liability.setName(request.getName());
         liability.setPrincipal(request.getPrincipal().toString());
         liability.setCurrentBalance(request.getCurrentBalance().toString());
+        liability.setCreditLimit(request.getCreditLimit());
+        configureAccountSource(userId, liability, request);
+        if (liability.getId() == null || !isBalanceLocked(liability)) {
+            liability.setOpeningBalance(request.getCurrentBalance());
+            liability.setOpeningPrincipal(
+                    request.getCurrentBalance().signum() > 0
+                                    || Boolean.TRUE.equals(request.getPreviouslyFunded())
+                            ? request.getPrincipal().max(request.getCurrentBalance())
+                            : BigDecimal.ZERO);
+        }
 
         if (request.getInterestRate() != null) {
             liability.setInterestRate(request.getInterestRate().toString());
@@ -219,21 +230,8 @@ public class LiabilityService {
                 savedLiability.getType());
         invalidateSnapshotsFrom(userId, savedLiability.getStartDate());
 
-        // If a real estate property ID is provided, link this mortgage to that property
         if (request.getRealEstateId() != null) {
-            realEstateRepository
-                    .findById(request.getRealEstateId())
-                    .ifPresent(
-                            property -> {
-                                if (property.getUserId().equals(userId)) {
-                                    property.setMortgageId(savedLiability.getId());
-                                    realEstateRepository.save(property);
-                                    log.info(
-                                            "Linked liability {} to real estate property {} as mortgage",
-                                            savedLiability.getId(),
-                                            property.getId());
-                                }
-                            });
+            updatePrimaryProperty(userId, savedLiability.getId(), request.getRealEstateId());
         }
 
         // Decrypt and return response with calculated fields
@@ -313,7 +311,7 @@ public class LiabilityService {
         // tranches do not lock: nothing has been drawn yet, so the manual balance stays
         // authoritative.
         BigDecimal requestedBalance = request.getCurrentBalance();
-        BigDecimal existingBalance = decryptAmount(liability.getCurrentBalance());
+        BigDecimal existingBalance = currentDebt(liability);
         boolean balanceChanged =
                 requestedBalance != null
                         && (existingBalance == null
@@ -322,9 +320,36 @@ public class LiabilityService {
                 !transactionRepository.findByLiabilityIdAndUserId(liabilityId, userId).isEmpty();
         boolean hasDrawnTranches =
                 liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId).stream()
-                        .anyMatch(t -> t.getStatus() == TrancheStatus.DRAWN);
-        if (balanceChanged && (hasLinkedTransactions || hasDrawnTranches)) {
+                        .anyMatch(t -> t.getDrawnAmount() != null);
+        if (balanceChanged
+                && (hasLinkedTransactions
+                        || hasDrawnTranches
+                        || liability.getRepresentedByAccountId() != null)) {
             throw InvalidLiabilityStateException.liabilityBalanceLocked(liabilityId);
+        }
+
+        if (!liability.getCurrency().equalsIgnoreCase(request.getCurrency())) {
+            if (hasLinkedTransactions
+                    || hasDrawnTranches
+                    || liability.getRepresentedByAccountId() != null) {
+                throw new InvalidTransactionException(
+                        "A loan with recorded borrowing history cannot change currency; record a separate refinancing loan to change denomination");
+            }
+            for (LiabilityTranche tranche :
+                    liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId)) {
+                tranche.setCurrency(request.getCurrency());
+                liabilityTrancheRepository.save(tranche);
+            }
+        }
+
+        if (request.isRealEstateIdPresent() || request.getRealEstateId() != null) {
+            updatePrimaryProperty(userId, liabilityId, request.getRealEstateId());
+        }
+
+        if (liability.getRepresentedByAccountId() != null
+                && request.getType() != LiabilityType.CREDIT_CARD) {
+            throw new InvalidTransactionException(
+                    "A liability backed by a credit-card account must remain a credit card");
         }
 
         // Capture the old start date before overwriting, for net worth invalidation
@@ -341,6 +366,16 @@ public class LiabilityService {
         liability.setName(request.getName());
         liability.setPrincipal(request.getPrincipal().toString());
         liability.setCurrentBalance(request.getCurrentBalance().toString());
+        liability.setCreditLimit(request.getCreditLimit());
+        configureAccountSource(userId, liability, request);
+        if (liability.getId() == null || !isBalanceLocked(liability)) {
+            liability.setOpeningBalance(request.getCurrentBalance());
+            liability.setOpeningPrincipal(
+                    request.getCurrentBalance().signum() > 0
+                                    || Boolean.TRUE.equals(request.getPreviouslyFunded())
+                            ? request.getPrincipal().max(request.getCurrentBalance())
+                            : BigDecimal.ZERO);
+        }
 
         if (request.getInterestRate() != null) {
             liability.setInterestRate(request.getInterestRate().toString());
@@ -467,7 +502,7 @@ public class LiabilityService {
         // transactions owns historical movements — deleting it would orphan them.
         List<LiabilityTranche> tranches =
                 liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId);
-        if (tranches.stream().anyMatch(t -> t.getStatus() == TrancheStatus.DRAWN)) {
+        if (tranches.stream().anyMatch(t -> t.getDrawnAmount() != null)) {
             log.warn("Blocked liability deletion {}: DRAWN tranches exist", liabilityId);
             throw InvalidLiabilityStateException.liabilityDeletionBlocked(liabilityId);
         }
@@ -904,7 +939,7 @@ public class LiabilityService {
      */
     private ScheduleInputs resolveScheduleInputs(
             Liability liability, Long liabilityId, Long userId) {
-        BigDecimal currentBalance = decryptAmount(liability.getCurrentBalance());
+        BigDecimal currentBalance = currentDebt(liability);
         BigDecimal interestRate = decryptAmount(liability.getInterestRate());
         BigDecimal minimumPayment = decryptAmount(liability.getMinimumPayment());
 
@@ -1192,16 +1227,21 @@ public class LiabilityService {
                         .orElseThrow(
                                 () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
 
+        if (liability.getRepresentedByAccountId() != null) {
+            throw new InvalidTransactionException(
+                    "Review payments and charges in the linked credit-card account; term-loan cost breakdown is not available for this balance source");
+        }
+
         // Read fields (decryption handled by JPA AttributeConverter)
         String decryptedName = liability.getName();
         BigDecimal principal = decryptAmount(liability.getPrincipal());
-        BigDecimal currentBalance = decryptAmount(liability.getCurrentBalance());
+        BigDecimal currentBalance = currentDebt(liability);
         BigDecimal interestRate = decryptAmount(liability.getInterestRate());
         BigDecimal insurancePercentage = decryptAmount(liability.getInsurancePercentage());
         BigDecimal additionalFees = decryptAmount(liability.getAdditionalFees());
 
         // --- Principal paid ---
-        BigDecimal principalPaid = principal.subtract(currentBalance);
+        BigDecimal principalPaid = recordedPrincipalPaid(liability);
 
         // --- Months elapsed and remaining ---
         long monthsElapsed = ChronoUnit.MONTHS.between(liability.getStartDate(), LocalDate.now());
@@ -1301,7 +1341,12 @@ public class LiabilityService {
         int linkedTransactionCount = linkedTransactions.size();
         BigDecimal linkedTransactionsTotalAmount =
                 linkedTransactions.stream()
-                        .map(Transaction::getAmount)
+                        .map(
+                                t ->
+                                        t.getOriginalCurrency() != null
+                                                        && t.getConversionRate() != null
+                                                ? t.getOriginalAmount()
+                                                : t.getAmount())
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         log.info(
@@ -1410,6 +1455,15 @@ public class LiabilityService {
      *     amount of its DRAWN tranches (reconcile first), or the amount exceeds the tranche's
      *     planned amount
      */
+    @CacheEvict(
+            value = {
+                "dashboardSummary",
+                "netWorthSummary",
+                "networthAllocation",
+                "portfolioPerformance",
+                "borrowingCapacity"
+            },
+            allEntries = true)
     public LiabilityResponse disburse(Long userId, Long liabilityId, DisbursementRequest request) {
         Liability liability =
                 liabilityRepository
@@ -1417,6 +1471,10 @@ public class LiabilityService {
                         .orElseThrow(
                                 () -> LiabilityNotFoundException.byIdAndUser(liabilityId, userId));
 
+        if (liability.getRepresentedByAccountId() != null) {
+            throw new InvalidTransactionException(
+                    "Record borrowing and repayments in the linked credit-card account");
+        }
         // Fail fast on a contradictory state (shared with the raw transaction path): the
         // balance must never exceed what the DRAWN tranches account for, otherwise this
         // drawdown would silently rely on untracked money.
@@ -1427,6 +1485,12 @@ public class LiabilityService {
             throw InvalidLiabilityStateException.disbursementOverdraw(
                     request.getAmount(), tranche.getId(), tranche.getPlannedAmount());
         }
+        if (request.getDate().isBefore(liability.getStartDate())
+                || request.getDate().isAfter(LocalDate.now())) {
+            throw new InvalidTransactionException(
+                    "Draw date must fall between loan origination and today");
+        }
+        tranche.setDirectDisbursement(request.getDirectRealEstateId() != null);
         tranche.setDrawnAmount(request.getAmount());
         tranche.setDrawnDate(request.getDate());
         if (request.getDirectRealEstateId() != null) {
@@ -1441,7 +1505,8 @@ public class LiabilityService {
         if (request.getToAccountId() != null) {
             disburseToAccount(userId, liability, tranche, request);
         } else {
-            disburseDirectly(userId, liability, request);
+            disburseDirectly(userId, liability, tranche, request);
+            invalidateSnapshotsFrom(userId, liability.getStartDate());
         }
         return toResponseWithDecryption(liability);
     }
@@ -1531,7 +1596,11 @@ public class LiabilityService {
     }
 
     /** Direct-to-property route: no account leg, no transaction row (spec §4). */
-    private void disburseDirectly(Long userId, Liability liability, DisbursementRequest request) {
+    private void disburseDirectly(
+            Long userId,
+            Liability liability,
+            LiabilityTranche tranche,
+            DisbursementRequest request) {
         RealEstateProperty property =
                 realEstateRepository
                         .findByIdAndUserId(request.getDirectRealEstateId(), userId)
@@ -1546,7 +1615,13 @@ public class LiabilityService {
                     property.getCurrency(), liability.getCurrency());
         }
 
-        BigDecimal current = decryptAmount(liability.getCurrentBalance());
+        if (property.getAssetId() == null || !property.isActive()) {
+            throw new InvalidTransactionException("Direct funding requires an active property");
+        }
+        assetFinancingService.ensureDirectFinancing(
+                userId, liability.getId(), property.getAssetId());
+
+        BigDecimal current = currentDebt(liability);
         BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(request.getAmount());
         liability.setCurrentBalance(updated.toPlainString());
         liabilityTrancheService.reconcile(liability);
@@ -1555,6 +1630,10 @@ public class LiabilityService {
         // post-reconcile balance, never the intermediate.
         String finalBalance = liability.getCurrentBalance();
 
+        if (property.getAcquisitionType() == org.openfinance.entity.AcquisitionType.PLANNED) {
+            throw new InvalidTransactionException(
+                    "Complete the property's acquisition details before disbursing directly to it");
+        }
         // A direct draw supplies the latest funded valuation; the agreed purchase price stays
         // fixed.
         // Liability principal remains cumulative across the separate tranches.
@@ -1569,6 +1648,8 @@ public class LiabilityService {
                             .findByIdAndUserId(savedProperty.getAssetId(), userId)
                             .orElseThrow();
             asset.setCurrentPrice(updatedValue);
+            asset.setAcquisitionType(savedProperty.getAcquisitionType());
+            asset.setPurchaseDate(savedProperty.getPurchaseDate());
             asset.setPurchasePrice(updatedPurchase);
             backingAssetRepository.save(asset);
         }
@@ -1576,6 +1657,7 @@ public class LiabilityService {
         realEstateValueHistoryRepository.save(
                 RealEstateValueHistory.builder()
                         .propertyId(savedProperty.getId())
+                        .sourceTrancheId(tranche.getId())
                         .userId(savedProperty.getUserId())
                         .effectiveDate(request.getDate())
                         .recordedValue(updatedValue.toPlainString())
@@ -1716,6 +1798,10 @@ public class LiabilityService {
         }
         validateRealEstateOwnership(userId, request.getRealEstateId());
 
+        if (tranche.getReversedDate() != null) {
+            throw new InvalidTransactionException(
+                    "A reversed draw is immutable; create a new tranche for a correction");
+        }
         if (tranche.getStatus() == TrancheStatus.DRAWN) {
             updateDrawnTranche(tranche, request);
         } else {
@@ -1775,6 +1861,11 @@ public class LiabilityService {
      * or the status is rejected (DRAWN tranches are immutable).
      */
     private void updateDrawnTranche(LiabilityTranche tranche, LiabilityTrancheRequest request) {
+        if (request.getRealEstateId() != null
+                && !Objects.equals(request.getRealEstateId(), tranche.getRealEstateId())) {
+            throw new InvalidTransactionException(
+                    "A drawn tranche's funding destination is immutable; use financing relationships or reverse the draw");
+        }
         boolean plannedFieldsChanged =
                 (request.getPlannedAmount() != null
                                 && amountsDiffer(
@@ -1879,6 +1970,8 @@ public class LiabilityService {
                 .interestOnlyUntil(tranche.getInterestOnlyUntil())
                 .status(tranche.getStatus())
                 .realEstateId(tranche.getRealEstateId())
+                .directDisbursement(tranche.isDirectDisbursement())
+                .reversedDate(tranche.getReversedDate())
                 .notes(tranche.getNotes())
                 .currency(tranche.getCurrency())
                 .build();
@@ -1952,7 +2045,10 @@ public class LiabilityService {
                 effectiveTotal =
                         exchangeRateService
                                 .convert(
-                                        total, inputCurrency.toUpperCase(), liability.getCurrency())
+                                        total,
+                                        inputCurrency.toUpperCase(),
+                                        liability.getCurrency(),
+                                        date)
                                 .setScale(2, RoundingMode.HALF_UP);
             } catch (IllegalStateException e) {
                 // ExchangeRateService signals "no exchange rate available" with an
@@ -1975,7 +2071,7 @@ public class LiabilityService {
                     liabilityId);
         }
 
-        BigDecimal balance = orZero(decryptAmount(liability.getCurrentBalance()));
+        BigDecimal balance = orZero(currentDebt(liability));
         BigDecimal rate = orZero(decryptAmount(liability.getInterestRate()));
         BigDecimal principalAmt = orZero(decryptAmount(liability.getPrincipal()));
         BigDecimal insurancePct = orZero(decryptAmount(liability.getInsurancePercentage()));
@@ -1993,13 +2089,19 @@ public class LiabilityService {
                         liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, userId),
                         date);
 
-        BigDecimal principal =
-                interestOnly
-                        ? BigDecimal.ZERO
-                        : effectiveTotal
-                                .subtract(interest)
-                                .subtract(insurance)
-                                .max(BigDecimal.ZERO);
+        BigDecimal charges = interest.add(insurance);
+        if (effectiveTotal.compareTo(charges) < 0) {
+            throw new InvalidTransactionException(
+                    "Payment is below the estimated interest and insurance; enter the actual components manually");
+        }
+        BigDecimal principal = effectiveTotal.subtract(charges);
+        if (interestOnly && principal.signum() > 0) {
+            throw new InvalidTransactionException(
+                    "Interest-only payment must equal estimated charges; enter an extra principal payment manually");
+        }
+        if (principal.compareTo(balance) > 0) {
+            throw new InvalidTransactionException("Principal payment exceeds outstanding debt");
+        }
 
         return RepaymentPreviewResponse.builder()
                 .total(effectiveTotal)
@@ -2008,6 +2110,231 @@ public class LiabilityService {
                 .insurance(insurance)
                 .interestOnly(interestOnly)
                 .build();
+    }
+
+    @CacheEvict(
+            value = {
+                "dashboardSummary",
+                "netWorthSummary",
+                "networthAllocation",
+                "portfolioPerformance",
+                "borrowingCapacity"
+            },
+            allEntries = true)
+    public LiabilityTrancheResponse reverseDirectDraw(Long userId, Long trancheId, LocalDate date) {
+        LiabilityTranche tranche =
+                liabilityTrancheRepository
+                        .findByIdAndUserId(trancheId, userId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Tranche not found"));
+        if (!tranche.isDirectDisbursement()
+                || tranche.getStatus() != TrancheStatus.DRAWN
+                || tranche.getReversedDate() != null) {
+            throw new InvalidTransactionException(
+                    "Only an active direct draw can be reversed here");
+        }
+        if (date == null
+                || date.isBefore(tranche.getDrawnDate())
+                || date.isAfter(LocalDate.now())) {
+            throw new InvalidTransactionException(
+                    "Reversal date must fall between the draw date and today");
+        }
+        if (liabilityTrancheService.allocatedPrincipal(tranche).signum() > 0) {
+            throw new InvalidTransactionException("Reverse this draw's principal repayments first");
+        }
+        Liability loan =
+                liabilityRepository
+                        .findByIdAndUserId(tranche.getLiabilityId(), userId)
+                        .orElseThrow();
+        BigDecimal outstanding =
+                new BigDecimal(loan.getCurrentBalance()).subtract(tranche.getDrawnAmount());
+        if (outstanding.signum() < 0)
+            throw new InvalidTransactionException("Draw exceeds outstanding principal");
+        loan.setCurrentBalance(outstanding.toPlainString());
+        liabilityRepository.save(loan);
+        tranche.setReversedDate(date);
+        tranche.setStatus(TrancheStatus.CANCELLED);
+        liabilityTrancheRepository.save(tranche);
+        restoreDirectValuation(userId, tranche);
+        invalidateSnapshotsFrom(userId, loan.getStartDate());
+        return toTrancheResponse(tranche);
+    }
+
+    private void restoreDirectValuation(Long userId, LiabilityTranche reversed) {
+        RealEstateProperty property =
+                realEstateRepository
+                        .findByIdAndUserId(reversed.getRealEstateId(), userId)
+                        .orElseThrow();
+        java.util.Set<Long> cancelled =
+                liabilityTrancheRepository.findByUserId(userId).stream()
+                        .filter(t -> t.getReversedDate() != null)
+                        .map(LiabilityTranche::getId)
+                        .collect(java.util.stream.Collectors.toSet());
+        List<RealEstateValueHistory> history =
+                realEstateValueHistoryRepository.findByUserId(userId).stream()
+                        .filter(h -> property.getId().equals(h.getPropertyId()))
+                        .toList();
+        // Independent later appraisals/improvements remain authoritative. Only cancelled draw
+        // snapshots disappear from today's valuation; their dated history remains available.
+        RealEstateValueHistory latest =
+                history.stream()
+                        .filter(
+                                h ->
+                                        h.getSourceTrancheId() == null
+                                                || !cancelled.contains(h.getSourceTrancheId()))
+                        .max(Comparator.comparing(RealEstateValueHistory::getId))
+                        .orElse(null);
+        if (latest == null)
+            throw new InvalidTransactionException(
+                    "No prior property valuation is available for reversal");
+        BigDecimal value =
+                latest.getCurrency().equalsIgnoreCase(property.getCurrency())
+                        ? new BigDecimal(latest.getRecordedValue())
+                        : exchangeRateService.convert(
+                                new BigDecimal(latest.getRecordedValue()),
+                                latest.getCurrency(),
+                                property.getCurrency());
+        property.setCurrentValue(value.toPlainString());
+        realEstateRepository.save(property);
+        if (property.getAssetId() != null) {
+            org.openfinance.entity.Asset backing =
+                    backingAssetRepository
+                            .findByIdAndUserId(property.getAssetId(), userId)
+                            .orElseThrow();
+            backing.setCurrentPrice(value);
+            backingAssetRepository.save(backing);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<org.openfinance.dto.TransactionResponse> getPropertyLoanMovements(
+            Long userId, Long propertyId) {
+        RealEstateProperty property =
+                realEstateRepository
+                        .findByIdAndUserId(propertyId, userId)
+                        .orElseThrow(
+                                () ->
+                                        RealEstatePropertyNotFoundException.byIdAndUser(
+                                                propertyId, userId));
+        java.util.Set<Long> loanIds = new java.util.HashSet<>();
+        if (property.getMortgageId() != null) loanIds.add(property.getMortgageId());
+        if (property.getAssetId() != null)
+            assetFinancingService
+                    .forAsset(userId, property.getAssetId())
+                    .forEach(link -> loanIds.add(link.getLiabilityId()));
+        liabilityTrancheRepository.findByUserId(userId).stream()
+                .filter(t -> propertyId.equals(t.getRealEstateId()) && t.getDrawnAmount() != null)
+                .forEach(t -> loanIds.add(t.getLiabilityId()));
+        return loanIds.stream()
+                .flatMap(id -> getLinkedTransactions(id, userId).stream())
+                .sorted(
+                        Comparator.comparing(org.openfinance.dto.TransactionResponse::getDate)
+                                .reversed()
+                                .thenComparing(org.openfinance.dto.TransactionResponse::getId))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<LiabilityTrancheResponse> getPropertyDrawdowns(Long userId, Long propertyId) {
+        realEstateRepository
+                .findByIdAndUserId(propertyId, userId)
+                .orElseThrow(
+                        () -> RealEstatePropertyNotFoundException.byIdAndUser(propertyId, userId));
+        return liabilityTrancheRepository.findByUserId(userId).stream()
+                .filter(t -> propertyId.equals(t.getRealEstateId()) && t.getDrawnAmount() != null)
+                .sorted(
+                        Comparator.comparing(LiabilityTranche::getDrawnDate)
+                                .thenComparing(LiabilityTranche::getId))
+                .map(this::toTrancheResponse)
+                .toList();
+    }
+
+    private BigDecimal currentDebt(Liability liability) {
+        if (liability.getRepresentedByAccountId() == null)
+            return decryptAmount(liability.getCurrentBalance());
+        return accountRepository
+                .findByIdAndUserId(liability.getRepresentedByAccountId(), liability.getUserId())
+                .orElseThrow()
+                .getBalance()
+                .negate()
+                .max(BigDecimal.ZERO);
+    }
+
+    private void configureAccountSource(
+            Long userId, Liability liability, LiabilityRequest request) {
+        Long accountId = request.getRepresentedByAccountId();
+        if (java.util.Objects.equals(accountId, liability.getRepresentedByAccountId())) return;
+        if (liability.getId() != null && isBalanceLocked(liability)) {
+            throw new InvalidTransactionException(
+                    "A posted liability cannot change its balance source");
+        }
+        if (accountId != null) {
+            Account account =
+                    accountRepository
+                            .findByIdAndUserId(accountId, userId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+            if (!Boolean.TRUE.equals(account.getIsActive())
+                    || account.getType() != org.openfinance.entity.AccountType.CREDIT_CARD
+                    || liability.getType() != LiabilityType.CREDIT_CARD
+                    || !account.getCurrency().equalsIgnoreCase(request.getCurrency())
+                    || account.getBalance()
+                                    .negate()
+                                    .max(BigDecimal.ZERO)
+                                    .compareTo(request.getCurrentBalance())
+                            != 0
+                    || liabilityRepository.existsByRepresentedByAccountIdAndUserId(
+                            accountId, userId)) {
+                throw new InvalidTransactionException(
+                        "Select an unlinked credit-card account with the same currency and outstanding balance");
+            }
+        }
+        liability.setRepresentedByAccountId(accountId);
+    }
+
+    private void updatePrimaryProperty(Long userId, Long liabilityId, Long propertyId) {
+        RealEstateProperty target =
+                propertyId == null
+                        ? null
+                        : realEstateRepository
+                                .findByIdAndUserId(propertyId, userId)
+                                .orElseThrow(
+                                        () ->
+                                                RealEstatePropertyNotFoundException.byIdAndUser(
+                                                        propertyId, userId));
+        for (RealEstateProperty property : realEstateRepository.findByMortgageId(liabilityId)) {
+            if (!userId.equals(property.getUserId())) continue;
+            property.setMortgageId(null);
+            property.setMortgage(null);
+            realEstateRepository.save(property);
+        }
+        if (target != null) {
+            target.setMortgageId(liabilityId);
+            target.setMortgage(null);
+            realEstateRepository.save(target);
+        }
+    }
+
+    private boolean isBalanceLocked(Liability liability) {
+        return liability.getRepresentedByAccountId() != null
+                || !transactionRepository
+                        .findByLiabilityIdAndUserId(liability.getId(), liability.getUserId())
+                        .isEmpty()
+                || liabilityTrancheRepository
+                        .findByLiabilityIdAndUserId(liability.getId(), liability.getUserId())
+                        .stream()
+                        .anyMatch(t -> t.getDrawnAmount() != null);
+    }
+
+    private BigDecimal recordedPrincipalPaid(Liability liability) {
+        BigDecimal openingPrincipal = liability.getOpeningPrincipal();
+        BigDecimal openingBalance = liability.getOpeningBalance();
+        BigDecimal paid = openingPrincipal.subtract(openingBalance).max(BigDecimal.ZERO);
+        for (Transaction tx :
+                transactionRepository.findByLiabilityIdAndUserId(
+                        liability.getId(), liability.getUserId())) {
+            if (tx.getMovementType() == MovementType.DISBURSEMENT) continue;
+            paid = paid.add(tx.getPrincipalAmount());
+        }
+        return paid;
     }
 
     /** Null-safe BigDecimal accessor defaulting to zero. */
@@ -2027,6 +2354,8 @@ public class LiabilityService {
                         t ->
                                 t.getStatus() == TrancheStatus.DRAWN
                                         && t.isInterestOnly()
+                                        && (t.getDrawnDate() == null
+                                                || !date.isBefore(t.getDrawnDate()))
                                         && (t.getInterestOnlyUntil() == null
                                                 || !date.isAfter(t.getInterestOnlyUntil())));
     }
@@ -2046,7 +2375,7 @@ public class LiabilityService {
         // Read fields (decryption handled by JPA AttributeConverter)
         String decryptedName = liability.getName();
         BigDecimal decryptedPrincipal = decryptAmount(liability.getPrincipal());
-        BigDecimal decryptedCurrentBalance = decryptAmount(liability.getCurrentBalance());
+        BigDecimal decryptedCurrentBalance = currentDebt(liability);
         BigDecimal decryptedInterestRate = decryptAmount(liability.getInterestRate());
         BigDecimal decryptedMinimumPayment = decryptAmount(liability.getMinimumPayment());
         String decryptedNotes =
@@ -2080,11 +2409,12 @@ public class LiabilityService {
         BigDecimal decryptedAdditionalFees = decryptAmount(liability.getAdditionalFees());
 
         // Calculate derived fields
-        BigDecimal totalPaid = decryptedPrincipal.subtract(decryptedCurrentBalance);
+        BigDecimal totalPaid = recordedPrincipalPaid(liability);
+        BigDecimal funded = decryptedCurrentBalance.add(totalPaid);
         BigDecimal payoffPercentage =
-                decryptedPrincipal.compareTo(BigDecimal.ZERO) > 0
+                funded.compareTo(BigDecimal.ZERO) > 0
                         ? totalPaid
-                                .divide(decryptedPrincipal, 4, RoundingMode.HALF_UP)
+                                .divide(funded, 4, RoundingMode.HALF_UP)
                                 .multiply(BigDecimal.valueOf(100))
                         : BigDecimal.ZERO;
 
@@ -2151,6 +2481,23 @@ public class LiabilityService {
                         .name(decryptedName)
                         .type(liability.getType())
                         .principal(decryptedPrincipal)
+                        .approvedAmount(
+                                liability.getType() == LiabilityType.CREDIT_CARD
+                                        ? liability.getCreditLimit()
+                                        : decryptedPrincipal)
+                        .creditLimit(liability.getCreditLimit())
+                        .representedByAccountId(liability.getRepresentedByAccountId())
+                        .fundedAmount(liability.getRepresentedByAccountId() == null ? funded : null)
+                        .fundingStatus(
+                                liability.getType() == LiabilityType.CREDIT_CARD
+                                                && decryptedCurrentBalance.signum() == 0
+                                        ? "NO_BALANCE"
+                                        : funded.signum() == 0
+                                                ? "UNDRAWN"
+                                                : decryptedCurrentBalance.signum() == 0
+                                                        ? "PAID"
+                                                        : "ACTIVE")
+                        .balanceLocked(isBalanceLocked(liability))
                         .currentBalance(decryptedCurrentBalance)
                         .interestRate(decryptedInterestRate)
                         .startDate(liability.getStartDate())
@@ -2166,12 +2513,18 @@ public class LiabilityService {
                         .monthlyInsuranceCost(monthlyInsuranceCost)
                         .totalInsuranceCost(totalInsuranceCost)
                         .totalCost(totalCost)
-                        .principalPaid(principalPaid)
+                        .principalPaid(
+                                liability.getRepresentedByAccountId() == null
+                                        ? principalPaid
+                                        : null)
                         .createdAt(liability.getCreatedAt())
                         .updatedAt(liability.getUpdatedAt())
                         // Calculated fields
-                        .totalPaid(totalPaid)
-                        .payoffPercentage(payoffPercentage)
+                        .totalPaid(liability.getRepresentedByAccountId() == null ? totalPaid : null)
+                        .payoffPercentage(
+                                liability.getRepresentedByAccountId() == null
+                                        ? payoffPercentage
+                                        : null)
                         .monthsRemaining(monthsRemaining)
                         .liabilityAgeDays(liabilityAgeDays)
                         .projectedTotalInterest(null) // Calculate on-demand via separate endpoint

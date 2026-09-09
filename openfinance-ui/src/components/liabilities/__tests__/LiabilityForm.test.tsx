@@ -113,7 +113,7 @@ describe('LiabilityForm', () => {
 
       expect(screen.getByLabelText(/liability name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/liability type/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/original principal/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/original or approved principal/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/current balance/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/interest rate/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/insurance rate/i)).toBeInTheDocument();
@@ -198,7 +198,9 @@ describe('LiabilityForm', () => {
 
       // Fill required fields first
       fireEvent.change(screen.getByLabelText(/liability name/i), { target: { value: 'Test' } });
-      fireEvent.change(screen.getByLabelText(/original principal/i), { target: { value: '1000' } });
+      fireEvent.change(screen.getByLabelText(/original or approved principal/i), {
+        target: { value: '1000' },
+      });
       fireEvent.change(screen.getByLabelText(/current balance/i), { target: { value: '1000' } });
       fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: '2024-01-01' } });
 
@@ -227,7 +229,9 @@ describe('LiabilityForm', () => {
 
       // Fill required fields
       fireEvent.change(screen.getByLabelText(/liability name/i), { target: { value: 'Test' } });
-      fireEvent.change(screen.getByLabelText(/original principal/i), { target: { value: '1000' } });
+      fireEvent.change(screen.getByLabelText(/original or approved principal/i), {
+        target: { value: '1000' },
+      });
       fireEvent.change(screen.getByLabelText(/current balance/i), { target: { value: '1000' } });
       fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: '2024-01-01' } });
       fireEvent.change(screen.getByLabelText(/end date/i), { target: { value: '2023-01-01' } });
@@ -258,7 +262,7 @@ describe('LiabilityForm', () => {
       fireEvent.change(screen.getByLabelText(/liability name/i), {
         target: { value: 'Test Mortgage' },
       });
-      fireEvent.change(screen.getByLabelText(/original principal/i), {
+      fireEvent.change(screen.getByLabelText(/original or approved principal/i), {
         target: { value: '300000' },
       });
       fireEvent.change(screen.getByLabelText(/current balance/i), { target: { value: '250000' } });
@@ -283,6 +287,8 @@ describe('LiabilityForm', () => {
           currency: 'USD',
           insurancePercentage: 0.5,
           additionalFees: '500',
+          realEstateId: null,
+          previouslyFunded: false,
         });
       });
     });
@@ -319,6 +325,8 @@ describe('LiabilityForm', () => {
           notes: 'Test liability',
           insurancePercentage: 0.75,
           additionalFees: '500',
+          realEstateId: null,
+          previouslyFunded: true,
         });
       });
     });
@@ -332,7 +340,7 @@ describe('LiabilityForm', () => {
       fireEvent.change(screen.getByLabelText(/liability name/i), {
         target: { value: 'Test Loan' },
       });
-      fireEvent.change(screen.getByLabelText(/original principal/i), {
+      fireEvent.change(screen.getByLabelText(/original or approved principal/i), {
         target: { value: '10000' },
       });
       fireEvent.change(screen.getByLabelText(/current balance/i), { target: { value: '10000' } });

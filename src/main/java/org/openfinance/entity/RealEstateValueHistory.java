@@ -39,6 +39,9 @@ public class RealEstateValueHistory {
     @Column(name = "property_id", nullable = false)
     private Long propertyId;
 
+    @Column(name = "source_tranche_id")
+    private Long sourceTrancheId;
+
     /** Reference to the property entity (lazy-loaded). */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", insertable = false, updatable = false)
@@ -52,6 +55,7 @@ public class RealEstateValueHistory {
     private LocalDate effectiveDate;
 
     /** Encrypted property value (AES-256-GCM, same format as RealEstateProperty.currentValue). */
+    @Convert(converter = org.openfinance.converter.EncryptedStringConverter.class)
     @Column(name = "recorded_value", nullable = false, length = 500)
     private String recordedValue;
 

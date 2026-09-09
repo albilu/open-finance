@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/Button';
 /**
  * AssetCostsSection Component (Task 8)
  *
@@ -13,11 +15,6 @@ import type { Asset } from '@/types/asset';
 import type { Transaction } from '@/types/transaction';
 import { cn } from '@/lib/utils';
 
-/**
- * Page size for the costs fetch: an asset's improvement/maintenance history is
- * bounded (dozens of rows), so 200 covers the practical lifetime without
- * pagination UI.
- */
 const MOVEMENTS_PAGE_SIZE = 200;
 
 function CostRow({ tx, label, currency }: { tx: Transaction; label: string; currency: string }) {
@@ -50,6 +47,8 @@ function CostRow({ tx, label, currency }: { tx: Transaction; label: string; curr
 
 export function AssetCostsSection({ asset }: { asset: Asset }) {
   const { t } = useTranslation('assets');
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [asset.id]);
   const {
     data: costsPage,
     isLoading,
@@ -57,14 +56,24 @@ export function AssetCostsSection({ asset }: { asset: Asset }) {
   } = useTransactions({
     assetId: asset.id,
     size: MOVEMENTS_PAGE_SIZE,
+    page,
     sort: 'date,desc',
   });
 
   const costs = costsPage?.content ?? [];
   const capitalized = costs.filter(tx => tx.movementType === 'CAPITAL_IMPROVEMENT');
   const maintenance = costs.filter(tx => tx.movementType === 'MAINTENANCE');
+  const acquisition = costs.filter(
+    tx => !['CAPITAL_IMPROVEMENT', 'MAINTENANCE'].includes(tx.movementType ?? '')
+  );
 
   const groups = [
+    {
+      key: 'acquisition',
+      title: t('costs.acquisition'),
+      icon: <Wrench className="h-4 w-4" />,
+      transactions: acquisition,
+    },
     {
       key: 'capitalized',
       title: t('costs.capitalized'),
@@ -93,7 +102,7 @@ export function AssetCostsSection({ asset }: { asset: Asset }) {
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           <span>{t('costs.error')}</span>
         </div>
-      ) : capitalized.length === 0 && maintenance.length === 0 ? (
+      ) : costs.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('costs.empty')}</p>
       ) : (
         <div className="space-y-4">
@@ -114,7 +123,11 @@ export function AssetCostsSection({ asset }: { asset: Asset }) {
                     <CostRow
                       key={tx.id}
                       tx={tx}
-                      label={t(`costs.movementTypes.${tx.movementType}`)}
+                      label={
+                        group.key === 'acquisition'
+                          ? t('costs.acquisition')
+                          : t(`costs.movementTypes.${tx.movementType}`)
+                      }
                       currency={asset.currency}
                     />
                   ))}
@@ -122,6 +135,22 @@ export function AssetCostsSection({ asset }: { asset: Asset }) {
               </div>
             ))}
         </div>
+      )}
+
+      {(costsPage?.totalPages ?? 0) > 1 && (
+        <nav className="flex gap-3 items-center mt-4" aria-label={t('movementPaging.label')}>
+          <Button variant="ghost" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            {t('movementPaging.previous')}
+          </Button>
+          <span>{t('movementPaging.page', { page: page + 1, total: costsPage?.totalPages })}</span>
+          <Button
+            variant="ghost"
+            disabled={page + 1 >= (costsPage?.totalPages ?? 1)}
+            onClick={() => setPage(page + 1)}
+          >
+            {t('movementPaging.next')}
+          </Button>
+        </nav>
       )}
     </div>
   );

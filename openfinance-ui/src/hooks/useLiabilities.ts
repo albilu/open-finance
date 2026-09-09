@@ -108,6 +108,9 @@ export function useCreateLiability() {
       queryClient.invalidateQueries({ queryKey: ['liabilities'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['networth'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['assetFinancing'] });
     },
   });
 }
@@ -148,6 +151,9 @@ export function useDisburseLiability() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['networth'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['assetFinancing'] });
       // Direct disbursements bump property value + value history server-side
       queryClient.invalidateQueries({ queryKey: ['realEstate'] });
     },
@@ -174,6 +180,9 @@ export function useUpdateLiability() {
       queryClient.invalidateQueries({ queryKey: ['amortization', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['networth'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['assetFinancing'] });
     },
   });
 }
@@ -195,6 +204,9 @@ export function useDeleteLiability() {
       queryClient.invalidateQueries({ queryKey: ['liabilities'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['networth'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      queryClient.invalidateQueries({ queryKey: ['assetFinancing'] });
     },
   });
 }

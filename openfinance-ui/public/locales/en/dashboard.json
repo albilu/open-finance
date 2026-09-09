@@ -241,7 +241,10 @@
     "accountCount_other": "{{count}} accounts",
     "accountCount_plural": "{{count}} accounts",
     "percentOfTotal": "{{percent}}% of total",
-    "viewAccounts": "View accounts at {{institution}}"
+    "viewAccounts": "View accounts at {{institution}}",
+    "loading": "Loading institutions…",
+    "missingRates": "Some foreign-currency balances could not be converted and are excluded.",
+    "loadError": "Unable to load institution balances."
   },
   "financialMap": {
     "title": "Financial Map",

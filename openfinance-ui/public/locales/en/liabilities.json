@@ -22,7 +22,7 @@
     "name": "Liability Name",
     "namePlaceholder": "e.g., Home Mortgage, Car Loan",
     "type": "Liability Type",
-    "principal": "Original Principal",
+    "principal": "Original or approved principal",
     "currentBalance": "Current Balance",
     "currentBalanceHint": "Edited directly only when no linked movements; linked liabilities auto-sync.",
     "currency": "Currency",
@@ -66,11 +66,17 @@
       "feesNonNegative": "Fees cannot be negative",
       "feesInvalid": "Enter a valid amount (e.g. 1234.56)",
       "endDateAfterStart": "End date must be after start date"
-    }
+    },
+    "balanceLocked": "Balance comes from recorded movements. Use a repayment, draw or reversal to change it.",
+    "creditLimit": "Credit limit (optional)",
+    "previouslyFunded": "This loan was previously drawn and is now fully paid",
+    "accountSource": "Debt already tracked in an account",
+    "separateBalance": "Track balance with this liability",
+    "accountSourceHint": "Choose the matching credit-card account to count this debt once. Record payments as transfers to that account."
   },
   "summary": {
     "totalLiabilities": "Total Liabilities",
-    "originalPrincipal": "Original Principal",
+    "originalPrincipal": "Original or approved principal",
     "avgInterestRate": "Avg Interest Rate",
     "monthlyPayments": "Monthly Payments",
     "withInterest_one": "{{count}} with interest",
@@ -98,7 +104,7 @@
     "showingCount_one": "Showing {{count}} liability",
     "showingCount_other": "Showing {{count}} liabilities",
     "currentBalance": "Current Balance",
-    "originalPrincipal": "Original Principal",
+    "originalPrincipal": "Original or approved principal",
     "interestRate": "Interest Rate",
     "interestInsurance": "Interest / Insurance",
     "monthlyPayment": "Monthly Payment",
@@ -217,7 +223,12 @@
       "cancel": "Cancel",
       "submit": "Confirm disbursement",
       "error": "The disbursement failed. Please try again."
-    }
+    },
+    "reverse": "Reverse draw",
+    "reversedOn": "Reversed on {{date}}",
+    "reverseDate": "Reversal date",
+    "reverseHint": "This removes the draw from outstanding debt. Its history is retained; later independent property valuations are preserved.",
+    "reverseError": "The draw could not be reversed. Check the date and principal repayments."
   },
   "movementTypes": {
     "DISBURSEMENT": "Disbursement",
@@ -232,5 +243,18 @@
   "schedule": {
     "interestOnlyPhase": "Interest-only until {{date}}: principal 0",
     "interestOnlyPhaseOpen": "Interest-only phase active: principal 0"
+  },
+  "fundingStatus": {
+    "UNDRAWN": "Undrawn",
+    "ACTIVE": "Outstanding",
+    "PAID": "Paid",
+    "NO_BALANCE": "No outstanding balance"
+  },
+  "payments": {
+    "openingPrincipal": "Opening debt"
+  },
+  "funding": {
+    "funded": "Funded principal",
+    "repaid": "Principal repaid"
   }
 }

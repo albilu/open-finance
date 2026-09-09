@@ -28,6 +28,7 @@ import org.openfinance.entity.AssetType;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AssetResponse {
+    private org.openfinance.entity.AcquisitionType acquisitionType;
 
     /** Unique identifier of the asset. */
     private Long id;

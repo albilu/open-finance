@@ -45,6 +45,7 @@ import org.openfinance.repository.NetWorthRepository;
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("NetWorthService Unit Tests")
 class NetWorthServiceTest {
+    @Mock private org.openfinance.repository.LiabilityTrancheRepository liabilityTrancheRepository;
 
     @Mock private AccountCurrencyService accountCurrencyService;
 

@@ -65,7 +65,7 @@
   "summary": {
     "totalPortfolioValue": "Total Portfolio Value",
     "totalEquity": "Total Equity",
-    "totalMortgageDebt": "Total Mortgage Debt",
+    "totalMortgageDebt": "Total Financing Debt",
     "monthlyRentalIncome": "Monthly Rental Income"
   },
   "filtered": "Filtered:",
@@ -131,7 +131,15 @@
       "latitudeRange": "Latitude must be between -90 and 90",
       "longitudeRange": "Longitude must be between -180 and 180",
       "purchaseDateFuture": "Purchase date cannot be in the future"
-    }
+    },
+    "acquisitionType": "Acquisition",
+    "acquisitionTypes": {
+      "PURCHASE": "Purchased",
+      "GIFT": "Gift / inheritance",
+      "PLANNED": "Planned acquisition"
+    },
+    "acquisitionHint": "Plans have zero owned value. Enter the actual price and acquisition date when completing the purchase; gifts may have zero cost.",
+    "plannedValue": "A planned acquisition must have zero owned value."
   },
   "card": {
     "purchased": "Purchased",
@@ -163,7 +171,7 @@
     "equityVsDebt": "Equity vs Debt",
     "equityPercent": "{{percentage}}% equity",
     "percentOfValue": "{{percentage}}% of property value",
-    "noMortgage": "This property has no linked mortgage. Full equity belongs to you.",
+    "noMortgage": "This property has no allocated financing debt.",
     "mortgageId": "Mortgage ID: {{id}}",
     "loadEquityError": "Failed to load equity data.",
     "totalROI": "Total Return on Investment",
@@ -183,7 +191,7 @@
     "location": "Location",
     "latitude": "Latitude",
     "longitude": "Longitude",
-    "mortgageBalance": "Mortgage Balance",
+    "mortgageBalance": "Allocated Financing Debt",
     "totalEquity": "Total Equity",
     "gallery": {
       "empty": "No images yet. Upload images in the Attachments tab.",
@@ -614,9 +622,15 @@
       "DISBURSEMENT": "Disbursement",
       "REPAYMENT": "Repayment",
       "CAPITAL_IMPROVEMENT": "Capitalized",
-      "MAINTENANCE": "Maintenance"
+      "MAINTENANCE": "Maintenance",
+      "INTEREST": "Interest",
+      "INSURANCE": "Insurance",
+      "FEE": "Fees"
     },
-    "error": "Failed to load movements. Please try again."
+    "error": "Failed to load movements. Please try again.",
+    "acquisition": "Acquisition and other payments",
+    "directFunding": "Funding drawdowns",
+    "reversed": "reversed {{date}}"
   },
   "wizard": {
     "back": "Back",
@@ -633,8 +647,8 @@
       "existing": "Existing mortgage",
       "none": "Cash (no loan)"
     },
-"fundingLocked": "Funding is locked: the property was already created with its mortgage link. Retry the purchase or cancel.",
-        "fundingSource": "Funding source",
+    "fundingLocked": "Funding is locked: the property was already created with its mortgage link. Retry the purchase or cancel.",
+    "fundingSource": "Funding source",
     "interestRate": "Interest rate (%)",
     "loanAmount": "Loan amount",
     "disbursedAmount": "Amount to disburse now",
@@ -650,5 +664,11 @@
       "funding": "Funding",
       "review": "Review"
     }
+  },
+  "movementPaging": {
+    "label": "Movement history pages",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}} of {{total}}"
   }
 }

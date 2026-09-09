@@ -19,12 +19,7 @@ export type AssetType =
   | 'FURNITURE'
   | 'OTHER';
 
-export type AssetCondition =
-  | 'NEW'
-  | 'EXCELLENT'
-  | 'GOOD'
-  | 'FAIR'
-  | 'POOR';
+export type AssetCondition = 'NEW' | 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR';
 
 /**
  * Asset filters for search
@@ -57,6 +52,7 @@ export interface Asset {
   symbol?: string;
   quantity: number;
   purchasePrice: number;
+  acquisitionType?: 'PURCHASE' | 'GIFT' | 'PLANNED';
   currentPrice: number;
   currency: string;
   purchaseDate: string;
@@ -64,24 +60,24 @@ export interface Asset {
   lastUpdated: string;
   createdAt: string;
   updatedAt: string;
-  totalValue: number;      // Calculated: quantity * currentPrice
-  totalCost: number;       // Calculated: quantity * purchasePrice
-  unrealizedGain: number;  // Calculated: totalValue - totalCost
-  gainPercentage: number;  // Calculated: (unrealizedGain / totalCost) * 100
-  holdingDays: number;     // Calculated: days since purchase
+  totalValue: number; // Calculated: quantity * currentPrice
+  totalCost: number; // Calculated: quantity * purchasePrice
+  unrealizedGain: number; // Calculated: totalValue - totalCost
+  gainPercentage: number; // Calculated: (unrealizedGain / totalCost) * 100
+  holdingDays: number; // Calculated: days since purchase
 
   // Physical asset fields (Task 9.2.5)
   serialNumber?: string;
   brand?: string;
   model?: string;
   condition?: AssetCondition;
-  warrantyExpiration?: string;  // ISO date string
+  warrantyExpiration?: string; // ISO date string
   usefulLifeYears?: number;
   photoPath?: string;
-  depreciatedValue?: number;     // Calculated: depreciated value for physical assets
+  depreciatedValue?: number; // Calculated: depreciated value for physical assets
   conditionAdjustedValue?: number; // Calculated: condition-adjusted value
-  isPhysical?: boolean;          // Calculated: true if type is physical asset
-  isWarrantyValid?: boolean;     // Calculated: true if warranty is still valid
+  isPhysical?: boolean; // Calculated: true if type is physical asset
+  isWarrantyValid?: boolean; // Calculated: true if warranty is still valid
 
   // Requirement REQ-2.2: Currency conversion fields
   valueInBaseCurrency?: number;
@@ -102,6 +98,7 @@ export interface AssetRequest {
   /** Exact decimal strings as entered by the user — never JS numbers. */
   quantity: string;
   purchasePrice: string;
+  acquisitionType?: 'PURCHASE' | 'GIFT' | 'PLANNED';
   currentPrice: string;
   currency: string;
   purchaseDate: string;
@@ -112,7 +109,7 @@ export interface AssetRequest {
   brand?: string;
   model?: string;
   condition?: AssetCondition;
-  warrantyExpiration?: string;  // ISO date string (YYYY-MM-DD)
+  warrantyExpiration?: string; // ISO date string (YYYY-MM-DD)
   usefulLifeYears?: number;
   photoPath?: string;
 }

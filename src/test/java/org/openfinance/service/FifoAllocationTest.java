@@ -49,15 +49,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
-/**
- * Unit tests for Task 7: FIFO tranche allocation of repayments and the spec §3.2 invariant
- * reconciler (Liability.currentBalance = SUM(tranche.remaining)).
- *
- * <p>V1 semantics under test: a single payment allocates to a single tranche (explicit target
- * honored, else FIFO pick of the oldest DRAWN tranche with remaining > 0). The reconciler derives
- * the balance as an absolute assignment over DRAWN tranches; allocated principal per tranche is the
- * sum of REPAYMENT principal legs capped at the drawn amount.
- */
+/** Verifies persisted FIFO allocations, exact reversal and preservation of opening debt. */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("FIFO tranche allocation + invariant reconciler")
@@ -94,6 +86,7 @@ class FifoAllocationTest {
     @Mock private LiabilityTrancheRepository liabilityTrancheRepository;
 
     @InjectMocks private TransactionService transactionService;
+    private org.openfinance.repository.LiabilityPrincipalAllocationRepository allocations;
 
     /** In-memory transaction table so repository queries reflect save() and soft-delete state. */
     private final List<Transaction> txTable = new ArrayList<>();
@@ -110,7 +103,10 @@ class FifoAllocationTest {
 
         LiabilityTrancheService trancheService =
                 new LiabilityTrancheService(
-                        liabilityTrancheRepository, transactionRepository, transactionSplitService);
+                        liabilityTrancheRepository,
+                        (allocations =
+                                org.openfinance.testutil.PrincipalAllocationRepositoryMocks
+                                        .create()));
         ReflectionTestUtils.setField(transactionService, "liabilityTrancheService", trancheService);
 
         txTable.clear();
@@ -241,13 +237,11 @@ class FifoAllocationTest {
         return captor.getValue().getCurrentBalance();
     }
 
-    // ---------- (a) FIFO pick + overpay clamp on the picked tranche ----------
+    // ---------- (a) FIFO allocation across drawn tranches ----------
 
     @Test
-    @DisplayName(
-            "FIFO repayment 12000 picks T1 (remaining 10000) and clamps: T1 fully allocated, "
-                    + "balance 90000 -> 80000, T2 untouched")
-    void fifoRepaymentClampsToPickedTrancheRemaining() {
+    @DisplayName("FIFO repayment 12000 allocates 10000 to T1 and 2000 to T2")
+    void fifoRepaymentSpansTranchesWithoutClamping() {
         twoDrawnTranches();
         TransactionRequest request = repaymentRequest(new BigDecimal("12000.00"));
         Transaction tx =
@@ -258,8 +252,13 @@ class FifoAllocationTest {
 
         transactionService.createTransaction(USER_ID, request);
 
-        assertThat(tx.getTrancheId()).isEqualTo(T1_ID);
-        assertThat(lastSavedLiabilityBalance()).isEqualTo("80000.00");
+        assertThat(
+                        allocations
+                                .findByTransactionIdAndUserId(tx.getId(), USER_ID)
+                                .getFirst()
+                                .getTrancheId())
+                .isEqualTo(T1_ID);
+        assertThat(lastSavedLiabilityBalance()).isEqualTo("78000.00");
     }
 
     // ---------- (b) explicit trancheId target ----------
@@ -275,11 +274,16 @@ class FifoAllocationTest {
                 stubCreate(
                         request,
                         repaymentEntity(null, new BigDecimal("12000.00"), T2_ID),
-                        "85000.00");
+                        "90000.00");
 
         transactionService.createTransaction(USER_ID, request);
 
-        assertThat(tx.getTrancheId()).isEqualTo(T2_ID);
+        assertThat(
+                        allocations
+                                .findByTransactionIdAndUserId(tx.getId(), USER_ID)
+                                .getFirst()
+                                .getTrancheId())
+                .isEqualTo(T2_ID);
         // T1 remaining 10000 + T2 remaining (80000 - 12000)
         assertThat(lastSavedLiabilityBalance()).isEqualTo("78000.00");
     }
@@ -287,8 +291,8 @@ class FifoAllocationTest {
     // ---------- (c) overpay beyond remaining floors at zero ----------
 
     @Test
-    @DisplayName("Overpay 12000 on a tranche with remaining 5000 clamps to remaining: balance 0")
-    void overpayBeyondRemainingFloorsAtZero() {
+    @DisplayName("Overpay 12000 against 5000 outstanding is rejected")
+    void overpayBeyondOutstandingIsRejected() {
         LiabilityTranche t1 =
                 tranche(T1_ID, 1, new BigDecimal("5000.00"), LocalDate.now().minusDays(3));
         when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
@@ -305,24 +309,33 @@ class FifoAllocationTest {
         Transaction tx = repaymentEntity(null, new BigDecimal("12000.00"), null);
         when(transactionMapper.toEntity(request)).thenReturn(tx);
 
-        transactionService.createTransaction(USER_ID, request);
-
-        assertThat(tx.getTrancheId()).isEqualTo(T1_ID);
-        assertThat(lastSavedLiabilityBalance()).isEqualTo("0.00");
+        assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
+                .isInstanceOf(InvalidTransactionException.class)
+                .hasMessageContaining("exceeds outstanding");
+        verify(liabilityRepository, org.mockito.Mockito.never()).save(any(Liability.class));
     }
 
     // ---------- (d) reconciler invariant: balance == SUM(drawn - allocated) exactly ----------
 
     @Test
-    @DisplayName(
-            "Reconciler assigns balance = SUM(drawn - allocated) exactly; FIFO skips fully "
-                    + "allocated tranches")
-    void reconcilerAssignsSumOfRemainingAndSkipsFullyAllocatedTranches() {
+    @DisplayName("Opening debt is preserved while FIFO skips fully repaid tranches")
+    void repaymentPreservesOpeningDebtAndSkipsFullyAllocatedTranches() {
         twoDrawnTranches();
-        // Prior repayments: T1 allocated 4000 + 7000 (capped at drawn 10000), T2 allocated 30000
+        // Stored repayments fully cover T1; T2 has 30000 principal repaid.
         txTable.add(repaymentEntity(501L, new BigDecimal("4000.00"), T1_ID));
-        txTable.add(repaymentEntity(502L, new BigDecimal("7000.00"), T1_ID));
+        txTable.add(repaymentEntity(502L, new BigDecimal("6000.00"), T1_ID));
         txTable.add(repaymentEntity(503L, new BigDecimal("30000.00"), T2_ID));
+        for (Transaction repayment : txTable) {
+            repayment.setPrincipalAmount(repayment.getAmount());
+            allocations.save(
+                    org.openfinance.entity.LiabilityPrincipalAllocation.builder()
+                            .userId(USER_ID)
+                            .liabilityId(LIABILITY_ID)
+                            .transactionId(repayment.getId())
+                            .trancheId(repayment.getTrancheId())
+                            .amount(repayment.getPrincipalAmount())
+                            .build());
+        }
 
         TransactionRequest request = repaymentRequest(new BigDecimal("5000.00"));
         Transaction tx =
@@ -334,8 +347,13 @@ class FifoAllocationTest {
         transactionService.createTransaction(USER_ID, request);
 
         // T1 remaining 0 -> skipped; FIFO targets T2; allocated(T2) = 35000 -> remaining 45000
-        assertThat(tx.getTrancheId()).isEqualTo(T2_ID);
-        assertThat(lastSavedLiabilityBalance()).isEqualTo("45000.00");
+        assertThat(
+                        allocations
+                                .findByTransactionIdAndUserId(tx.getId(), USER_ID)
+                                .getFirst()
+                                .getTrancheId())
+                .isEqualTo(T2_ID);
+        assertThat(lastSavedLiabilityBalance()).isEqualTo("65000.00");
     }
 
     // ---------- (e) reversal: deleting a repayment drops allocations, balance restored ----------
@@ -348,6 +366,15 @@ class FifoAllocationTest {
         when(liabilityTrancheRepository.findByLiabilityIdAndUserId(LIABILITY_ID, USER_ID))
                 .thenReturn(List.of(t1));
         Transaction existing = repaymentEntity(500L, new BigDecimal("10000.00"), T1_ID);
+        existing.setPrincipalAmount(new BigDecimal("10000.00"));
+        allocations.save(
+                org.openfinance.entity.LiabilityPrincipalAllocation.builder()
+                        .userId(USER_ID)
+                        .liabilityId(LIABILITY_ID)
+                        .transactionId(500L)
+                        .trancheId(T1_ID)
+                        .amount(new BigDecimal("10000.00"))
+                        .build());
         txTable.add(existing);
 
         when(transactionRepository.findByIdAndUserId(500L, USER_ID))
@@ -363,7 +390,7 @@ class FifoAllocationTest {
 
         assertThat(existing.getIsDeleted()).isTrue();
         // Allocated drops to zero (tx soft-deleted) -> remaining 10000 -> balance re-derived
-        assertThat(lastSavedLiabilityBalance()).isEqualTo("10000.00");
+        assertThat(lastSavedLiabilityBalance()).isEqualTo("17000.00");
     }
 
     // ---------- (f) explicit target must belong to the liability ----------
@@ -382,7 +409,7 @@ class FifoAllocationTest {
 
         assertThatThrownBy(() -> transactionService.createTransaction(USER_ID, request))
                 .isInstanceOf(InvalidTransactionException.class)
-                .hasMessageContaining("999");
+                .hasMessageContaining("does not belong");
 
         assertThat(tx.getTrancheId()).isEqualTo(999L);
     }

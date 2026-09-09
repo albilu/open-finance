@@ -76,3 +76,27 @@ export function useCreateTranche() {
  */
 export const getTrancheLabel = (trancheNo: number | null | undefined): string =>
   trancheNo != null ? `T${trancheNo}` : '—';
+
+export function useReverseDirectDraw() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ trancheId, date }: { trancheId: number; date: string }) =>
+      apiClient.post(
+        `/tranches/${trancheId}/reverse`,
+        { date },
+        { headers: buildEncryptionHeaders() }
+      ),
+    onSuccess: async () => {
+      for (const key of [
+        'liabilities',
+        'realEstate',
+        'assets',
+        'dashboard',
+        'networth',
+        'assetFinancing',
+      ]) {
+        await client.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+}

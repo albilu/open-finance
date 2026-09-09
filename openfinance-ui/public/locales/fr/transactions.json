@@ -132,7 +132,11 @@
       "DIRECT_DEBIT": "Prélèvement automatique",
       "ONLINE": "En ligne",
       "OTHER": "Autre"
-    }
+    },
+    "repaymentUnavailable": "Le paiement estimé ne peut pas être appliqué. Vérifiez le montant ou désactivez l’estimation pour saisir le capital réellement remboursé.",
+    "manualPrincipal": "Capital remboursé ({{currency}})",
+    "manualPrincipalHint": "Saisissez 0 pour les intérêts, assurances ou frais seuls. Laissez vide pour affecter tout le paiement au capital.",
+    "repaymentExceedsDebt": "Le capital dépasse la dette restante. Vérifiez le montant du paiement."
   },
   "detail": {
     "edit": "Modifier",

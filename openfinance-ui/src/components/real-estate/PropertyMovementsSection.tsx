@@ -1,3 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
+import apiClient from '@/services/apiClient';
+import type { LiabilityTranche } from '@/types/liability';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/Button';
 /**
  * PropertyMovementsSection Component (Task 8)
  *
@@ -16,15 +21,10 @@ import { useLiabilityTransactions } from '@/hooks/useLiabilities';
 import type { RealEstateProperty } from '@/types/realEstate';
 import type { Transaction } from '@/types/transaction';
 
-/**
- * Page size for the movements fetch: a property's improvement/maintenance history
- * is bounded (dozens of rows), so 200 covers the practical lifetime without
- * pagination UI.
- */
 const MOVEMENTS_PAGE_SIZE = 200;
 
 /** Movement classifications shown in the Loan movements list. */
-const LOAN_MOVEMENT_TYPES = new Set(['REPAYMENT', 'DISBURSEMENT']);
+const LOAN_MOVEMENT_TYPES = new Set(['REPAYMENT', 'DISBURSEMENT', 'INTEREST', 'INSURANCE', 'FEE']);
 
 function MovementRow({
   tx,
@@ -98,6 +98,8 @@ function MovementList({
 
 export function PropertyMovementsSection({ property }: { property: RealEstateProperty }) {
   const { t } = useTranslation('realEstate');
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [property.id]);
   const {
     data: costsPage,
     isLoading: isLoadingCosts,
@@ -105,6 +107,7 @@ export function PropertyMovementsSection({ property }: { property: RealEstatePro
   } = useTransactions({
     realEstateId: property.id,
     size: MOVEMENTS_PAGE_SIZE,
+    page,
     sort: 'date,desc',
   });
   const {
@@ -113,18 +116,35 @@ export function PropertyMovementsSection({ property }: { property: RealEstatePro
     error: loansError,
   } = useLiabilityTransactions(property.mortgageId ?? null);
 
+  const relatedLoans = useQuery<Transaction[]>({
+    queryKey: ['realEstate', property.id, 'loan-movements'],
+    queryFn: async () =>
+      (await apiClient.get<Transaction[]>(`/real-estate/${property.id}/loan-movements`)).data,
+  });
+  const funding = useQuery<LiabilityTranche[]>({
+    queryKey: ['realEstate', property.id, 'drawdowns'],
+    queryFn: async () =>
+      (await apiClient.get<LiabilityTranche[]>(`/real-estate/${property.id}/drawdowns`)).data,
+  });
+  const acquisition = (costsPage?.content ?? []).filter(
+    tx => !['CAPITAL_IMPROVEMENT', 'MAINTENANCE'].includes(tx.movementType ?? '')
+  );
   const isLoading = isLoadingCosts || isLoadingLoans;
-  const error = costsError ?? loansError;
+  const error = costsError ?? loansError ?? funding.error ?? relatedLoans.error;
 
   const costs = costsPage?.content ?? [];
   const capitalized = costs.filter(tx => tx.movementType === 'CAPITAL_IMPROVEMENT');
   const maintenance = costs.filter(tx => tx.movementType === 'MAINTENANCE');
-  const loanMovements = loanTransactions.filter(
-    tx => tx.movementType != null && LOAN_MOVEMENT_TYPES.has(tx.movementType)
-  );
+  const loanMovements = [
+    ...new Map([...loanTransactions, ...(relatedLoans.data ?? [])].map(tx => [tx.id, tx])).values(),
+  ].filter(tx => tx.movementType != null && LOAN_MOVEMENT_TYPES.has(tx.movementType));
 
   const hasNoMovements =
-    capitalized.length === 0 && maintenance.length === 0 && loanMovements.length === 0;
+    capitalized.length === 0 &&
+    maintenance.length === 0 &&
+    loanMovements.length === 0 &&
+    acquisition.length === 0 &&
+    !funding.data?.length;
 
   return (
     <div className="space-y-4">
@@ -144,6 +164,33 @@ export function PropertyMovementsSection({ property }: { property: RealEstatePro
         <p className="text-sm text-text-secondary">{t('movements.empty')}</p>
       ) : (
         <>
+          <MovementList
+            title={t('movements.acquisition')}
+            icon={<Landmark className="h-4 w-4" />}
+            transactions={acquisition}
+            currency={property.currency}
+            movementLabel={() => t('movements.acquisition')}
+            emptyLabel={t('movements.empty')}
+          />
+          {funding.data?.length ? (
+            <section className="space-y-2">
+              <h4 className="font-semibold">{t('movements.directFunding')}</h4>
+              {funding.data.map(draw => (
+                <div
+                  key={draw.id}
+                  className="flex justify-between gap-3 border border-border rounded p-3 text-sm"
+                >
+                  <span>
+                    T{draw.trancheNo} · {draw.drawnDate}
+                    {draw.reversedDate
+                      ? ` · ${t('movements.reversed', { date: draw.reversedDate })}`
+                      : ''}
+                  </span>
+                  <ConvertedAmount amount={draw.drawnAmount ?? 0} currency={draw.currency} inline />
+                </div>
+              ))}
+            </section>
+          ) : null}
           <MovementList
             title={t('movements.capitalized')}
             icon={<Hammer className="h-4 w-4 text-text-secondary" />}
@@ -171,6 +218,22 @@ export function PropertyMovementsSection({ property }: { property: RealEstatePro
             />
           )}
         </>
+      )}
+
+      {(costsPage?.totalPages ?? 0) > 1 && (
+        <nav className="flex gap-3 items-center mt-4" aria-label={t('movementPaging.label')}>
+          <Button variant="ghost" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            {t('movementPaging.previous')}
+          </Button>
+          <span>{t('movementPaging.page', { page: page + 1, total: costsPage?.totalPages })}</span>
+          <Button
+            variant="ghost"
+            disabled={page + 1 >= (costsPage?.totalPages ?? 1)}
+            onClick={() => setPage(page + 1)}
+          >
+            {t('movementPaging.next')}
+          </Button>
+        </nav>
       )}
     </div>
   );

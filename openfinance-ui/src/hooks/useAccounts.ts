@@ -149,6 +149,9 @@ export function useCreateAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate dashboard queries that depend on account data
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }
@@ -172,6 +175,9 @@ export function useUpdateAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts', variables.id] });
       // Invalidate dashboard queries that depend on account data
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }
@@ -193,6 +199,9 @@ export function useDeleteAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate dashboard queries that depend on account data
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }
@@ -213,6 +222,9 @@ export function useCloseAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate dashboard queries that depend on account data
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }
@@ -233,6 +245,9 @@ export function useReopenAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate dashboard queries that depend on account data
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }
@@ -255,6 +270,9 @@ export function usePermanentDeleteAccount() {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       // Invalidate dashboard queries that depend on account data
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const key of ['assets', 'realEstate', 'liabilities', 'assetFinancing']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }

@@ -17,14 +17,14 @@ vi.mock('@/utils/format', () => ({
       style: 'currency',
       currency: currency || 'USD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(amount);
     return formatted;
   }),
 }));
 
 // Mock AuthContext to ensure baseCurrency is USD while preserving AuthProvider
-vi.mock('@/context/AuthContext', async (importOriginal) => {
+vi.mock('@/context/AuthContext', async importOriginal => {
   const actual = await importOriginal<typeof import('@/context/AuthContext')>();
   return {
     ...actual,
@@ -35,8 +35,8 @@ vi.mock('@/context/AuthContext', async (importOriginal) => {
       login: vi.fn(),
       logout: vi.fn(),
       updateBaseCurrency: vi.fn(),
-      loading: false
-    }))
+      loading: false,
+    })),
   };
 });
 
@@ -114,9 +114,13 @@ describe('LiabilitySummaryCards', () => {
       );
 
       // Check that PrivateAmount components are rendered for currency values
-      const privateAmounts = screen.getAllByRole('generic', { hidden: true }).filter(
-        element => element.classList.contains('transition-all') && element.classList.contains('duration-300')
-      );
+      const privateAmounts = screen
+        .getAllByRole('generic', { hidden: true })
+        .filter(
+          element =>
+            element.classList.contains('transition-all') &&
+            element.classList.contains('duration-300')
+        );
 
       // Should have PrivateAmount wrappers for: Total Liabilities, Total Principal, Monthly Payments (and filtered versions if applicable)
       expect(privateAmounts.length).toBeGreaterThan(0);
@@ -137,9 +141,12 @@ describe('LiabilitySummaryCards', () => {
       );
 
       // Check that elements have blur class when amounts are hidden
-      const blurredElements = screen.getAllByRole('generic', { hidden: true }).filter(
-        element => element.classList.contains('blur-md') && element.classList.contains('select-none')
-      );
+      const blurredElements = screen
+        .getAllByRole('generic', { hidden: true })
+        .filter(
+          element =>
+            element.classList.contains('blur-md') && element.classList.contains('select-none')
+        );
 
       expect(blurredElements.length).toBeGreaterThan(0);
     });
@@ -154,9 +161,9 @@ describe('LiabilitySummaryCards', () => {
       );
 
       // Check that no elements have blur class when amounts are visible
-      const blurredElements = screen.getAllByRole('generic', { hidden: true }).filter(
-        element => element.classList.contains('blur-md')
-      );
+      const blurredElements = screen
+        .getAllByRole('generic', { hidden: true })
+        .filter(element => element.classList.contains('blur-md'));
 
       expect(blurredElements.length).toBe(0);
     });
@@ -175,7 +182,7 @@ describe('LiabilitySummaryCards', () => {
       );
 
       expect(screen.getByText('Total Liabilities')).toBeInTheDocument();
-      expect(screen.getByText('Original Principal')).toBeInTheDocument();
+      expect(screen.getByText('Original or approved principal')).toBeInTheDocument();
       expect(screen.getByText('Avg Interest Rate')).toBeInTheDocument();
       expect(screen.getByText('Monthly Payments')).toBeInTheDocument();
     });
@@ -367,9 +374,9 @@ describe('LiabilitySummaryCards', () => {
         </TestWrapper>
       );
 
-      const cards = screen.getAllByRole('generic', { hidden: true }).filter(
-        element => element.classList.contains('hover:border-primary/30')
-      );
+      const cards = screen
+        .getAllByRole('generic', { hidden: true })
+        .filter(element => element.classList.contains('hover:border-primary/30'));
 
       expect(cards.length).toBe(4); // Four cards
     });

@@ -14,6 +14,7 @@ import org.openfinance.dto.AccountResponse;
 import org.openfinance.dto.AccountSearchCriteria;
 import org.openfinance.dto.AccountSummaryResponse;
 import org.openfinance.entity.Account;
+import org.openfinance.entity.AccountType;
 import org.openfinance.entity.Institution;
 import org.openfinance.entity.Transaction;
 import org.openfinance.entity.TransactionType;
@@ -263,6 +264,12 @@ public class AccountService {
                         .findByIdAndUserId(accountId, userId)
                         .orElseThrow(() -> AccountNotFoundException.byIdAndUser(accountId, userId));
 
+        if (accountRepository.isLiabilityBalanceSource(accountId, userId)
+                && (!account.getCurrency().equalsIgnoreCase(request.getCurrency())
+                        || request.getType() != AccountType.CREDIT_CARD)) {
+            throw new org.openfinance.exception.InvalidTransactionException(
+                    "Remove the linked credit-card liability before changing this account's currency or type");
+        }
         // Capture snapshot before update for history
         AccountResponse beforeSnapshot = toResponseWithDecryption(account);
 
@@ -424,6 +431,10 @@ public class AccountService {
                         .findByIdAndUserId(accountId, userId)
                         .orElseThrow(() -> AccountNotFoundException.byIdAndUser(accountId, userId));
 
+        if (accountRepository.isLiabilityBalanceSource(accountId, userId)) {
+            throw new org.openfinance.exception.InvalidTransactionException(
+                    "Remove the linked credit-card liability before closing this account; the account retains its balance");
+        }
         // Check for active transactions (Requirement 2.5: Data integrity)
         Long transactionCount = transactionRepository.countByAccountId(accountId);
         if (transactionCount > 0) {
@@ -527,6 +538,10 @@ public class AccountService {
                         .findByIdAndUserId(accountId, userId)
                         .orElseThrow(() -> AccountNotFoundException.byIdAndUser(accountId, userId));
 
+        if (accountRepository.isLiabilityBalanceSource(accountId, userId)) {
+            throw new org.openfinance.exception.InvalidTransactionException(
+                    "Remove the linked credit-card liability before closing this account; the account retains its balance");
+        }
         // Check if already closed
         if (!account.getIsActive()) {
             log.warn("Account {} is already closed", accountId);

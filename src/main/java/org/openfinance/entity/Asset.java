@@ -98,6 +98,11 @@ public class Asset {
     @ToString.Include
     private AssetType type;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "acquisition_type", nullable = false)
+    @lombok.Builder.Default
+    private AcquisitionType acquisitionType = AcquisitionType.PURCHASE;
+
     /**
      * Ticker symbol or identifier (e.g., "AAPL", "BTC-USD", "SPY"). Used for fetching market data
      * and price updates.

@@ -86,6 +86,8 @@ class RealEstateServiceTest {
 
     @Mock private DefaultCurrencyProvider defaultCurrencyProvider;
 
+    @Mock private AssetFinancingService assetFinancingService;
+    @Mock private org.openfinance.repository.TransactionRepository transactionRepository;
     @InjectMocks private RealEstateService realEstateService;
 
     private LocalDate purchaseDate;
@@ -97,6 +99,15 @@ class RealEstateServiceTest {
         purchaseDate = LocalDate.of(2020, 1, 15);
         userId = 1L;
         propertyId = 1L;
+        org.mockito.Mockito.lenient()
+                .when(assetFinancingService.propertyDebt(any(), any(), any(), any()))
+                .thenReturn(BigDecimal.ZERO);
+        org.mockito.Mockito.lenient()
+                .when(exchangeRateService.convert(any(), eq("USD"), eq("USD")))
+                .thenAnswer(inv -> inv.getArgument(0));
+        org.mockito.Mockito.lenient()
+                .when(exchangeRateService.getExchangeRate(eq("USD"), eq("USD"), any()))
+                .thenReturn(BigDecimal.ONE);
 
         User defaultUser = User.builder().baseCurrency("USD").build();
         org.mockito.Mockito.lenient()
@@ -188,7 +199,8 @@ class RealEstateServiceTest {
 
         org.openfinance.dto.AssetResponse assetResponse = new org.openfinance.dto.AssetResponse();
         assetResponse.setId(100L);
-        when(assetService.createAsset(eq(userId), any(org.openfinance.dto.AssetRequest.class)))
+        when(assetService.createPropertyAsset(
+                        eq(userId), any(org.openfinance.dto.AssetRequest.class)))
                 .thenReturn(assetResponse);
 
         RealEstatePropertyResponse created = realEstateService.createProperty(userId, request);
@@ -258,7 +270,8 @@ class RealEstateServiceTest {
 
         org.openfinance.dto.AssetResponse assetResponse = new org.openfinance.dto.AssetResponse();
         assetResponse.setId(100L);
-        when(assetService.createAsset(eq(userId), any(org.openfinance.dto.AssetRequest.class)))
+        when(assetService.createPropertyAsset(
+                        eq(userId), any(org.openfinance.dto.AssetRequest.class)))
                 .thenReturn(assetResponse);
 
         RealEstatePropertyResponse created = realEstateService.createProperty(userId, request);
@@ -662,6 +675,8 @@ class RealEstateServiceTest {
         when(realEstateRepository.findByIdAndUserIdWithMortgage(propertyId, userId))
                 .thenReturn(Optional.of(property));
 
+        when(assetFinancingService.propertyDebt(userId, null, 10L, "USD"))
+                .thenReturn(new BigDecimal("350000.00"));
         PropertyEquityResponse equity = realEstateService.calculateEquity(propertyId, userId);
 
         assertThat(equity).isNotNull();
@@ -1097,7 +1112,8 @@ class RealEstateServiceTest {
 
         org.openfinance.dto.AssetResponse assetResponse = new org.openfinance.dto.AssetResponse();
         assetResponse.setId(100L);
-        when(assetService.createAsset(eq(userId), any(org.openfinance.dto.AssetRequest.class)))
+        when(assetService.createPropertyAsset(
+                        eq(userId), any(org.openfinance.dto.AssetRequest.class)))
                 .thenReturn(assetResponse);
 
         when(realEstateMapper.toEntity(jpyRequest)).thenReturn(jpyMapped);

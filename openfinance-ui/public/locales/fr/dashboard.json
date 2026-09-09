@@ -241,14 +241,17 @@
     "accountCount_other": "{{count}} comptes",
     "accountCount_plural": "{{count}} comptes",
     "percentOfTotal": "{{percent}} % du total",
-    "viewAccounts": "Voir les comptes de {{institution}}"
+    "viewAccounts": "Voir les comptes de {{institution}}",
+    "loading": "Chargement des établissements…",
+    "missingRates": "Certains soldes en devises n’ont pas pu être convertis et sont exclus.",
+    "loadError": "Impossible de charger les soldes par établissement."
   },
   "financialMap": {
     "title": "Carte financière",
     "empty": "Ajoutez des institutions ou des biens immobiliers localisés pour voir vos finances sur la carte.",
     "loadError": "Impossible de charger la carte financière.",
     "you": "Vous",
-    "toggleLegend": "Afficher/masquer la l\u00e9gende",
+    "toggleLegend": "Afficher/masquer la légende",
     "institutions": "Institutions",
     "realEstate": "Immobilier",
     "total": "Total",

@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface LiabilityTrancheRepository extends JpaRepository<LiabilityTranche, Long> {
 
+    List<LiabilityTranche> findByUserId(Long userId);
+
     /** Find all tranches of a liability for a specific user. */
     List<LiabilityTranche> findByLiabilityIdAndUserId(Long liabilityId, Long userId);
 

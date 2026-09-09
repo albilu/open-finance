@@ -1,7 +1,7 @@
 /**
  * RealEstatePage Component
  * Task 9.1.8: Create RealEstatePage component
- * 
+ *
  * Main page for managing real estate properties and physical assets with filters and pagination
  */
 import { useState, useMemo } from 'react';
@@ -31,18 +31,27 @@ import { RegexToggle } from '@/components/ui/RegexToggle';
 import { useAuthContext } from '@/context/AuthContext';
 import { useSecondaryConversion } from '@/hooks/useSecondaryConversion';
 import { sum, multiply, subtract } from '@/utils/money';
-import type { RealEstateProperty, PropertySearchFilters, RealEstatePropertyRequest } from '@/types/realEstate';
+import type {
+  RealEstateProperty,
+  PropertySearchFilters,
+  RealEstatePropertyRequest,
+} from '@/types/realEstate';
 import { PropertyType as PropertyTypeEnum } from '@/types/realEstate';
-
 
 export default function RealEstatePage() {
   const { t } = useTranslation('realEstate');
   useDocumentTitle(t('title'));
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const highlightId = searchParams.get('highlight') ? parseInt(searchParams.get('highlight')!) : null;
+  const highlightId = searchParams.get('highlight')
+    ? parseInt(searchParams.get('highlight')!)
+    : null;
   const { baseCurrency } = useAuthContext();
-  const { convert, secondaryCurrency: secCurrency, secondaryExchangeRate } = useSecondaryConversion(baseCurrency);
+  const {
+    convert,
+    secondaryCurrency: secCurrency,
+    secondaryExchangeRate,
+  } = useSecondaryConversion(baseCurrency);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isBuyWizardOpen, setIsBuyWizardOpen] = useState(false);
@@ -65,7 +74,12 @@ export default function RealEstatePage() {
 
   const { data: propertiesPage, isLoading, error } = usePropertiesSearch(apiFilters);
   // Fetch all active properties (unfiltered) for global summary totals
-  const { data: allPropertiesPage } = usePropertiesSearch({ page: 0, size: FETCH_ALL_PAGE_SIZE, sort: 'name,asc', isActive: true });
+  const { data: allPropertiesPage } = usePropertiesSearch({
+    page: 0,
+    size: FETCH_ALL_PAGE_SIZE,
+    sort: 'name,asc',
+    isActive: true,
+  });
   // Active accounts for the buy wizard's down-payment / to-account pickers
   const { data: accounts = [] } = useAccounts('active');
 
@@ -88,9 +102,17 @@ export default function RealEstatePage() {
    * returned `excludedCount` tracks how many properties were skipped
    * so the UI can display a warning.
    */
-  const computeSummary = (list: typeof properties) => {
+  const computeSummary = (input: typeof properties) => {
+    const list = input.filter(p => p.acquisitionType !== 'PLANNED');
     if (!list || list.length === 0) {
-      return { totalValue: 0, totalEquity: 0, totalMortgageDebt: 0, totalRentalIncome: 0, currency: baseCurrency, excludedCount: 0 };
+      return {
+        totalValue: 0,
+        totalEquity: 0,
+        totalMortgageDebt: 0,
+        totalRentalIncome: 0,
+        currency: baseCurrency,
+        excludedCount: 0,
+      };
     }
 
     let excludedCount = 0;
@@ -108,46 +130,29 @@ export default function RealEstatePage() {
     const totalValue = sum(
       list
         .filter(isIncludable)
-        .map((p) => (p.isConverted && p.valueInBaseCurrency != null ? p.valueInBaseCurrency : p.currentValue))
+        .map(p =>
+          p.isConverted && p.valueInBaseCurrency != null ? p.valueInBaseCurrency : p.currentValue
+        )
     );
 
     // Reset excludedCount — it was inflated once per metric above; track once.
     excludedCount = list.filter(p => !isIncludable(p)).length;
 
-    // Equity = currentValue - mortgageBalance; apply the same conversion logic.
-    const totalEquity = sum(
-      list
-        .filter(isIncludable)
-        .map((p) => {
-          const value = p.isConverted && p.valueInBaseCurrency != null
-            ? p.valueInBaseCurrency
-            : p.currentValue;
-          const debt = p.mortgageBalance || 0;
-          // Mortgage balance conversion: multiply by the same exchange rate used for value.
-          const rate = p.exchangeRate ?? 1;
-          const convertedDebt = p.isConverted ? multiply(debt, rate) : debt;
-          return Math.max(0, subtract(value, convertedDebt));
-        })
-    );
-
     const totalMortgageDebt = sum(
       list
         .filter(isIncludable)
-        .map((p) => {
-          const debt = p.mortgageBalance || 0;
-          const rate = p.exchangeRate ?? 1;
-          return p.isConverted ? multiply(debt, rate) : debt;
-        })
+        .map(p =>
+          p.isConverted ? multiply(p.allocatedDebt, p.exchangeRate ?? 1) : p.allocatedDebt
+        )
     );
+    const totalEquity = subtract(totalValue, totalMortgageDebt);
 
     const totalRentalIncome = sum(
-      list
-        .filter(isIncludable)
-        .map((p) => {
-          const income = p.rentalIncome || 0;
-          const rate = p.exchangeRate ?? 1;
-          return p.isConverted ? multiply(income, rate) : income;
-        })
+      list.filter(isIncludable).map(p => {
+        const income = p.rentalIncome || 0;
+        const rate = p.exchangeRate ?? 1;
+        return p.isConverted ? multiply(income, rate) : income;
+      })
     );
 
     return {
@@ -165,7 +170,10 @@ export default function RealEstatePage() {
   const summary = useMemo(() => computeSummary(allProperties), [allProperties, baseCurrency]);
   const filteredSummary = useMemo(() => computeSummary(properties), [properties, baseCurrency]);
 
-  const handleFiltersChange = (key: keyof PropertySearchFilters, value: string | number | boolean | undefined) => {
+  const handleFiltersChange = (
+    key: keyof PropertySearchFilters,
+    value: string | number | boolean | undefined
+  ) => {
     setSearchFilters(prev => ({
       ...prev,
       [key]: value || value === false ? value : undefined,
@@ -226,7 +234,7 @@ export default function RealEstatePage() {
   };
 
   const hasActiveFilters = Object.keys(searchFilters).some(
-    (key) =>
+    key =>
       searchFilters[key as keyof PropertySearchFilters] !== undefined &&
       key !== 'page' &&
       key !== 'size' &&
@@ -259,10 +267,7 @@ export default function RealEstatePage() {
     <div className="p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <PageHeader
-          title={t('title')}
-          description={t('description')}
-        />
+        <PageHeader title={t('title')} description={t('description')} />
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Button
             variant={showFilters ? 'primary' : 'outline'}
@@ -290,7 +295,9 @@ export default function RealEstatePage() {
       {showFilters && (
         <div className="mb-6 p-4 bg-surface rounded-lg border border-border">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-text-primary">{t('filters.searchAndFilter')}</h3>
+            <h3 className="text-sm font-medium text-text-primary">
+              {t('filters.searchAndFilter')}
+            </h3>
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="h-4 w-4 mr-1" />
@@ -302,7 +309,10 @@ export default function RealEstatePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Keyword Search */}
             <div>
-              <label htmlFor="keyword" className="block text-sm font-medium text-text-primary mb-1.5">
+              <label
+                htmlFor="keyword"
+                className="block text-sm font-medium text-text-primary mb-1.5"
+              >
                 {t('filters.search')}
               </label>
               <div className="relative">
@@ -312,12 +322,12 @@ export default function RealEstatePage() {
                   type="text"
                   placeholder={t('filters.searchPlaceholder')}
                   value={searchFilters.keyword || ''}
-                  onChange={(e) => handleFiltersChange('keyword', e.target.value)}
+                  onChange={e => handleFiltersChange('keyword', e.target.value)}
                   className="w-full h-10 pl-10 pr-10 rounded-lg bg-background border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
                 <RegexToggle
                   enabled={!!searchFilters.keywordRegex}
-                  onChange={(val) => handleFiltersChange('keywordRegex', val || undefined)}
+                  onChange={val => handleFiltersChange('keywordRegex', val || undefined)}
                   className="absolute right-2 top-1/2 -translate-y-1/2"
                 />
               </div>
@@ -325,12 +335,15 @@ export default function RealEstatePage() {
 
             {/* Currency Filter */}
             <div>
-              <label htmlFor="currency" className="block text-sm font-medium text-text-primary mb-1.5">
+              <label
+                htmlFor="currency"
+                className="block text-sm font-medium text-text-primary mb-1.5"
+              >
                 {t('filters.currency')}
               </label>
               <CurrencySelector
                 value={searchFilters.currency}
-                onValueChange={(val) => handleFiltersChange('currency', val)}
+                onValueChange={val => handleFiltersChange('currency', val)}
                 allowNone
                 className="w-full h-10"
               />
@@ -338,13 +351,16 @@ export default function RealEstatePage() {
 
             {/* Property Type Filter */}
             <div>
-              <label htmlFor="propertyType" className="block text-sm font-medium text-text-primary mb-1.5">
+              <label
+                htmlFor="propertyType"
+                className="block text-sm font-medium text-text-primary mb-1.5"
+              >
                 {t('filters.propertyType')}
               </label>
               <select
                 id="propertyType"
                 value={searchFilters.propertyType || ''}
-                onChange={(e) => handleFiltersChange('propertyType', e.target.value || undefined)}
+                onChange={e => handleFiltersChange('propertyType', e.target.value || undefined)}
                 className="w-full h-10 px-3 rounded-lg bg-background border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="">{t('filters.allTypes')}</option>
@@ -360,7 +376,10 @@ export default function RealEstatePage() {
             {/* Value Range */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor="valueMin" className="block text-sm font-medium text-text-primary mb-1.5">
+                <label
+                  htmlFor="valueMin"
+                  className="block text-sm font-medium text-text-primary mb-1.5"
+                >
                   {t('filters.minValue')}
                 </label>
                 <NumberInput
@@ -368,12 +387,17 @@ export default function RealEstatePage() {
                   min="0"
                   placeholder="0"
                   value={String(searchFilters.valueMin ?? '')}
-                  onChange={(val) => handleFiltersChange('valueMin', val ? parseFloat(val) : undefined)}
+                  onChange={val =>
+                    handleFiltersChange('valueMin', val ? parseFloat(val) : undefined)
+                  }
                   className="w-full h-10 px-3 rounded-lg bg-background border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
               <div>
-                <label htmlFor="valueMax" className="block text-sm font-medium text-text-primary mb-1.5">
+                <label
+                  htmlFor="valueMax"
+                  className="block text-sm font-medium text-text-primary mb-1.5"
+                >
                   {t('filters.maxValue')}
                 </label>
                 <NumberInput
@@ -381,7 +405,9 @@ export default function RealEstatePage() {
                   min="0"
                   placeholder="0"
                   value={String(searchFilters.valueMax ?? '')}
-                  onChange={(val) => handleFiltersChange('valueMax', val ? parseFloat(val) : undefined)}
+                  onChange={val =>
+                    handleFiltersChange('valueMax', val ? parseFloat(val) : undefined)
+                  }
                   className="w-full h-10 px-3 rounded-lg bg-background border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
@@ -395,10 +421,10 @@ export default function RealEstatePage() {
               <select
                 id="sort"
                 value={searchFilters.sort || 'name,asc'}
-                onChange={(e) => handleFiltersChange('sort', e.target.value)}
+                onChange={e => handleFiltersChange('sort', e.target.value)}
                 className="w-full h-10 px-3 rounded-lg bg-background border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
-                {sortOptions.map((option) => (
+                {sortOptions.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -422,7 +448,8 @@ export default function RealEstatePage() {
             />
             {hasActiveFilters && (
               <p className="text-xs text-text-tertiary mt-1">
-                {t('filtered')} <ConvertedAmount
+                {t('filtered')}{' '}
+                <ConvertedAmount
                   amount={filteredSummary.totalValue}
                   currency={filteredSummary.currency}
                   isConverted={false}
@@ -441,11 +468,16 @@ export default function RealEstatePage() {
             <ConvertedAmount
               amount={summary.totalEquity}
               currency={summary.currency}
-              className="text-2xl font-bold text-green-400"
+              className={
+                summary.totalEquity < 0
+                  ? 'text-2xl font-bold text-error'
+                  : 'text-2xl font-bold text-green-400'
+              }
             />
             {hasActiveFilters && (
               <p className="text-xs text-text-tertiary mt-1">
-                {t('filtered')} <ConvertedAmount
+                {t('filtered')}{' '}
+                <ConvertedAmount
                   amount={filteredSummary.totalEquity}
                   currency={filteredSummary.currency}
                   isConverted={false}
@@ -468,7 +500,8 @@ export default function RealEstatePage() {
             />
             {hasActiveFilters && (
               <p className="text-xs text-text-tertiary mt-1">
-                {t('filtered')} <ConvertedAmount
+                {t('filtered')}{' '}
+                <ConvertedAmount
                   amount={filteredSummary.totalMortgageDebt}
                   currency={filteredSummary.currency}
                   isConverted={false}
@@ -494,7 +527,8 @@ export default function RealEstatePage() {
             </div>
             {hasActiveFilters && (
               <p className="text-xs text-text-tertiary mt-1">
-                {t('filtered')} <ConvertedAmount
+                {t('filtered')}{' '}
+                <ConvertedAmount
                   amount={filteredSummary.totalRentalIncome}
                   currency={filteredSummary.currency}
                   isConverted={false}
@@ -517,7 +551,10 @@ export default function RealEstatePage() {
             {t('conversionWarning.property', { count: summary.excludedCount })}{' '}
             {t('conversionWarning.message', {
               baseCurrency,
-              verb: summary.excludedCount === 1 ? t('conversionWarning.verbSingular') : t('conversionWarning.verbPlural'),
+              verb:
+                summary.excludedCount === 1
+                  ? t('conversionWarning.verbSingular')
+                  : t('conversionWarning.verbPlural'),
             })}
           </span>
         </div>
@@ -549,7 +586,7 @@ export default function RealEstatePage() {
       {!isLoading && properties && properties.length > 0 && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            {properties.map((property) => (
+            {properties.map(property => (
               <PropertyCard
                 key={property.id}
                 property={property}
@@ -590,12 +627,12 @@ export default function RealEstatePage() {
               {editingProperty ? t('dialogs.editTitle') : t('dialogs.createTitle')}
             </DialogTitle>
           </DialogHeader>
-            <RealEstateForm
-              property={editingProperty || undefined}
-              onSubmit={handleFormSubmit}
-              onCancel={handleFormClose}
-              isLoading={createMutation.isPending || updateMutation.isPending}
-            />
+          <RealEstateForm
+            property={editingProperty || undefined}
+            onSubmit={handleFormSubmit}
+            onCancel={handleFormClose}
+            isLoading={createMutation.isPending || updateMutation.isPending}
+          />
         </DialogContent>
       </Dialog>
 
@@ -605,10 +642,7 @@ export default function RealEstatePage() {
           <DialogHeader>
             <DialogTitle>{t('wizard.buyProperty')}</DialogTitle>
           </DialogHeader>
-          <BuyPropertyWizard
-            accounts={accounts}
-            onClose={() => setIsBuyWizardOpen(false)}
-          />
+          <BuyPropertyWizard accounts={accounts} onClose={() => setIsBuyWizardOpen(false)} />
         </DialogContent>
       </Dialog>
     </div>

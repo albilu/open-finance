@@ -2,7 +2,6 @@ package org.openfinance.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,7 +25,6 @@ import org.openfinance.entity.Liability;
 import org.openfinance.entity.MovementType;
 import org.openfinance.entity.NetWorth;
 import org.openfinance.entity.Transaction;
-import org.openfinance.entity.TransactionSplit;
 import org.openfinance.entity.TransactionType;
 import org.openfinance.repository.AccountRepository;
 import org.openfinance.repository.AssetRepository;
@@ -36,7 +34,6 @@ import org.openfinance.repository.NetWorthRepository;
 import org.openfinance.repository.RealEstateRepository;
 import org.openfinance.repository.RealEstateValueHistoryRepository;
 import org.openfinance.repository.TransactionRepository;
-import org.openfinance.repository.TransactionSplitRepository;
 import org.openfinance.security.EncryptionService;
 import org.openfinance.testutil.DefaultCurrencyProviderMocks;
 
@@ -52,6 +49,7 @@ import org.openfinance.testutil.DefaultCurrencyProviderMocks;
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("NetWorthService backfill — disbursement-aware liability reversal")
 class NetWorthServiceBackfillTest {
+    @Mock private org.openfinance.repository.LiabilityTrancheRepository liabilityTrancheRepository;
 
     @Mock private AccountCurrencyService accountCurrencyService;
 
@@ -64,7 +62,6 @@ class NetWorthServiceBackfillTest {
     @Mock private EncryptionService encryptionService;
     @Mock private ExchangeRateService exchangeRateService;
     @Mock private TransactionRepository transactionRepository;
-    @Mock private TransactionSplitRepository transactionSplitRepository;
     @Mock private CurrencyRepository currencyRepository;
     @Mock private DefaultCurrencyProvider defaultCurrencyProvider;
     @Mock private NetWorthSnapshotWriter snapshotWriter;
@@ -125,9 +122,7 @@ class NetWorthServiceBackfillTest {
         when(accountRepository.findByUserIdAndIsActive(USER_ID, true)).thenReturn(List.of(account));
     }
 
-    /**
-     * Legacy repayment without an explicit movementType (pre-migration data) — still a repayment.
-     */
+    /** Persisted repayments carry their exact applied principal. */
     private Transaction repayment(Long id, BigDecimal amount, LocalDate date) {
         return Transaction.builder()
                 .id(id)
@@ -135,6 +130,8 @@ class NetWorthServiceBackfillTest {
                 .accountId(1L)
                 .type(TransactionType.EXPENSE)
                 .amount(amount)
+                .principalAmount(amount)
+                .movementType(MovementType.REPAYMENT)
                 .currency("USD")
                 .date(date)
                 .liabilityId(10L)
@@ -152,14 +149,6 @@ class NetWorthServiceBackfillTest {
                 .date(date)
                 .liabilityId(10L)
                 .movementType(MovementType.DISBURSEMENT)
-                .build();
-    }
-
-    private TransactionSplit split(long transactionId, Long categoryId, BigDecimal amount) {
-        return TransactionSplit.builder()
-                .transactionId(transactionId)
-                .categoryId(categoryId)
-                .amount(amount)
                 .build();
     }
 
@@ -184,17 +173,9 @@ class NetWorthServiceBackfillTest {
     @DisplayName(
             "repayment with categorized splits adds back only the principal leg (800, not 1200)")
     void backfillReversesOnlyPrincipalLegOfSplitRepayment() {
-        when(transactionSplitRepository.findByTransactionIdIn(anyList()))
-                .thenReturn(
-                        List.of(
-                                split(100L, 5L, new BigDecimal("300")),
-                                split(100L, 6L, new BigDecimal("100"))));
-
-        List<NetWorth> snapshots =
-                runBackfill(
-                        List.of(
-                                repayment(
-                                        100L, new BigDecimal("1200"), LocalDate.of(2026, 2, 15))));
+        Transaction payment = repayment(100L, new BigDecimal("1200"), LocalDate.of(2026, 2, 15));
+        payment.setPrincipalAmount(new BigDecimal("800"));
+        List<NetWorth> snapshots = runBackfill(List.of(payment));
 
         assertThat(snapshots).hasSize(3);
         NetWorth january = snapshots.get(0);
@@ -212,7 +193,6 @@ class NetWorthServiceBackfillTest {
     @Test
     @DisplayName("plain repayment without splits adds back the full amount")
     void backfillReversesFullPlainRepayment() {
-        when(transactionSplitRepository.findByTransactionIdIn(anyList())).thenReturn(List.of());
 
         List<NetWorth> snapshots =
                 runBackfill(
@@ -229,12 +209,9 @@ class NetWorthServiceBackfillTest {
     @Test
     @DisplayName("fully categorized (interest-only) repayment adds back zero")
     void backfillReversesNothingForInterestOnlyRepayment() {
-        when(transactionSplitRepository.findByTransactionIdIn(anyList()))
-                .thenReturn(List.of(split(100L, 7L, new BigDecimal("300"))));
-
-        List<NetWorth> snapshots =
-                runBackfill(
-                        List.of(repayment(100L, new BigDecimal("300"), LocalDate.of(2026, 2, 15))));
+        Transaction payment = repayment(100L, new BigDecimal("300"), LocalDate.of(2026, 2, 15));
+        payment.setPrincipalAmount(BigDecimal.ZERO);
+        List<NetWorth> snapshots = runBackfill(List.of(payment));
 
         assertThat(snapshots).hasSize(3);
         // 300 − 300 categorized = 0 principal leg → historical balance equals current balance.
@@ -251,7 +228,6 @@ class NetWorthServiceBackfillTest {
         stubAccountWithBalance(new BigDecimal("1000"));
         Liability staged = mortgage();
         staged.setCurrentBalance("50000");
-        when(transactionSplitRepository.findByTransactionIdIn(anyList())).thenReturn(List.of());
 
         List<NetWorth> snapshots =
                 runBackfill(
@@ -275,7 +251,6 @@ class NetWorthServiceBackfillTest {
         stubAccountWithBalance(new BigDecimal("1000"));
         Liability staged = mortgage();
         staged.setCurrentBalance("48800");
-        when(transactionSplitRepository.findByTransactionIdIn(anyList())).thenReturn(List.of());
 
         List<NetWorth> snapshots =
                 runBackfill(
@@ -296,7 +271,6 @@ class NetWorthServiceBackfillTest {
     @DisplayName("disbursement before target is kept; only the later repayment is reversed")
     void backfillKeepsPreTargetDisbursementAndReversesPostTargetRepayment() {
         // Drawdown 100k on 2025-12-01 (before all targets), plain repayment 1200 on 2026-02-15.
-        when(transactionSplitRepository.findByTransactionIdIn(anyList())).thenReturn(List.of());
 
         List<NetWorth> snapshots =
                 runBackfill(

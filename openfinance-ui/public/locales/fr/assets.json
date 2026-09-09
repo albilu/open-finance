@@ -110,14 +110,16 @@
     "nameTooLong": "Le nom est trop long",
     "quantityRequired": "La quantité doit être supérieure à 0",
     "quantityInvalid": "Saisissez une quantité valide (ex. 1,5)",
-    "purchasePriceRequired": "Le prix d'achat doit être supérieur à 0",
+    "purchasePriceRequired": "Le prix d’achat ne peut pas être négatif",
     "purchasePriceInvalid": "Saisissez un prix valide (ex. 1234,56)",
-    "currentPriceRequired": "Le prix actuel doit être supérieur à 0",
+    "currentPriceRequired": "La valeur actuelle ne peut pas être négative",
     "currentPriceInvalid": "Saisissez un prix valide (ex. 1234,56)",
     "currencyInvalid": "La devise doit être un code de 3 lettres",
     "purchaseDateRequired": "La date d'achat est requise",
     "notesTooLong": "Les notes sont trop longues",
-    "symbolTooLong": "Le symbole est trop long"
+    "symbolTooLong": "Le symbole est trop long",
+    "plannedValueZero": "Un actif prévu doit avoir une valeur actuelle nulle.",
+    "purchaseDateFuture": "Un actif acquis ne peut pas avoir une date d’acquisition future."
   },
   "form": {
     "assetType": "Type d'actif",
@@ -158,6 +160,12 @@
       "GOOD": "Bon",
       "FAIR": "Passable",
       "POOR": "Mauvais"
+    },
+    "acquisitionType": "Acquisition",
+    "acquisitionTypes": {
+      "PURCHASE": "Achat",
+      "GIFT": "Don / héritage",
+      "PLANNED": "Projet d’acquisition"
     }
   },
   "types": {
@@ -184,6 +192,36 @@
       "CAPITAL_IMPROVEMENT": "Capitalisé",
       "MAINTENANCE": "Entretien"
     },
-    "error": "Échec du chargement des coûts. Veuillez réessayer."
+    "error": "Échec du chargement des coûts. Veuillez réessayer.",
+    "acquisition": "Acquisition et autres paiements"
+  },
+  "financing": {
+    "title": "Financement et garanties",
+    "hint": "Le financement affecte une part de la dette restante. Une garantie indique uniquement une sûreté. Les liens ne déplacent pas d’argent et ne modifient pas la valeur.",
+    "loan": "Gérer une dette",
+    "allLoans": "Toutes les dettes liées",
+    "asset": "Actif",
+    "relationship": "Relation",
+    "FINANCING": "Financement",
+    "COLLATERAL": "Garantie",
+    "share": "Part de dette (%)",
+    "remove": "Retirer",
+    "allocated": "Affecté : {{percentage}} % de cette dette",
+    "add": "Ajouter un actif",
+    "save": "Enregistrer les liens",
+    "cancel": "Annuler",
+    "empty": "Aucun lien explicite avec un actif.",
+    "edit": "Modifier les liens",
+    "error": "Impossible de charger ou d’enregistrer les liens. Vérifiez les doublons et les parts supérieures à 100 %.",
+    "loading": "Chargement des liens…",
+    "value": "Valeur enregistrée",
+    "debt": "Dette affectée",
+    "equity": "Valeur nette"
+  },
+  "movementPaging": {
+    "label": "Pages des mouvements",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "page": "Page {{page}} sur {{total}}"
   }
 }

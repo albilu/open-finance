@@ -106,7 +106,23 @@ const transactionSchema = (tValidation: (key: string) => string) =>
       liabilityId: optionalNumber,
       // Manual movement entry: improvement/maintenance classification with exactly
       // one target (property or physical asset) — mirrors the backend @AssertTrue.
-      movementType: z.enum(['CAPITAL_IMPROVEMENT', 'MAINTENANCE']).optional(),
+      movementType: z
+        .enum([
+          'DISBURSEMENT',
+          'REPAYMENT',
+          'INTEREST',
+          'INSURANCE',
+          'FEE',
+          'CAPITAL_IMPROVEMENT',
+          'MAINTENANCE',
+          'REVALUATION',
+        ])
+        .optional(),
+      trancheId: optionalNumber,
+      principalAmount: z.preprocess(
+        v => (v === '' || v == null ? undefined : Number(v)),
+        z.number().nonnegative().optional()
+      ),
       realEstateId: optionalNumber,
       assetId: optionalNumber,
     })
@@ -255,7 +271,7 @@ interface RepaymentAutoSplit {
  * parent-level category (no splits[]).
  */
 function buildRepaymentAutoSplit(
-  preview: Pick<RepaymentPreview, 'interest' | 'insurance'>,
+  preview: Pick<RepaymentPreview, 'interest' | 'insurance' | 'principal'>,
   submitAmount: number,
   liabToAccount: number,
   categories: Category[],
@@ -263,10 +279,7 @@ function buildRepaymentAutoSplit(
 ): RepaymentAutoSplit {
   const interestLeg = roundToDecimals(multiply(preview.interest ?? 0, liabToAccount), decimals);
   const insuranceLeg = roundToDecimals(multiply(preview.insurance ?? 0, liabToAccount), decimals);
-  const principalLeg = roundToDecimals(
-    Math.max(submitAmount - interestLeg - insuranceLeg, 0),
-    decimals
-  );
+  const principalLeg = roundToDecimals(multiply(preview.principal ?? 0, liabToAccount), decimals);
   const interestCategoryId = findRepaymentCategoryId(categories, 'category.interest.expense', [
     'interest',
     'intérêts',
@@ -282,10 +295,10 @@ function buildRepaymentAutoSplit(
     principalRow = { amount: principalLeg, categoryId: undefined, description: undefined };
     rows.push(principalRow);
   }
-  if (interestLeg > 0 && interestCategoryId != null) {
+  if (interestLeg > 0) {
     rows.push({ amount: interestLeg, categoryId: interestCategoryId, description: undefined });
   }
-  if (insuranceLeg > 0 && insuranceCategoryId != null) {
+  if (insuranceLeg > 0) {
     rows.push({
       amount: insuranceLeg,
       categoryId: insuranceCategoryId,
@@ -449,6 +462,8 @@ function buildTransactionRequest(ctx: SubmitContext): TransactionRequest {
     autoSplitCategoryId = autoSplit.categoryId;
   }
 
+  const carriesLoan =
+    data.type === 'EXPENSE' || (data.type === 'INCOME' && data.movementType === 'DISBURSEMENT');
   return {
     accountId: data.accountId,
     toAccountId: data.toAccountId,
@@ -472,11 +487,25 @@ function buildTransactionRequest(ctx: SubmitContext): TransactionRequest {
     tags: tags.length > 0 ? tags : undefined,
     paymentMethod: data.paymentMethod || undefined,
     // Requirement 3.1: Only include liabilityId for EXPENSE transactions
-    liabilityId: data.type === 'EXPENSE' ? data.liabilityId : undefined,
+    liabilityId: carriesLoan ? data.liabilityId : undefined,
+    trancheId: carriesLoan && data.liabilityId ? data.trancheId : undefined,
+    principalAmount:
+      data.liabilityId && data.type === 'EXPENSE'
+        ? inSplit
+          ? undefined
+          : applyRepaymentSplit && repaymentPreview
+            ? repaymentPreview.principal
+            : data.principalAmount
+        : undefined,
     // Manual movement entry: only include the instrument links for EXPENSE
     realEstateId: data.type === 'EXPENSE' ? data.realEstateId : undefined,
     assetId: data.type === 'EXPENSE' ? data.assetId : undefined,
-    movementType: data.type === 'EXPENSE' ? data.movementType : undefined,
+    movementType:
+      carriesLoan && data.liabilityId
+        ? (data.movementType ?? (data.type === 'INCOME' ? 'DISBURSEMENT' : 'REPAYMENT'))
+        : data.type === 'EXPENSE'
+          ? data.movementType
+          : undefined,
     // REQ-SPL-2.1, REQ-SPL-2.2: include splits when split mode is active
     splits: finalSplits,
   };
@@ -575,14 +604,9 @@ export function TransactionForm({
           tags: transaction.tags || [],
           paymentMethod: transaction.paymentMethod || undefined,
           liabilityId: transaction.liabilityId,
-          // The form only manages improvement types; system-managed movement types
-          // (DISBURSEMENT / REPAYMENT / …) are preserved server-side via the
-          // mapper's NullValuePropertyMappingStrategy.IGNORE on update.
-          movementType:
-            transaction.movementType === 'CAPITAL_IMPROVEMENT' ||
-            transaction.movementType === 'MAINTENANCE'
-              ? transaction.movementType
-              : undefined,
+          movementType: transaction.movementType,
+          trancheId: transaction.trancheId,
+          principalAmount: transaction.principalAmount,
           realEstateId: transaction.realEstateId,
           assetId: transaction.assetId,
         }
@@ -670,14 +694,14 @@ export function TransactionForm({
           : undefined
         : debouncedAmount;
 
-  const { data: repaymentPreview } = useRepaymentPreview(
+  const { data: repaymentPreview, error: repaymentPreviewError } = useRepaymentPreview(
     liabilityPreviewTotal != null && liabilityPreviewTotal > 0 ? liabilityIdValue : undefined,
     liabilityPreviewTotal ?? 0,
     watch('date')
   );
 
   // Auto-split toggle (Task 9): on by default — the submit includes the preview legs as splits.
-  const [applyRepaymentSplit, setApplyRepaymentSplit] = useState(true);
+  const [applyRepaymentSplit, setApplyRepaymentSplit] = useState(!transaction);
 
   // TRANSFER always keeps its current behavior (amount in the source account currency).
   const needsConversion =
@@ -793,6 +817,18 @@ export function TransactionForm({
       return;
     }
 
+    if (
+      data.liabilityId &&
+      data.type === 'EXPENSE' &&
+      applyRepaymentSplit &&
+      !splitMode &&
+      (!repaymentPreview ||
+        repaymentPreviewError ||
+        repaymentPreview.principal > (selectedLiability?.currentBalance ?? Infinity))
+    ) {
+      setError('principalAmount', { type: 'manual', message: t('form.repaymentUnavailable') });
+      return;
+    }
     onSubmit(
       buildTransactionRequest({
         data,
@@ -1198,7 +1234,12 @@ export function TransactionForm({
           message (backend rejects the combination too). */}
       {selectedType === 'EXPENSE' && (
         <MovementSection
-          movementType={watch('movementType')}
+          movementType={
+            watch('movementType') === 'CAPITAL_IMPROVEMENT' ||
+            watch('movementType') === 'MAINTENANCE'
+              ? (watch('movementType') as 'CAPITAL_IMPROVEMENT' | 'MAINTENANCE')
+              : undefined
+          }
           realEstateId={watch('realEstateId')}
           assetId={watch('assetId')}
           onMovementTypeChange={value => {
@@ -1223,58 +1264,76 @@ export function TransactionForm({
            expressed in the LIABILITY currency (FX totals converted client-side since Task 9).
            When the Apply split toggle is on (default) the submit includes the preview legs as a
            splits[] payload: principal uncategorized, interest/insurance categorized. */}
-      {selectedType === 'EXPENSE' &&
-        liabilityIdValue &&
-        repaymentPreview &&
-        liabilityPreviewTotal != null && (
-          <div
-            data-testid="repayment-preview"
-            className="rounded-lg border border-border bg-surface p-3 space-y-1.5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-text-primary">
-                {t('form.repaymentPreviewTitle')}
-                {liabilityCurrency ? ` (${liabilityCurrency})` : ''}
-              </p>
-              <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={applyRepaymentSplit}
-                  onChange={e => setApplyRepaymentSplit(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-border bg-surface text-primary focus:ring-2 focus:ring-primary"
-                  disabled={isLoading}
-                />
-                {t('form.repaymentApplySplit')}
-              </label>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-text-secondary">
-              <dt>{t('form.repaymentPreviewPrincipal')}</dt>
-              <dd className="text-right text-text-primary">
-                {(repaymentPreview.principal ?? 0).toFixed(2)}
-              </dd>
-              <dt>{t('form.repaymentPreviewInterest')}</dt>
-              <dd className="text-right text-text-primary">
-                {(repaymentPreview.interest ?? 0).toFixed(2)}
-              </dd>
-              <dt>{t('form.repaymentPreviewInsurance')}</dt>
-              <dd className="text-right text-text-primary">
-                {(repaymentPreview.insurance ?? 0).toFixed(2)}
-              </dd>
-            </dl>
-            {/* Overpay warning: the preview endpoint floors the final payment, so a raw
-                principal leg above the remaining balance means the submitted amount will
-                be adjusted down to pay off the liability exactly. */}
-            {selectedLiability?.currentBalance != null &&
-              (repaymentPreview.principal ?? 0) > selectedLiability.currentBalance && (
-                <p
-                  data-testid="final-payment-adjusted"
-                  className="text-xs text-warning border-t border-warning/30 pt-1.5"
-                >
-                  {t('form.finalPaymentAdjusted')}
-                </p>
-              )}
+      {selectedType === 'EXPENSE' && liabilityIdValue && liabilityPreviewTotal != null && (
+        <div
+          data-testid="repayment-preview"
+          className="rounded-lg border border-border bg-surface p-3 space-y-1.5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-text-primary">
+              {t('form.repaymentPreviewTitle')}
+              {liabilityCurrency ? ` (${liabilityCurrency})` : ''}
+            </p>
+            <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                checked={applyRepaymentSplit}
+                onChange={e => setApplyRepaymentSplit(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border bg-surface text-primary focus:ring-2 focus:ring-primary"
+                disabled={isLoading}
+              />
+              {t('form.repaymentApplySplit')}
+            </label>
           </div>
-        )}
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-text-secondary">
+            <dt>{t('form.repaymentPreviewPrincipal')}</dt>
+            <dd className="text-right text-text-primary">
+              {(repaymentPreview?.principal ?? 0).toFixed(2)}
+            </dd>
+            <dt>{t('form.repaymentPreviewInterest')}</dt>
+            <dd className="text-right text-text-primary">
+              {(repaymentPreview?.interest ?? 0).toFixed(2)}
+            </dd>
+            <dt>{t('form.repaymentPreviewInsurance')}</dt>
+            <dd className="text-right text-text-primary">
+              {(repaymentPreview?.insurance ?? 0).toFixed(2)}
+            </dd>
+          </dl>
+          {repaymentPreview &&
+            selectedLiability &&
+            repaymentPreview.principal > selectedLiability.currentBalance && (
+              <p role="alert" className="text-error">
+                {t('form.repaymentExceedsDebt')}
+              </p>
+            )}
+          {repaymentPreviewError && applyRepaymentSplit && (
+            <p role="alert" className="text-sm text-error">
+              {t('form.repaymentUnavailable')}
+            </p>
+          )}
+          {!applyRepaymentSplit && !splitMode && (
+            <div>
+              <label htmlFor="principalAmount">
+                {t('form.manualPrincipal', { currency: liabilityCurrency })}
+              </label>
+              <Input
+                id="principalAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                {...register('principalAmount')}
+                error={errors.principalAmount?.message}
+              />
+              <p className="text-xs text-text-secondary">{t('form.manualPrincipalHint')}</p>
+            </div>
+          )}
+          {errors.principalAmount && applyRepaymentSplit && (
+            <p role="alert" className="text-sm text-error">
+              {errors.principalAmount.message}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Row 5: Description and Tags */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

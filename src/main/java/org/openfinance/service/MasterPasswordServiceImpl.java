@@ -58,22 +58,7 @@ public class MasterPasswordServiceImpl implements MasterPasswordService {
                         user.getId());
         if (!user.getMasterPasswordSalt().equals(currentSalt))
             throw new BadCredentialsException("Master password changed; sign in again");
-        if (user.getMasterPasswordVerifier() != null) {
-            verifySentinel(user.getMasterPasswordVerifier(), key);
-            userData.protectLegacyPayloads(user.getId(), key);
-            return;
-        }
-        try {
-            userData.verifyLegacyKey(user.getId(), key);
-        } catch (RuntimeException ex) {
-            throw new BadCredentialsException("Invalid master password");
-        }
-        jdbc.update(
-                "UPDATE users SET master_password_verifier = ? WHERE id = ? AND master_password_verifier IS NULL AND master_password_salt = ?",
-                encryption.encrypt(VERIFIER, key),
-                user.getId(),
-                user.getMasterPasswordSalt());
-        userData.protectLegacyPayloads(user.getId(), key);
+        verifySentinel(user.getMasterPasswordVerifier(), key);
     }
 
     /** The write lock remains held through commit and session replacement. */

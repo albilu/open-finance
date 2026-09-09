@@ -28,7 +28,7 @@ public interface RealEstateValueHistoryRepository
             "SELECT h FROM RealEstateValueHistory h "
                     + "WHERE h.propertyId = :propertyId "
                     + "AND h.effectiveDate <= :targetDate "
-                    + "ORDER BY h.effectiveDate DESC")
+                    + "ORDER BY h.effectiveDate DESC, h.id DESC")
     List<RealEstateValueHistory> findHistoryUpToDate(
             @Param("propertyId") Long propertyId, @Param("targetDate") LocalDate targetDate);
 

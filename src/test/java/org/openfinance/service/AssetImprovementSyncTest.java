@@ -102,6 +102,7 @@ class AssetImprovementSyncTest {
         AssetService assetService =
                 new AssetService(
                         assetRepository,
+                        transactionRepository,
                         accountRepository,
                         currencyRepository,
                         assetMapper,

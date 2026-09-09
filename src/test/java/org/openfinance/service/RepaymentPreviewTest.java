@@ -133,7 +133,7 @@ class RepaymentPreviewTest {
 
         RepaymentPreviewResponse preview =
                 liabilityService.getRepaymentPreview(
-                        USER_ID, LIABILITY_ID, new BigDecimal("1200.00"), DATE);
+                        USER_ID, LIABILITY_ID, new BigDecimal("239.58"), DATE);
 
         assertThat(preview.getInterestOnly()).isTrue();
         assertThat(preview.getPrincipal()).isEqualByComparingTo("0.00");
@@ -150,7 +150,7 @@ class RepaymentPreviewTest {
 
         RepaymentPreviewResponse preview =
                 liabilityService.getRepaymentPreview(
-                        USER_ID, LIABILITY_ID, new BigDecimal("1200.00"), DATE);
+                        USER_ID, LIABILITY_ID, new BigDecimal("239.58"), DATE);
 
         assertThat(preview.getInterestOnly()).isTrue();
         assertThat(preview.getPrincipal()).isEqualByComparingTo("0.00");
@@ -242,7 +242,7 @@ class RepaymentPreviewTest {
     @DisplayName("FX preview: an input-currency total is converted to the liability currency first")
     void fxPreviewConvertsInputCurrencyTotalFirst() {
         givenLiability(liability("50000.00", "5.25", "50000.00", null), List.of());
-        when(exchangeRateService.convert(new BigDecimal("1200.00"), "EUR", "USD"))
+        when(exchangeRateService.convert(new BigDecimal("1200.00"), "EUR", "USD", DATE))
                 .thenReturn(new BigDecimal("1310.04"));
 
         RepaymentPreviewResponse preview =
@@ -274,7 +274,7 @@ class RepaymentPreviewTest {
     void fxPreviewMissingRateThrowsDomainException() {
         when(liabilityRepository.findByIdAndUserId(LIABILITY_ID, USER_ID))
                 .thenReturn(Optional.of(liability("50000.00", "5.25", "50000.00", null)));
-        when(exchangeRateService.convert(new BigDecimal("1200.00"), "EUR", "USD"))
+        when(exchangeRateService.convert(new BigDecimal("1200.00"), "EUR", "USD", DATE))
                 .thenThrow(
                         new IllegalStateException(
                                 "No exchange rate available for EUR → USD on latest"));

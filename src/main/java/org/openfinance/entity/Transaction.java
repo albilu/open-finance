@@ -365,6 +365,11 @@ public class Transaction {
     @Column(name = "movement_type", length = 30)
     private MovementType movementType;
 
+    /** Exact booked principal in the liability currency; null for movements without a liability. */
+    @Convert(converter = EncryptedBigDecimalConverter.class)
+    @Column(name = "principal_amount", columnDefinition = "TEXT")
+    private BigDecimal principalAmount;
+
     /**
      * External reference ID from the original import file (nullable).
      *

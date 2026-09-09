@@ -22,7 +22,7 @@
     "name": "Nom du passif",
     "namePlaceholder": "ex. Prêt immobilier, Crédit auto",
     "type": "Type de passif",
-    "principal": "Capital initial",
+    "principal": "Capital initial ou approuvé",
     "currentBalance": "Solde actuel",
     "currentBalanceHint": "À modifier directement uniquement en l'absence de mouvements liés ; les passifs liés se synchronisent automatiquement.",
     "currency": "Devise",
@@ -66,11 +66,17 @@
       "feesNonNegative": "Les frais ne peuvent pas être négatifs",
       "feesInvalid": "Saisissez un montant valide (ex. 1234,56)",
       "endDateAfterStart": "La date de fin doit être postérieure à la date de début"
-    }
+    },
+    "balanceLocked": "Le solde provient des mouvements enregistrés. Utilisez un remboursement, un déblocage ou une annulation pour le modifier.",
+    "creditLimit": "Plafond de crédit (facultatif)",
+    "previouslyFunded": "Ce prêt a déjà été débloqué et est entièrement remboursé",
+    "accountSource": "Dette déjà suivie dans un compte",
+    "separateBalance": "Suivre le solde avec cette dette",
+    "accountSourceHint": "Sélectionnez le compte de carte correspondant pour compter cette dette une seule fois. Enregistrez les remboursements par virement vers ce compte."
   },
   "summary": {
     "totalLiabilities": "Total des passifs",
-    "originalPrincipal": "Capital initial",
+    "originalPrincipal": "Capital initial ou approuvé",
     "avgInterestRate": "Taux d'intérêt moyen",
     "monthlyPayments": "Paiements mensuels",
     "withInterest_one": "{{count}} avec intérêts",
@@ -98,7 +104,7 @@
     "showingCount_one": "Affichage de {{count}} passif",
     "showingCount_other": "Affichage de {{count}} passifs",
     "currentBalance": "Solde actuel",
-    "originalPrincipal": "Capital initial",
+    "originalPrincipal": "Capital initial ou approuvé",
     "interestRate": "Taux d'intérêt",
     "interestInsurance": "Intérêts / Assurance",
     "monthlyPayment": "Mensualité",
@@ -217,7 +223,12 @@
       "cancel": "Annuler",
       "submit": "Confirmer le déblocage",
       "error": "Le déblocage a échoué. Veuillez réessayer."
-    }
+    },
+    "reverse": "Annuler le déblocage",
+    "reversedOn": "Annulé le {{date}}",
+    "reverseDate": "Date d’annulation",
+    "reverseHint": "Cette opération retire le déblocage de la dette restante. Son historique et les valorisations ultérieures indépendantes sont conservés.",
+    "reverseError": "Impossible d’annuler ce déblocage. Vérifiez la date et les remboursements de capital."
   },
   "movementTypes": {
     "DISBURSEMENT": "Déblocage",
@@ -232,5 +243,18 @@
   "schedule": {
     "interestOnlyPhase": "Intérêts seuls jusqu'au {{date}} : capital 0",
     "interestOnlyPhaseOpen": "Phase d'intérêts seuls active : capital 0"
+  },
+  "fundingStatus": {
+    "UNDRAWN": "Non débloqué",
+    "ACTIVE": "En cours",
+    "PAID": "Remboursé",
+    "NO_BALANCE": "Aucun solde dû"
+  },
+  "payments": {
+    "openingPrincipal": "Dette initiale"
+  },
+  "funding": {
+    "funded": "Capital débloqué",
+    "repaid": "Capital remboursé"
   }
 }

@@ -1,6 +1,6 @@
 /**
  * Real Estate TypeScript Type Definitions
- * 
+ *
  * Matches backend DTOs and entities for Real Estate management
  */
 import { DEFAULT_CURRENCY, formatCurrency } from '@/utils/currency';
@@ -16,22 +16,29 @@ export const PropertyType = {
   LAND: 'LAND',
   MIXED_USE: 'MIXED_USE',
   INDUSTRIAL: 'INDUSTRIAL',
-  OTHER: 'OTHER'
+  OTHER: 'OTHER',
 } as const;
 
-export type PropertyType = typeof PropertyType[keyof typeof PropertyType];
+export type PropertyType = (typeof PropertyType)[keyof typeof PropertyType];
 
 /**
  * Real Estate Property Interface
  * Matches: org.openfinance.dto.RealEstatePropertyResponse
  */
 export interface RealEstateProperty {
+  assetId?: number;
+  allocatedDebt: number;
+  mortgageOriginalBalance?: number;
+  mortgageCurrency?: string;
+  mortgageExchangeRate?: number;
+
   id: number;
   userId: number;
   name: string;
   address: string;
   propertyType: PropertyType;
   purchasePrice: number;
+  acquisitionType?: 'PURCHASE' | 'GIFT' | 'PLANNED';
   purchaseDate: string; // ISO date format
   currentValue: number;
   currency: string; // ISO 4217 currency code
@@ -49,7 +56,7 @@ export interface RealEstateProperty {
 
   // Calculated fields
   appreciation?: number;
-  appreciationPercentage?: number;
+  appreciationPercentage?: number | null;
   equity?: number;
   rentalYield?: number;
 
@@ -74,6 +81,7 @@ export interface RealEstatePropertyRequest {
   propertyType: PropertyType;
   /** Exact decimal string as entered by the user — never a JS number. */
   purchasePrice: string;
+  acquisitionType?: 'PURCHASE' | 'GIFT' | 'PLANNED';
   purchaseDate: string; // ISO date format (YYYY-MM-DD)
   /** Exact decimal string as entered by the user — never a JS number. */
   currentValue: string;
@@ -97,8 +105,8 @@ export interface PropertyEquityResponse {
   currentValue: number;
   mortgageBalance: number;
   equity: number;
-  equityPercentage: number;
-  loanToValueRatio: number;
+  equityPercentage: number | null;
+  loanToValueRatio: number | null;
   mortgageId?: number | null;
   hasMortgage: boolean;
   currency: string;
@@ -112,16 +120,17 @@ export interface PropertyROIResponse {
   propertyId: number;
   propertyName: string;
   purchasePrice: number;
+  acquisitionType?: 'PURCHASE' | 'GIFT' | 'PLANNED';
   currentValue: number;
   purchaseDate: string; // ISO date
   yearsOwned: number;
   appreciation: number;
-  appreciationPercentage: number;
+  appreciationPercentage: number | null;
   annualizedReturn: number;
   totalRentalIncome: number | null;
   monthlyRentalIncome: number | null;
   rentalYield: number | null;
-  totalROI: number;
+  totalROI: number | null;
   isRentalProperty: boolean;
   currency: string;
 }
@@ -203,7 +212,7 @@ export function getPropertyTypeIcon(type: PropertyType): string {
     [PropertyType.LAND]: 'Mountain',
     [PropertyType.MIXED_USE]: 'Building',
     [PropertyType.INDUSTRIAL]: 'Factory',
-    [PropertyType.OTHER]: 'MapPin'
+    [PropertyType.OTHER]: 'MapPin',
   };
   return icons[type] || 'MapPin';
 }
@@ -218,7 +227,7 @@ export function getPropertyTypeBadgeColor(type: PropertyType): string {
     [PropertyType.LAND]: 'bg-green-500/10 text-green-500 border-green-500/20',
     [PropertyType.MIXED_USE]: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
     [PropertyType.INDUSTRIAL]: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
-    [PropertyType.OTHER]: 'bg-surface-elevated text-text-muted border-border'
+    [PropertyType.OTHER]: 'bg-surface-elevated text-text-muted border-border',
   };
   return colors[type] || 'bg-surface-elevated text-text-muted border-border';
 }

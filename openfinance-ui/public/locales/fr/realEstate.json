@@ -65,7 +65,7 @@
   "summary": {
     "totalPortfolioValue": "Valeur totale du portefeuille",
     "totalEquity": "Capitaux propres totaux",
-    "totalMortgageDebt": "Dette hypothécaire totale",
+    "totalMortgageDebt": "Dette de financement totale",
     "monthlyRentalIncome": "Revenus locatifs mensuels"
   },
   "filtered": "Filtré :",
@@ -131,7 +131,15 @@
       "latitudeRange": "La latitude doit être entre -90 et 90",
       "longitudeRange": "La longitude doit être entre -180 et 180",
       "purchaseDateFuture": "La date d'achat ne peut pas être dans le futur"
-    }
+    },
+    "acquisitionType": "Acquisition",
+    "acquisitionTypes": {
+      "PURCHASE": "Achat",
+      "GIFT": "Don / héritage",
+      "PLANNED": "Projet d’acquisition"
+    },
+    "acquisitionHint": "Un projet a une valeur détenue nulle. Renseignez le prix et la date réels lors de l’achat ; un don peut avoir un coût nul.",
+    "plannedValue": "Un projet doit avoir une valeur détenue nulle."
   },
   "card": {
     "purchased": "Acquis le",
@@ -163,7 +171,7 @@
     "equityVsDebt": "Capitaux propres vs Dette",
     "equityPercent": "{{percentage}}% de capitaux propres",
     "percentOfValue": "{{percentage}}% de la valeur du bien",
-    "noMortgage": "Ce bien n'a pas d'hypothèque liée. La totalité des capitaux propres vous appartient.",
+    "noMortgage": "Aucune dette de financement n’est affectée à ce bien.",
     "mortgageId": "ID d'hypothèque : {{id}}",
     "loadEquityError": "Échec du chargement des données de capitaux propres.",
     "totalROI": "Rendement total du placement",
@@ -183,7 +191,7 @@
     "location": "Emplacement",
     "latitude": "Latitude",
     "longitude": "Longitude",
-    "mortgageBalance": "Solde hypothécaire",
+    "mortgageBalance": "Dette de financement affectée",
     "totalEquity": "Capitaux propres totaux",
     "gallery": {
       "empty": "Aucune image pour le moment. Téléversez des images dans l’onglet Pièces jointes.",
@@ -614,9 +622,15 @@
       "DISBURSEMENT": "Déblocage",
       "REPAYMENT": "Remboursement",
       "CAPITAL_IMPROVEMENT": "Capitalisé",
-      "MAINTENANCE": "Entretien"
+      "MAINTENANCE": "Entretien",
+      "INTEREST": "Intérêts",
+      "INSURANCE": "Assurance",
+      "FEE": "Frais"
     },
-    "error": "Échec du chargement des mouvements. Veuillez réessayer."
+    "error": "Échec du chargement des mouvements. Veuillez réessayer.",
+    "acquisition": "Acquisition et autres paiements",
+    "directFunding": "Déblocages de financement",
+    "reversed": "annulé le {{date}}"
   },
   "wizard": {
     "back": "Retour",
@@ -633,8 +647,8 @@
       "existing": "Prêt existant",
       "none": "Comptant (sans prêt)"
     },
-"fundingLocked": "Financement verrouillé : le bien a déjà été créé avec son prêt associé. Réessayez l'achat ou annulez.",
-        "fundingSource": "Source de financement",
+    "fundingLocked": "Financement verrouillé : le bien a déjà été créé avec son prêt associé. Réessayez l'achat ou annulez.",
+    "fundingSource": "Source de financement",
     "interestRate": "Taux d'intérêt (%)",
     "loanAmount": "Montant du prêt",
     "disbursedAmount": "Montant à débloquer maintenant",
@@ -650,5 +664,11 @@
       "funding": "Financement",
       "review": "Récapitulatif"
     }
+  },
+  "movementPaging": {
+    "label": "Pages des mouvements",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "page": "Page {{page}} sur {{total}}"
   }
 }

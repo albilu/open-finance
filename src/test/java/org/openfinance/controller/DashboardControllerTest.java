@@ -321,13 +321,23 @@ class DashboardControllerTest {
                     new BigDecimal("5"),
                     new BigDecimal("1000"),
                     new BigDecimal("1020"));
-            createAsset(
-                    "Real Estate",
-                    AssetType.REAL_ESTATE,
-                    "REIT",
-                    new BigDecimal("10"),
-                    new BigDecimal("500"),
-                    new BigDecimal("550"));
+            RealEstatePropertyRequest property =
+                    RealEstatePropertyRequest.builder()
+                            .name("Real Estate")
+                            .address("1 Test Street")
+                            .propertyType(PropertyType.RESIDENTIAL)
+                            .currency("USD")
+                            .purchasePrice(new BigDecimal("5000"))
+                            .currentValue(new BigDecimal("5500"))
+                            .purchaseDate(LocalDate.now())
+                            .build();
+            mockMvc.perform(
+                            post("/api/v1/real-estate")
+                                    .header("Authorization", "Bearer " + token)
+                                    .header("X-Encryption-Session", encKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(objectMapper.writeValueAsBytes(property)))
+                    .andExpect(status().isCreated());
 
             mockMvc.perform(
                             get("/api/v1/dashboard/asset-allocation")

@@ -345,6 +345,16 @@ public interface TransactionRepository
     @Query("SELECT t FROM Transaction t WHERE t.accountId = :accountId AND t.isDeleted = false")
     List<Transaction> findActiveByAccountId(@Param("accountId") Long accountId);
 
+    @Query(
+            "SELECT t FROM Transaction t WHERE t.assetId = :assetId AND t.userId = :userId AND t.isDeleted = false")
+    List<Transaction> findByAssetIdAndUserId(
+            @Param("assetId") Long assetId, @Param("userId") Long userId);
+
+    @Query(
+            "SELECT t FROM Transaction t WHERE t.realEstateId = :realEstateId AND t.userId = :userId AND t.isDeleted = false")
+    List<Transaction> findByRealEstateIdAndUserId(
+            @Param("realEstateId") Long realEstateId, @Param("userId") Long userId);
+
     /**
      * Finds active transactions linked to a specific liability for a user.
      *

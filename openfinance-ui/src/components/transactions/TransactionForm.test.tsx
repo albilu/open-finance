@@ -1000,8 +1000,8 @@ describe('TransactionForm', () => {
       await waitFor(() => {
         expect(screen.getByTestId('repayment-preview')).toBeInTheDocument();
       });
-      expect(screen.getByTestId('final-payment-adjusted')).toBeInTheDocument();
-      expect(screen.getByText(/exceeds the remaining balance/i)).toBeInTheDocument();
+      expect(screen.getByText(/Principal exceeds the outstanding debt/i)).toBeInTheDocument();
+      expect(screen.getByText(/Principal exceeds the outstanding debt/i)).toBeInTheDocument();
     });
 
     it('shows no overpay warning when the principal fits within the balance', async () => {

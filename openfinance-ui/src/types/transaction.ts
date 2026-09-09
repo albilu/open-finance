@@ -118,6 +118,8 @@ export interface Transaction {
   liabilityId?: number;
   // Classification of the financial movement (disbursement, repayment, costs…)
   movementType?: MovementType;
+  principalAmount?: number;
+  principalAllocations?: { trancheId: number | null; amount: number }[];
   // Optional ID of the liability tranche this movement is allocated to
   trancheId?: number;
   // Optional ID of the real estate property this movement is linked to
@@ -187,6 +189,7 @@ export interface TransactionRequest {
   realEstateId?: number;
   assetId?: number;
   movementType?: MovementType;
+  principalAmount?: number;
   // Original (pre-conversion) values, submitted together when a conversion was applied.
   originalAmount?: number;
   originalCurrency?: string;

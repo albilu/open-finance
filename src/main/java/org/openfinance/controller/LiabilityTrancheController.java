@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -133,5 +134,31 @@ public class LiabilityTrancheController {
         log.info("Tranche updated successfully: id={}, status={}", trancheId, response.getStatus());
 
         return ResponseEntity.ok(response);
+    }
+
+    public record ReversalRequest(
+            @jakarta.validation.constraints.NotNull java.time.LocalDate date) {}
+
+    @PostMapping("/tranches/{trancheId}/reverse")
+    public LiabilityTrancheResponse reverse(
+            @PathVariable Long trancheId,
+            @Valid @RequestBody ReversalRequest request,
+            Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return liabilityService.reverseDirectDraw(user.getId(), trancheId, request.date());
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/real-estate/{propertyId}/drawdowns")
+    public java.util.List<LiabilityTrancheResponse> propertyDrawdowns(
+            @PathVariable Long propertyId, Authentication authentication) {
+        return liabilityService.getPropertyDrawdowns(
+                ((User) authentication.getPrincipal()).getId(), propertyId);
+    }
+
+    @GetMapping("/real-estate/{propertyId}/loan-movements")
+    public java.util.List<org.openfinance.dto.TransactionResponse> propertyLoanMovements(
+            @PathVariable Long propertyId, Authentication authentication) {
+        return liabilityService.getPropertyLoanMovements(
+                ((User) authentication.getPrincipal()).getId(), propertyId);
     }
 }

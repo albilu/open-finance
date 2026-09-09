@@ -118,6 +118,8 @@ class LiabilityServiceTest {
         liability.setType(LiabilityType.MORTGAGE);
         liability.setPrincipal("300000.00");
         liability.setCurrentBalance("250000.00");
+        liability.setOpeningPrincipal(new BigDecimal("300000.00"));
+        liability.setOpeningBalance(new BigDecimal("250000.00"));
         liability.setInterestRate("3.5");
         liability.setStartDate(LocalDate.now().minusYears(2));
         liability.setEndDate(LocalDate.now().plusYears(28));
@@ -349,7 +351,13 @@ class LiabilityServiceTest {
         when(liabilityRepository.findByIdAndUserId(liabilityId, testUserId))
                 .thenReturn(Optional.of(existing));
         when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
-                .thenReturn(List.of(Transaction.builder().id(1L).userId(testUserId).build()));
+                .thenReturn(
+                        List.of(
+                                Transaction.builder()
+                                        .id(1L)
+                                        .userId(testUserId)
+                                        .principalAmount(BigDecimal.ZERO)
+                                        .build()));
 
         // When/Then — the balance is owned by linked movements once they exist
         assertThatThrownBy(() -> liabilityService.updateLiability(liabilityId, testUserId, request))
@@ -442,7 +450,13 @@ class LiabilityServiceTest {
         // Lenient: the guard short-circuits on the unchanged balance before querying
         org.mockito.Mockito.lenient()
                 .when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
-                .thenReturn(List.of(Transaction.builder().id(1L).userId(testUserId).build()));
+                .thenReturn(
+                        List.of(
+                                Transaction.builder()
+                                        .id(1L)
+                                        .userId(testUserId)
+                                        .principalAmount(BigDecimal.ZERO)
+                                        .build()));
         when(liabilityRepository.save(any(Liability.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -559,7 +573,13 @@ class LiabilityServiceTest {
         when(liabilityTrancheRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
                 .thenReturn(List.of());
         when(transactionRepository.findByLiabilityIdAndUserId(liabilityId, testUserId))
-                .thenReturn(List.of(Transaction.builder().id(1L).userId(testUserId).build()));
+                .thenReturn(
+                        List.of(
+                                Transaction.builder()
+                                        .id(1L)
+                                        .userId(testUserId)
+                                        .principalAmount(BigDecimal.ZERO)
+                                        .build()));
 
         // When/Then
         assertThatThrownBy(() -> liabilityService.deleteLiability(liabilityId, testUserId))

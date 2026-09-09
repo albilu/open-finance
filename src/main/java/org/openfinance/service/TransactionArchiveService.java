@@ -76,6 +76,7 @@ public class TransactionArchiveService {
                 FROM transactions
                 WHERE user_id = :userId
                   AND transaction_date < :cutoffDate
+                  AND liability_id IS NULL AND real_estate_id IS NULL AND asset_id IS NULL
                   AND id NOT IN (SELECT id FROM transactions_archive WHERE user_id = :userId)
                 """)
                         .setParameter("userId", userId)
@@ -90,6 +91,7 @@ public class TransactionArchiveService {
                 DELETE FROM transactions
                 WHERE user_id = :userId
                   AND transaction_date < :cutoffDate
+                  AND liability_id IS NULL AND real_estate_id IS NULL AND asset_id IS NULL
                   AND id IN (SELECT id FROM transactions_archive WHERE user_id = :userId)
                 """)
                         .setParameter("userId", userId)
