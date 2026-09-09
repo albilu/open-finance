@@ -63,6 +63,8 @@ class AssetImprovementSyncTest {
     private static final Long ASSET_ID = 500L;
     private static final Long TX_ID = 100L;
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private TransactionRepository transactionRepository;
     @Mock private AccountRepository accountRepository;
     @Mock private CategoryRepository categoryRepository;
@@ -109,6 +111,7 @@ class AssetImprovementSyncTest {
                         netWorthRepository,
                         operationHistoryService,
                         searchTokenService,
+                        org.mockito.Mockito.mock(AttachmentService.class),
                         defaultCurrencyProvider,
                         encryptionProperties,
                         helper);

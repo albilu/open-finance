@@ -86,6 +86,7 @@ public class NetWorthService {
     private final RealEstateValueHistoryRepository realEstateValueHistoryRepository;
     private final org.openfinance.security.EncryptionService encryptionService;
     private final ExchangeRateService exchangeRateService;
+    private final AccountCurrencyService accountCurrencyService;
     private final TransactionRepository transactionRepository;
     private final TransactionSplitRepository transactionSplitRepository;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
@@ -788,16 +789,20 @@ public class NetWorthService {
                     BigDecimal historicalBalance =
                             computeHistoricalBalance(
                                     account, targetDate, txBySourceAccount, txByDestAccount);
+                    AccountCurrencyService.Position position =
+                            accountCurrencyService.historicalPosition(
+                                    account, historicalBalance, targetDate, userId);
                     BigDecimal convertedBalance;
                     try {
                         convertedBalance =
-                                account.getCurrency() != null
-                                                && !account.getCurrency().equals(baseCurrency)
+                                position.currency() != null
+                                                && !position.currency().equals(baseCurrency)
                                         ? exchangeRateService.convert(
-                                                historicalBalance,
-                                                account.getCurrency(),
-                                                baseCurrency)
-                                        : historicalBalance;
+                                                position.amount(),
+                                                position.currency(),
+                                                baseCurrency,
+                                                targetDate)
+                                        : position.amount();
                     } catch (Exception e) {
                         log.warn(
                                 "Currency conversion failed for backfill (account {}), using raw amount",
@@ -1088,11 +1093,11 @@ public class NetWorthService {
         for (Transaction t : sourceTxAfter) {
             if (t.getType() == TransactionType.INCOME) {
                 // Was added after targetDate â†’ reverse: subtract
-                delta = delta.subtract(t.getAmount());
+                delta = delta.subtract(t.getBalanceAmount());
             } else if (t.getType() == TransactionType.EXPENSE
                     || t.getType() == TransactionType.TRANSFER) {
                 // Was deducted after targetDate â†’ reverse: add
-                delta = delta.add(t.getAmount());
+                delta = delta.add(t.getBalanceAmount());
             }
         }
 

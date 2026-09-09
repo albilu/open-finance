@@ -8,7 +8,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
-import { renderWithProviders, mockAuthentication, clearAuthentication, userEvent } from '@/test/test-utils';
+import {
+  renderWithProviders,
+  mockAuthentication,
+  clearAuthentication,
+  userEvent,
+} from '@/test/test-utils';
 import { AccountForm } from '@/components/accounts/AccountForm';
 import type { Account } from '@/types/account';
 
@@ -16,9 +21,10 @@ import type { Account } from '@/types/account';
 vi.mock('@/components/ui/CurrencySelector', () => ({
   CurrencySelector: ({ value, onValueChange, placeholder }: any) => (
     <select
+      aria-label="Currency"
       data-testid="currency-selector"
       value={value || ''}
-      onChange={(e) => onValueChange(e.target.value)}
+      onChange={e => onValueChange(e.target.value)}
     >
       <option value="">{placeholder || 'Select currency'}</option>
       <option value="USD">USD</option>
@@ -32,7 +38,7 @@ vi.mock('@/components/ui/InstitutionSelector', () => ({
     <select
       data-testid="institution-selector"
       value={value || ''}
-      onChange={(e) => onValueChange(e.target.value || undefined)}
+      onChange={e => onValueChange(e.target.value || undefined)}
     >
       <option value="">{placeholder || 'Select institution'}</option>
       <option value="1">Bank A</option>
@@ -81,9 +87,7 @@ describe('AccountForm', () => {
 
   describe('Rendering', () => {
     it('should render all required form fields', () => {
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       expect(screen.getByLabelText(/Account Name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Account Type/i)).toBeInTheDocument();
@@ -91,9 +95,7 @@ describe('AccountForm', () => {
     });
 
     it('should show "Create Account" button for new account', () => {
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
     });
@@ -107,17 +109,13 @@ describe('AccountForm', () => {
     });
 
     it('should show Cancel button', () => {
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
     });
 
     it('should render account type options', () => {
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       const typeSelect = screen.getByLabelText(/Account Type/i) as HTMLSelectElement;
       expect(typeSelect.options.length).toBe(6); // CHECKING, SAVINGS, CREDIT_CARD, INVESTMENT, CASH, OTHER
@@ -127,9 +125,7 @@ describe('AccountForm', () => {
   describe('Validation', () => {
     it('should show error when name is empty', async () => {
       const user = userEvent.setup();
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       // Clear name field and submit
       const nameInput = screen.getByLabelText(/Account Name/i);
@@ -146,9 +142,7 @@ describe('AccountForm', () => {
 
     it('should show error when name exceeds 100 characters', async () => {
       const user = userEvent.setup();
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       const nameInput = screen.getByLabelText(/Account Name/i);
       const longName = 'A'.repeat(101);
@@ -164,9 +158,7 @@ describe('AccountForm', () => {
 
     it('should show error when account number exceeds 50 characters', async () => {
       const user = userEvent.setup();
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       const accountNumberInput = screen.getByLabelText(/Account Number/i);
       const longNumber = '1'.repeat(51);
@@ -188,9 +180,7 @@ describe('AccountForm', () => {
   describe('Submission', () => {
     it('should call onSubmit with correct data for valid form', async () => {
       const user = userEvent.setup();
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       const nameInput = screen.getByLabelText(/Account Name/i);
       await user.type(nameInput, 'My Savings');
@@ -209,9 +199,7 @@ describe('AccountForm', () => {
 
     it('should call onCancel when Cancel button is clicked', async () => {
       const user = userEvent.setup();
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       const cancelButton = screen.getByRole('button', { name: /cancel/i });
       await user.click(cancelButton);
@@ -231,6 +219,25 @@ describe('AccountForm', () => {
   });
 
   describe('Edit mode', () => {
+    it('keeps the entered balance in its original currency when changing account denomination', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <AccountForm account={mockAccount} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
+      );
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Currency' }), 'EUR');
+      expect(screen.getByLabelText(/Current Balance.*USD/i)).toHaveValue('5,000');
+      await user.click(screen.getByRole('button', { name: /update account/i }));
+      await waitFor(() =>
+        expect(mockOnSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            currency: 'EUR',
+            balanceCurrency: 'USD',
+            initialBalance: '5000',
+          })
+        )
+      );
+    });
+
     it('should pre-populate form fields when editing an existing account', () => {
       renderWithProviders(
         <AccountForm account={mockAccount} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
@@ -254,9 +261,7 @@ describe('AccountForm', () => {
   describe('Interest Calculation', () => {
     it('should show interest rate fields when interest toggle is enabled', async () => {
       const user = userEvent.setup();
-      renderWithProviders(
-        <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-      );
+      renderWithProviders(<AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       // Find the interest toggle switch (Switch component)
       const interestToggle = screen.getByRole('switch');

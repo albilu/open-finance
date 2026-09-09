@@ -77,7 +77,7 @@ export function PropertyStep({ property, onChange, today }: PropertyStepProps) {
         <NumberInput
           id="wizard-price"
           value={property.purchasePrice}
-          onChange={v => onChange({ purchasePrice: v, currentValue: v })}
+          onChange={v => onChange({ purchasePrice: v })}
           placeholder="0.00"
           min="0.01"
         />
@@ -102,7 +102,7 @@ export function PropertyStep({ property, onChange, today }: PropertyStepProps) {
           value={property.currentValue}
           onChange={v => onChange({ currentValue: v })}
           placeholder="0.00"
-          min="0.01"
+          min="0"
         />
       </div>
     </div>

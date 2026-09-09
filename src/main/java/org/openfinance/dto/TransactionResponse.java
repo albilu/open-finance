@@ -64,6 +64,9 @@ public class TransactionResponse {
      */
     private BigDecimal amount;
 
+    private BigDecimal accountAmount;
+    private String accountCurrency;
+
     /**
      * Currency code in ISO 4217 format (e.g., "USD", "EUR", "GBP").
      *

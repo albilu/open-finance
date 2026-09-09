@@ -906,6 +906,9 @@ class RecurringTransactionServiceTest {
                                                     .id(id)
                                                     .userId(1L)
                                                     .nextOccurrence(date)
+                                                    .frequency(
+                                                            org.openfinance.entity
+                                                                    .RecurringFrequency.DAILY)
                                                     .build())
                             .toList();
             when(recurringTransactionRepository.findDueRecurringTransactions(date))

@@ -53,6 +53,8 @@ import org.openfinance.testutil.DefaultCurrencyProviderMocks;
 @DisplayName("NetWorthService backfill — disbursement-aware liability reversal")
 class NetWorthServiceBackfillTest {
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private NetWorthRepository netWorthRepository;
     @Mock private AccountRepository accountRepository;
     @Mock private AssetRepository assetRepository;
@@ -73,6 +75,18 @@ class NetWorthServiceBackfillTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .when(accountCurrencyService.historicalPosition(any(), any(), any(), any()))
+                .thenAnswer(
+                        i ->
+                                new AccountCurrencyService.Position(
+                                        i.getArgument(1),
+                                        ((org.openfinance.entity.Account) i.getArgument(0))
+                                                .getCurrency()));
+        org.mockito.Mockito.lenient()
+                .when(exchangeRateService.convert(any(BigDecimal.class), any(), any(), any()))
+                .thenAnswer(i -> i.getArgument(0));
+
         when(accountRepository.findByUserIdAndIsActive(USER_ID, true)).thenReturn(List.of());
         when(assetRepository.findByUserId(USER_ID)).thenReturn(List.of());
         when(realEstateRepository.findByUserIdAndIsActive(USER_ID, true)).thenReturn(List.of());

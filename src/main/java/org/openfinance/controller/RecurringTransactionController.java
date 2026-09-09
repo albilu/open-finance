@@ -320,7 +320,14 @@ public class RecurringTransactionController {
 
         Page<RecurringTransactionResponse> recurringTransactionsPage =
                 recurringTransactionService.getRecurringTransactionsWithFilters(
-                        user.getId(), type, frequency, isActive, accountId, search, searchRegex, pageable);
+                        user.getId(),
+                        type,
+                        frequency,
+                        isActive,
+                        accountId,
+                        search,
+                        searchRegex,
+                        pageable);
 
         log.info(
                 "Retrieved recurring transactions page {} of {} (total: {}) for user",
@@ -681,9 +688,9 @@ public class RecurringTransactionController {
 
         User user = (User) authentication.getPrincipal();
 
-        // Process recurring transactions for all users
+        // Process only the authenticated user with this request's encryption context.
         RecurringTransactionService.ProcessingResult result =
-                recurringTransactionService.processRecurringTransactions();
+                recurringTransactionService.processRecurringTransactionsForUser(user.getId());
 
         String message =
                 String.format(

@@ -337,8 +337,8 @@ class LiabilityDisburseApiTest {
                                 .header("Authorization", "Bearer " + token)
                                 .header("X-Encryption-Session", encKey))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.currentValue").value(130000.00))
-                .andExpect(jsonPath("$.purchasePrice").value(130000.00));
+                .andExpect(jsonPath("$.currentValue").value(30000.00))
+                .andExpect(jsonPath("$.purchasePrice").value(100000.00));
     }
 
     // ---------- direct-path guards ----------

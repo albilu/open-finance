@@ -151,7 +151,7 @@ class InstitutionControllerTest {
     @Test
     void shouldGetInstitutionById() throws Exception {
         // Arrange
-        when(institutionService.getInstitutionById(1L)).thenReturn(systemInstitutionResponse);
+        when(institutionService.getInstitutionById(1L, 1L)).thenReturn(systemInstitutionResponse);
 
         // Act & Assert
         mockMvc.perform(
@@ -165,13 +165,13 @@ class InstitutionControllerTest {
                 .andExpect(jsonPath("$.country").value("FR"))
                 .andExpect(jsonPath("$.isSystem").value(true));
 
-        verify(institutionService).getInstitutionById(1L);
+        verify(institutionService).getInstitutionById(1L, 1L);
     }
 
     @Test
     void shouldReturn404WhenInstitutionNotFound() throws Exception {
         // Arrange
-        when(institutionService.getInstitutionById(999L))
+        when(institutionService.getInstitutionById(999L, 1L))
                 .thenThrow(new InstitutionNotFoundException(999L));
 
         // Act & Assert
@@ -183,7 +183,7 @@ class InstitutionControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.message").value("Institution not found with id: 999"));
 
-        verify(institutionService).getInstitutionById(999L);
+        verify(institutionService).getInstitutionById(999L, 1L);
     }
 
     @Test

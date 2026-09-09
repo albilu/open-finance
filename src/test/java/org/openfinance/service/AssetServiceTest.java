@@ -77,6 +77,8 @@ class AssetServiceTest {
 
     @Mock private DefaultCurrencyProvider defaultCurrencyProvider;
 
+    @Mock private AttachmentService attachmentService;
+
     @InjectMocks private AssetService assetService;
 
     private LocalDate purchaseDate;

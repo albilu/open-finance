@@ -412,7 +412,14 @@ class BulkOperationPerformanceTest {
                                                                                             * (a
                                                                                                     + 1)))
                                                                     .build())))
-                            .andExpect(status().isCreated())
+                            .andExpect(
+                                    result ->
+                                            assertThat(result.getResponse().getStatus())
+                                                    .as(
+                                                            "Account creation response: %s",
+                                                            result.getResponse()
+                                                                    .getContentAsString())
+                                                    .isEqualTo(201))
                             .andReturn()
                             .getResponse()
                             .getContentAsString();

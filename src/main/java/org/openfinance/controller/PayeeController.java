@@ -73,9 +73,11 @@ public class PayeeController {
      * @return the payee
      */
     @GetMapping("/{id}")
-    public ResponseEntity<PayeeResponse> getPayee(@PathVariable Long id) {
+    public ResponseEntity<PayeeResponse> getPayee(
+            @PathVariable Long id, Authentication authentication) {
         log.debug("GET /api/v1/payees/{}", id);
-        PayeeResponse payee = payeeService.getPayeeById(id);
+        PayeeResponse payee =
+                payeeService.getPayeeById(id, ((User) authentication.getPrincipal()).getId());
         return ResponseEntity.ok(payee);
     }
 

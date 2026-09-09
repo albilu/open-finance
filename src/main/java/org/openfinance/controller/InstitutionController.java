@@ -51,9 +51,12 @@ public class InstitutionController {
      * @return the institution
      */
     @GetMapping("/{id}")
-    public ResponseEntity<InstitutionResponse> getInstitution(@PathVariable Long id) {
+    public ResponseEntity<InstitutionResponse> getInstitution(
+            @PathVariable Long id, Authentication authentication) {
         log.debug("GET /api/v1/institutions/{}", id);
-        InstitutionResponse institution = institutionService.getInstitutionById(id);
+        InstitutionResponse institution =
+                institutionService.getInstitutionById(
+                        id, ((User) authentication.getPrincipal()).getId());
         return ResponseEntity.ok(institution);
     }
 

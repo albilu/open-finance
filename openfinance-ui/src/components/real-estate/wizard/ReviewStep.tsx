@@ -20,6 +20,13 @@ export function ReviewStep({ property, funding }: ReviewStepProps) {
       <dd className="text-right text-text-primary font-mono">
         {property.purchasePrice} {property.currency}
       </dd>
+      <dt className="text-text-secondary">{t('form.currentValue')}</dt>
+      <dd className="text-right text-text-primary font-mono">
+        {funding.source !== 'none' && funding.route === 'direct'
+          ? funding.loanAmount
+          : property.currentValue}{' '}
+        {property.currency}
+      </dd>
       <dt className="text-text-secondary">{t('wizard.fundingSource')}</dt>
       <dd className="text-right text-text-primary">
         {t(`wizard.funding.${funding.source}`)}

@@ -60,11 +60,11 @@ public class InstitutionService {
      * @throws InstitutionNotFoundException if not found
      */
     @Transactional(readOnly = true)
-    public InstitutionResponse getInstitutionById(Long id) {
+    public InstitutionResponse getInstitutionById(Long id, Long userId) {
         log.debug("Fetching institution by id: {}", id);
         Institution institution =
                 institutionRepository
-                        .findById(id)
+                        .findVisibleById(id, userId)
                         .orElseThrow(() -> new InstitutionNotFoundException(id));
         return toResponse(institution);
     }

@@ -45,6 +45,7 @@ public class UserBackupArchiveImpl implements UserBackupArchive {
                     "institutions",
                     "categories",
                     "accounts",
+                    "account_currency_changes",
                     "assets",
                     "liabilities",
                     "real_estate_properties",
@@ -588,7 +589,7 @@ public class UserBackupArchiveImpl implements UserBackupArchive {
                                 ids,
                                 ENTITIES.get(row.get("entity_type")),
                                 value,
-                                table.equals("operation_history"));
+                                table.equals("operation_history") || table.equals("attachments"));
             else if (REFERENCES.containsKey(column))
                 value = mapped(ids, REFERENCES.get(column), value, false);
             else if (column.equals("transfer_id") && value != null)

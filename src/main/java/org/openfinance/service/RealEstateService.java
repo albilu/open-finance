@@ -1117,6 +1117,12 @@ public class RealEstateService {
         BigDecimal updated = (current == null ? BigDecimal.ZERO : current).add(amount);
         property.setCurrentValue(updated.toPlainString());
         RealEstateProperty savedProperty = realEstateRepository.save(property);
+        if (savedProperty.getAssetId() != null) {
+            AssetRequest assetUpdate = new AssetRequest();
+            assetUpdate.setCurrentPrice(updated);
+            assetUpdate.setPurchasePrice(savedProperty.getPurchasePriceDecimal());
+            assetService.updateAsset(savedProperty.getAssetId(), userId, assetUpdate);
+        }
         recordValueHistory(savedProperty, updated, movementDate);
         invalidateSnapshotsFrom(userId, movementDate);
         log.info(
@@ -1151,6 +1157,12 @@ public class RealEstateService {
                 (current == null ? BigDecimal.ZERO : current).subtract(amount).max(BigDecimal.ZERO);
         property.setCurrentValue(updated.toPlainString());
         RealEstateProperty savedProperty = realEstateRepository.save(property);
+        if (savedProperty.getAssetId() != null) {
+            AssetRequest assetUpdate = new AssetRequest();
+            assetUpdate.setCurrentPrice(updated);
+            assetUpdate.setPurchasePrice(savedProperty.getPurchasePriceDecimal());
+            assetService.updateAsset(savedProperty.getAssetId(), userId, assetUpdate);
+        }
         recordValueHistory(savedProperty, updated, movementDate);
         invalidateSnapshotsFrom(userId, movementDate);
         log.info(

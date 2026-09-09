@@ -128,7 +128,7 @@ async function fillPropertyStep() {
   fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Villa' } });
   fireEvent.change(screen.getByLabelText(/address/i), { target: { value: '1 Sea Rd' } });
   fireEvent.change(screen.getByLabelText(/purchase price/i), { target: { value: '300000' } });
-  fireEvent.change(screen.getByLabelText(/current value/i), { target: { value: '300000' } });
+  fireEvent.change(screen.getByLabelText(/current value/i), { target: { value: '0' } });
   fireEvent.change(screen.getByTestId('wizard-currency'), { target: { value: 'USD' } });
   await act(async () => {
     screen.getByRole('button', { name: /next/i }).click();
@@ -235,6 +235,7 @@ describe('BuyPropertyWizard', () => {
         name: 'Villa',
         mortgageId: 77,
         purchasePrice: '300000',
+        currentValue: '0',
       })
     );
     expect(disburseMutation.mutateAsync).toHaveBeenCalledWith({
@@ -243,7 +244,6 @@ describe('BuyPropertyWizard', () => {
     });
     expect(txMutation.mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
-        movementType: 'CAPITAL_IMPROVEMENT',
         realEstateId: 55,
         accountId: 1,
         amount: 60000,

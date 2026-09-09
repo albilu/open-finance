@@ -190,7 +190,7 @@ public class LiabilityService {
         if (request.getInstitutionId() != null) {
             org.openfinance.entity.Institution institution =
                     institutionRepository
-                            .findById(request.getInstitutionId())
+                            .findVisibleById(request.getInstitutionId(), userId)
                             .orElseThrow(
                                     () ->
                                             new org.openfinance.exception
@@ -363,7 +363,7 @@ public class LiabilityService {
         if (request.getInstitutionId() != null) {
             org.openfinance.entity.Institution institution =
                     institutionRepository
-                            .findById(request.getInstitutionId())
+                            .findVisibleById(request.getInstitutionId(), userId)
                             .orElseThrow(
                                     () ->
                                             new org.openfinance.exception
@@ -1555,14 +1555,13 @@ public class LiabilityService {
         // post-reconcile balance, never the intermediate.
         String finalBalance = liability.getCurrentBalance();
 
-        BigDecimal propertyValue = property.getCurrentValueDecimal();
-        BigDecimal updatedValue =
-                (propertyValue == null ? BigDecimal.ZERO : propertyValue).add(request.getAmount());
+        // A direct draw supplies the latest funded valuation; the agreed purchase price stays
+        // fixed.
+        // Liability principal remains cumulative across the separate tranches.
+        BigDecimal updatedValue = request.getAmount();
         property.setCurrentValue(updatedValue.toPlainString());
         BigDecimal purchasePrice = property.getPurchasePriceDecimal();
-        BigDecimal updatedPurchase =
-                (purchasePrice == null ? BigDecimal.ZERO : purchasePrice).add(request.getAmount());
-        property.setPurchasePrice(updatedPurchase.toPlainString());
+        BigDecimal updatedPurchase = purchasePrice == null ? BigDecimal.ZERO : purchasePrice;
         RealEstateProperty savedProperty = realEstateRepository.save(property);
         if (savedProperty.getAssetId() != null) {
             org.openfinance.entity.Asset asset =
@@ -1578,7 +1577,7 @@ public class LiabilityService {
                 RealEstateValueHistory.builder()
                         .propertyId(savedProperty.getId())
                         .userId(savedProperty.getUserId())
-                        .effectiveDate(LocalDate.now())
+                        .effectiveDate(request.getDate())
                         .recordedValue(updatedValue.toPlainString())
                         .currency(savedProperty.getCurrency())
                         .currencyId(savedProperty.getCurrencyId())

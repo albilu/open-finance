@@ -86,6 +86,8 @@ public class AccountService {
     private final EncryptionProperties encryptionProperties;
     private final org.openfinance.config.BusinessRulesProperties businessRules;
     private final CurrencyConversionHelper currencyConversionHelper;
+    private final AccountCurrencyService accountCurrencyService;
+    private final org.springframework.context.MessageSource messageSource;
 
     /**
      * Creates a new account for the specified user.
@@ -155,7 +157,7 @@ public class AccountService {
         if (request.getInstitutionId() != null) {
             Institution institution =
                     institutionRepository
-                            .findById(request.getInstitutionId())
+                            .findVisibleById(request.getInstitutionId(), userId)
                             .orElseThrow(
                                     () ->
                                             new InstitutionNotFoundException(
@@ -265,13 +267,31 @@ public class AccountService {
         AccountResponse beforeSnapshot = toResponseWithDecryption(account);
 
         // Update fields from request (only non-null fields will be copied)
+        String previousCurrency = account.getCurrency();
         accountMapper.updateEntityFromRequest(request, account);
+        accountCurrencyService.change(account, previousCurrency, userId, java.time.LocalDate.now());
+        String balanceCurrency =
+                request.getBalanceCurrency() == null
+                        ? previousCurrency
+                        : request.getBalanceCurrency();
+        java.math.BigDecimal desiredBalance = request.getInitialBalance();
+        if (!balanceCurrency.equalsIgnoreCase(account.getCurrency())) {
+            desiredBalance =
+                    desiredBalance
+                            .multiply(
+                                    exchangeRateService.getExchangeRate(
+                                            balanceCurrency,
+                                            account.getCurrency(),
+                                            java.time.LocalDate.now()))
+                            .setScale(18, java.math.RoundingMode.HALF_UP);
+        }
+        java.math.BigDecimal adjustment = desiredBalance.subtract(account.getBalance());
 
         // Handle institution update (REQ-2.6.1.3)
         if (request.getInstitutionId() != null) {
             Institution institution =
                     institutionRepository
-                            .findById(request.getInstitutionId())
+                            .findVisibleById(request.getInstitutionId(), userId)
                             .orElseThrow(
                                     () ->
                                             new InstitutionNotFoundException(
@@ -301,6 +321,28 @@ public class AccountService {
 
         // Save changes
         Account updatedAccount = accountRepository.save(account);
+        if (adjustment.signum() != 0) {
+            transactionService
+                    .getObject()
+                    .createTransaction(
+                            userId,
+                            org.openfinance.dto.TransactionRequest.builder()
+                                    .accountId(accountId)
+                                    .type(
+                                            adjustment.signum() > 0
+                                                    ? TransactionType.INCOME
+                                                    : TransactionType.EXPENSE)
+                                    .amount(adjustment.abs())
+                                    .currency(account.getCurrency())
+                                    .date(java.time.LocalDate.now())
+                                    .description(
+                                            messageSource.getMessage(
+                                                    "transaction.balance.adjustment",
+                                                    null,
+                                                    org.springframework.context.i18n
+                                                            .LocaleContextHolder.getLocale()))
+                                    .build());
+        }
         indexAccountSearchTokens(updatedAccount, request.getName(), request.getDescription());
         log.info("Account updated successfully: id={}, userId={}", accountId, userId);
 
@@ -1040,10 +1082,11 @@ public class AccountService {
                 transactions.stream()
                         .map(
                                 t -> {
-                                    if (t.getAmount() == null) return java.math.BigDecimal.ZERO;
+                                    if (t.getBalanceAmount() == null)
+                                        return java.math.BigDecimal.ZERO;
                                     return t.getType() == TransactionType.INCOME
-                                            ? t.getAmount()
-                                            : t.getAmount().negate();
+                                            ? t.getBalanceAmount()
+                                            : t.getBalanceAmount().negate();
                                 })
                         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
@@ -1259,7 +1302,7 @@ public class AccountService {
         // First, sum up all transaction amounts by date
         for (org.openfinance.entity.Transaction transaction : transactions) {
             java.time.LocalDate txDate = transaction.getDate();
-            java.math.BigDecimal txAmount = transaction.getAmount();
+            java.math.BigDecimal txAmount = transaction.getBalanceAmount();
 
             if (transaction.getType() == org.openfinance.entity.TransactionType.EXPENSE) {
                 txAmount = txAmount.negate();

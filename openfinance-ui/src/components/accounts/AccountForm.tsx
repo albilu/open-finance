@@ -29,10 +29,25 @@ import { useAuthContext } from '@/context/AuthContext';
 import { useLatestExchangeRate } from '@/hooks/useCurrency';
 import { DEFAULT_CURRENCY } from '@/utils/currency';
 import { getToday } from '@/utils/date';
-import { add, divide, isValidDecimalString, multiply, percentage, pow, subtract } from '@/utils/money';
+import {
+  add,
+  divide,
+  isValidDecimalString,
+  multiply,
+  percentage,
+  pow,
+  subtract,
+} from '@/utils/money';
 import type { Account, AccountRequest, AccountType, InterestPeriod } from '@/types/account';
 
-const ACCOUNT_TYPES: AccountType[] = ['CHECKING', 'SAVINGS', 'CREDIT_CARD', 'INVESTMENT', 'CASH', 'OTHER'];
+const ACCOUNT_TYPES: AccountType[] = [
+  'CHECKING',
+  'SAVINGS',
+  'CREDIT_CARD',
+  'INVESTMENT',
+  'CASH',
+  'OTHER',
+];
 const INTEREST_PERIODS: { value: InterestPeriod; compoundsPerYear: number }[] = [
   { value: 'DAILY', compoundsPerYear: 365 },
   { value: 'MONTHLY', compoundsPerYear: 12 },
@@ -85,41 +100,68 @@ function calcInterestPreview(
   return { grossInterest, taxAmount, netInterest };
 }
 
-export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAccountNames = [] }: AccountFormProps) {
+export function AccountForm({
+  account,
+  onSubmit,
+  onCancel,
+  isLoading,
+  existingAccountNames = [],
+}: AccountFormProps) {
   const isEditing = !!account;
   const { baseCurrency } = useAuthContext();
   const { t } = useTranslation('accounts');
 
-  const accountSchema = useMemo(() => z.object({
-    name: z.string().min(1, t('validation.nameRequired')).max(100, t('validation.nameTooLong')),
-    accountNumber: z.string().max(50, t('validation.accountNumberTooLong')).optional(),
-    type: z.enum(['CHECKING', 'SAVINGS', 'CREDIT_CARD', 'INVESTMENT', 'CASH', 'OTHER']),
-    currency: z.string().length(3),
-    initialBalance: z.string().min(1, t('validation.balanceInvalid')).refine(isValidDecimalString, t('validation.balanceInvalid')),
-    description: z.string().max(500, t('validation.descriptionTooLong')).optional(),
-    openingDate: z.string().optional(),
-    institutionId: z.string().optional(),
-    isInterestEnabled: z.boolean().optional(),
-    interestPeriod: z.enum(['ANNUAL', 'HALF_YEARLY', 'QUARTERLY', 'MONTHLY', 'DAILY']).optional(),
-    interestRate: z.coerce.number().min(0, t('validation.interestRateMustBePositive')).optional(),
-    taxRate: z.coerce.number().min(0, t('validation.taxRateMustBePositive')).max(100, t('validation.taxRateMax')).optional(),
-  }).superRefine((data, ctx) => {
-    if (data.type !== 'CREDIT_CARD' && Number(data.initialBalance) < 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.balanceNegative'),
-        path: ['initialBalance'],
-      });
-    }
-    const nameLower = data.name.trim().toLowerCase();
-    if (existingAccountNames.some((n) => n.trim().toLowerCase() === nameLower)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.duplicateName'),
-        path: ['name'],
-      });
-    }
-  }), [t, existingAccountNames]);
+  const accountSchema = useMemo(
+    () =>
+      z
+        .object({
+          name: z
+            .string()
+            .min(1, t('validation.nameRequired'))
+            .max(100, t('validation.nameTooLong')),
+          accountNumber: z.string().max(50, t('validation.accountNumberTooLong')).optional(),
+          type: z.enum(['CHECKING', 'SAVINGS', 'CREDIT_CARD', 'INVESTMENT', 'CASH', 'OTHER']),
+          currency: z.string().length(3),
+          initialBalance: z
+            .string()
+            .min(1, t('validation.balanceInvalid'))
+            .refine(isValidDecimalString, t('validation.balanceInvalid')),
+          description: z.string().max(500, t('validation.descriptionTooLong')).optional(),
+          openingDate: z.string().optional(),
+          institutionId: z.string().optional(),
+          isInterestEnabled: z.boolean().optional(),
+          interestPeriod: z
+            .enum(['ANNUAL', 'HALF_YEARLY', 'QUARTERLY', 'MONTHLY', 'DAILY'])
+            .optional(),
+          interestRate: z.coerce
+            .number()
+            .min(0, t('validation.interestRateMustBePositive'))
+            .optional(),
+          taxRate: z.coerce
+            .number()
+            .min(0, t('validation.taxRateMustBePositive'))
+            .max(100, t('validation.taxRateMax'))
+            .optional(),
+        })
+        .superRefine((data, ctx) => {
+          if (data.type !== 'CREDIT_CARD' && Number(data.initialBalance) < 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('validation.balanceNegative'),
+              path: ['initialBalance'],
+            });
+          }
+          const nameLower = data.name.trim().toLowerCase();
+          if (existingAccountNames.some(n => n.trim().toLowerCase() === nameLower)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('validation.duplicateName'),
+              path: ['name'],
+            });
+          }
+        }),
+    [t, existingAccountNames]
+  );
 
   const {
     register,
@@ -132,36 +174,37 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
     mode: 'onChange',
     defaultValues: account
       ? {
-        name: account.name,
-        accountNumber: account.accountNumber || '',
-        type: account.type,
-        currency: account.currency,
-        initialBalance: String(account.ownBalance ?? account.balance),
-        description: account.description || '',
-        openingDate: account.openingDate || getToday(),
-        institutionId: account.institution?.id?.toString() || '',
-        isInterestEnabled: account.isInterestEnabled || false,
-        interestPeriod: account.interestPeriod || 'ANNUAL',
-        interestRate: 0,
-        taxRate: 0,
-      }
+          name: account.name,
+          accountNumber: account.accountNumber || '',
+          type: account.type,
+          currency: account.currency,
+          initialBalance: String(account.ownBalance ?? account.balance),
+          description: account.description || '',
+          openingDate: account.openingDate || getToday(),
+          institutionId: account.institution?.id?.toString() || '',
+          isInterestEnabled: account.isInterestEnabled || false,
+          interestPeriod: account.interestPeriod || 'ANNUAL',
+          interestRate: 0,
+          taxRate: 0,
+        }
       : {
-        name: '',
-        accountNumber: '',
-        type: 'CHECKING',
-        currency: baseCurrency || DEFAULT_CURRENCY,
-        initialBalance: '0',
-        description: '',
-        openingDate: getToday(),
-        institutionId: '',
-        isInterestEnabled: false,
-        interestPeriod: 'ANNUAL',
-        interestRate: 0,
-        taxRate: 0,
-      },
+          name: '',
+          accountNumber: '',
+          type: 'CHECKING',
+          currency: baseCurrency || DEFAULT_CURRENCY,
+          initialBalance: '0',
+          description: '',
+          openingDate: getToday(),
+          institutionId: '',
+          isInterestEnabled: false,
+          interestPeriod: 'ANNUAL',
+          interestRate: 0,
+          taxRate: 0,
+        },
   });
 
   const selectedCurrency = watch('currency');
+  const balanceCurrency = account?.currency ?? selectedCurrency;
   const initialBalance = watch('initialBalance');
   const isInterestEnabled = watch('isInterestEnabled');
   const interestRate = watch('interestRate') ?? 0;
@@ -169,18 +212,15 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
   const interestPeriod = watch('interestPeriod') ?? 'ANNUAL';
 
   const { data: exchangeRate } = useLatestExchangeRate(
-    selectedCurrency,
+    balanceCurrency,
     baseCurrency,
-    selectedCurrency !== baseCurrency ? 1 : 0
+    balanceCurrency !== baseCurrency ? 1 : 0
   );
 
   const initialBalanceNumeric = Number(initialBalance || 0);
 
   const convertedAmount =
-    selectedCurrency &&
-      selectedCurrency !== baseCurrency &&
-      exchangeRate &&
-      initialBalance
+    balanceCurrency && balanceCurrency !== baseCurrency && exchangeRate && initialBalance
       ? multiply(initialBalanceNumeric, exchangeRate.rate)
       : undefined;
 
@@ -198,6 +238,7 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
       type: data.type,
       currency: data.currency,
       initialBalance: data.initialBalance.trim(),
+      balanceCurrency: account?.currency ?? data.currency,
       description: data.description || undefined,
       openingDate: data.openingDate || undefined,
       institutionId: data.institutionId ? parseInt(data.institutionId, 10) : undefined,
@@ -269,20 +310,20 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
             {...register('type')}
             className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
           >
-            {ACCOUNT_TYPES.map((type) => (
+            {ACCOUNT_TYPES.map(type => (
               <option key={type} value={type}>
                 {t(`form.types.${type}`)}
               </option>
             ))}
           </select>
-          {errors.type && (
-            <p className="mt-1 text-sm text-error">{errors.type.message}</p>
-          )}
+          {errors.type && <p className="mt-1 text-sm text-error">{errors.type.message}</p>}
         </div>
         <div>
           <div className="flex items-center gap-1 mb-1.5">
             <label htmlFor="openingDate" className="block text-sm font-medium text-text-primary">
-              <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {t('form.openingDate')}</span>
+              <span className="flex items-center gap-1">
+                <CalendarDays className="h-3.5 w-3.5" /> {t('form.openingDate')}
+              </span>
             </label>
             <HelpTooltip text={t('form.openingDateHint')} side="right" />
           </div>
@@ -321,9 +362,7 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
               />
             )}
           />
-          {errors.currency && (
-            <p className="mt-1 text-sm text-error">{errors.currency.message}</p>
-          )}
+          {errors.currency && <p className="mt-1 text-sm text-error">{errors.currency.message}</p>}
           {selectedCurrency && selectedCurrency !== baseCurrency && (
             <div className="mt-1.5">
               <ExchangeRateInline from={selectedCurrency} to={baseCurrency} />
@@ -331,8 +370,12 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
           )}
         </div>
         <div>
-          <label htmlFor="initialBalance" className="block text-sm font-medium text-text-primary mb-1.5">
-            {isEditing ? t('form.currentBalance') : t('form.initialBalance')} *
+          <label
+            htmlFor="initialBalance"
+            className="block text-sm font-medium text-text-primary mb-1.5"
+          >
+            {isEditing ? t('form.currentBalance') : t('form.initialBalance')} (
+            {account?.currency ?? selectedCurrency}) *
           </label>
           <Controller
             name="initialBalance"
@@ -350,8 +393,7 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
           />
           {convertedAmount !== undefined && (
             <p className="text-xs text-text-secondary mt-1">
-              ≈{' '}
-              <ConvertedAmount amount={convertedAmount} currency={baseCurrency} inline />
+              ≈ <ConvertedAmount amount={convertedAmount} currency={baseCurrency} inline />
             </p>
           )}
         </div>
@@ -382,7 +424,9 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
             <TrendingUp className="h-4 w-4 text-primary" />
             <div>
               <div className="flex items-center gap-1">
-                <p className="text-sm font-medium text-text-primary">{t('form.interestCalculation')}</p>
+                <p className="text-sm font-medium text-text-primary">
+                  {t('form.interestCalculation')}
+                </p>
                 <HelpTooltip
                   text={isEditing ? t('form.interestEditHint') : t('form.interestCalculationHint')}
                   side="right"
@@ -405,136 +449,169 @@ export function AccountForm({ account, onSubmit, onCancel, isLoading, existingAc
 
         {isInterestEnabled && !isEditing && (
           <div className="px-4 py-4 space-y-4 border-t border-border bg-surface/50">
-                {/* Period + Rates in one compact row */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label htmlFor="interestPeriod" className="block text-xs font-medium text-text-secondary mb-1">
-                      <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> {t('form.compounding')}</span>
-                    </label>
-                    <select
-                      id="interestPeriod"
-                      {...register('interestPeriod')}
-                      className="w-full h-9 px-2 rounded-lg bg-surface border border-border text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    >
-                      {INTEREST_PERIODS.map((period) => (
-                        <option key={period.value} value={period.value}>
-                          {t(`form.periods.${period.value}`)}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.interestPeriod && (
-                      <p className="mt-1 text-xs text-error">{errors.interestPeriod.message}</p>
+            {/* Period + Rates in one compact row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label
+                  htmlFor="interestPeriod"
+                  className="block text-xs font-medium text-text-secondary mb-1"
+                >
+                  <span className="flex items-center gap-1">
+                    <CalendarDays className="h-3 w-3" /> {t('form.compounding')}
+                  </span>
+                </label>
+                <select
+                  id="interestPeriod"
+                  {...register('interestPeriod')}
+                  className="w-full h-9 px-2 rounded-lg bg-surface border border-border text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  {INTEREST_PERIODS.map(period => (
+                    <option key={period.value} value={period.value}>
+                      {t(`form.periods.${period.value}`)}
+                    </option>
+                  ))}
+                </select>
+                {errors.interestPeriod && (
+                  <p className="mt-1 text-xs text-error">{errors.interestPeriod.message}</p>
+                )}
+              </div>
+              <div>
+                <label
+                  htmlFor="interestRate"
+                  className="block text-xs font-medium text-text-secondary mb-1"
+                >
+                  <span className="flex items-center gap-1">
+                    <Percent className="h-3 w-3" /> {t('form.interestRate')}
+                  </span>
+                </label>
+                <Controller
+                  name="interestRate"
+                  control={control}
+                  render={({ field }) => (
+                    <NumberInput
+                      id="interestRate"
+                      value={
+                        field.value !== undefined && !Number.isNaN(field.value)
+                          ? String(field.value)
+                          : ''
+                      }
+                      onChange={val => field.onChange(val === '' ? 0 : Number(val))}
+                      onBlur={field.onBlur}
+                      placeholder="0.00"
+                      error={errors.interestRate?.message}
+                      min="0"
+                      className="h-9"
+                    />
+                  )}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="taxRate"
+                  className="block text-xs font-medium text-text-secondary mb-1"
+                >
+                  <span className="flex items-center gap-1">
+                    <Shield className="h-3 w-3" /> {t('form.taxRate')}
+                  </span>
+                </label>
+                <Controller
+                  name="taxRate"
+                  control={control}
+                  render={({ field }) => (
+                    <NumberInput
+                      id="taxRate"
+                      value={
+                        field.value !== undefined && !Number.isNaN(field.value)
+                          ? String(field.value)
+                          : ''
+                      }
+                      onChange={val => field.onChange(val === '' ? 0 : Number(val))}
+                      onBlur={field.onBlur}
+                      placeholder="0.00"
+                      error={errors.taxRate?.message}
+                      min="0"
+                      max="100"
+                      className="h-9"
+                    />
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Live Calculation Preview */}
+            {interestRate > 0 && initialBalanceNumeric > 0 ? (
+              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+                <p className="text-xs font-semibold text-primary mb-2 flex items-center gap-1">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  {t('form.interestPreviewTitle')}
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-surface rounded-lg p-2">
+                    <p className="text-xs text-text-secondary mb-0.5">{t('form.grossInterest')}</p>
+                    <p className="text-sm font-semibold font-mono text-success">
+                      +
+                      <ConvertedAmount
+                        amount={interestPreview.grossInterest}
+                        currency={balanceCurrency}
+                        inline
+                      />
+                    </p>
+                  </div>
+                  <div className="bg-surface rounded-lg p-2">
+                    <p className="text-xs text-text-secondary mb-0.5">{t('form.taxDeduction')}</p>
+                    <p className="text-sm font-semibold font-mono text-error">
+                      -
+                      <ConvertedAmount
+                        amount={Math.abs(interestPreview.taxAmount)}
+                        currency={balanceCurrency}
+                        inline
+                      />
+                    </p>
+                  </div>
+                  <div className="bg-surface rounded-lg p-2 border border-primary/30">
+                    <p className="text-xs text-text-secondary mb-0.5">{t('form.netEarnings')}</p>
+                    <p className="text-sm font-bold font-mono text-primary">
+                      +
+                      <ConvertedAmount
+                        amount={interestPreview.netInterest}
+                        currency={balanceCurrency}
+                        inline
+                      />
+                    </p>
+                    {initialBalanceNumeric > 0 && (
+                      <p className="text-xs font-medium text-primary/70 mt-0.5">
+                        (
+                        {percentage(
+                          interestPreview.netInterest,
+                          initialBalanceNumeric || 1
+                        ).toFixed(2)}
+                        %)
+                      </p>
                     )}
                   </div>
-                  <div>
-                    <label htmlFor="interestRate" className="block text-xs font-medium text-text-secondary mb-1">
-                      <span className="flex items-center gap-1"><Percent className="h-3 w-3" /> {t('form.interestRate')}</span>
-                    </label>
-                    <Controller
-                      name="interestRate"
-                      control={control}
-                      render={({ field }) => (
-                        <NumberInput
-                          id="interestRate"
-                          value={field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''}
-                          onChange={(val) => field.onChange(val === '' ? 0 : Number(val))}
-                          onBlur={field.onBlur}
-                          placeholder="0.00"
-                          error={errors.interestRate?.message}
-                          min="0"
-                          className="h-9"
-                        />
-                      )}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="taxRate" className="block text-xs font-medium text-text-secondary mb-1">
-                      <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> {t('form.taxRate')}</span>
-                    </label>
-                    <Controller
-                      name="taxRate"
-                      control={control}
-                      render={({ field }) => (
-                        <NumberInput
-                          id="taxRate"
-                          value={field.value !== undefined && !Number.isNaN(field.value) ? String(field.value) : ''}
-                          onChange={(val) => field.onChange(val === '' ? 0 : Number(val))}
-                          onBlur={field.onBlur}
-                          placeholder="0.00"
-                          error={errors.taxRate?.message}
-                          min="0"
-                          max="100"
-                          className="h-9"
-                        />
-                      )}
-                    />
-                  </div>
                 </div>
-
-                {/* Live Calculation Preview */}
-                {interestRate > 0 && initialBalanceNumeric > 0 ? (
-                  <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-                    <p className="text-xs font-semibold text-primary mb-2 flex items-center gap-1">
-                      <TrendingUp className="h-3.5 w-3.5" />
-                      {t('form.interestPreviewTitle')}
-                    </p>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-surface rounded-lg p-2">
-                        <p className="text-xs text-text-secondary mb-0.5">{t('form.grossInterest')}</p>
-                        <p className="text-sm font-semibold font-mono text-success">
-                          +
-                          <ConvertedAmount
-                            amount={interestPreview.grossInterest}
-                            currency={selectedCurrency}
-                            inline
-                          />
-                        </p>
-                      </div>
-                      <div className="bg-surface rounded-lg p-2">
-                        <p className="text-xs text-text-secondary mb-0.5">{t('form.taxDeduction')}</p>
-                        <p className="text-sm font-semibold font-mono text-error">
-                          -
-                          <ConvertedAmount
-                            amount={Math.abs(interestPreview.taxAmount)}
-                            currency={selectedCurrency}
-                            inline
-                          />
-                        </p>
-                      </div>
-                      <div className="bg-surface rounded-lg p-2 border border-primary/30">
-                        <p className="text-xs text-text-secondary mb-0.5">{t('form.netEarnings')}</p>
-                        <p className="text-sm font-bold font-mono text-primary">
-                          +
-                          <ConvertedAmount
-                            amount={interestPreview.netInterest}
-                            currency={selectedCurrency}
-                            inline
-                          />
-                        </p>
-                        {initialBalanceNumeric > 0 && (
-                          <p className="text-xs font-medium text-primary/70 mt-0.5">
-                            ({percentage(interestPreview.netInterest, initialBalanceNumeric || 1).toFixed(2)}%)
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-xs text-text-muted mt-2 text-center">
-                      Based on <ConvertedAmount amount={initialBalanceNumeric} currency={selectedCurrency} inline /> balance · {interestRate}% {t(`form.periods.${interestPeriod}`)} compounding
-                      {taxRate > 0 ? ` · ${taxRate}% tax` : ''}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="rounded-lg bg-surface border border-border border-dashed p-3 text-center">
-                    <div className="flex items-center justify-center gap-1 text-xs text-text-muted">
-                      <span>{t('form.interestPreviewTitle')}</span>
-                      <HelpTooltip text={t('form.interestPreviewHint')} side="right" />
-                    </div>
-                  </div>
-                )}
+                <p className="text-xs text-text-muted mt-2 text-center">
+                  Based on{' '}
+                  <ConvertedAmount
+                    amount={initialBalanceNumeric}
+                    currency={balanceCurrency}
+                    inline
+                  />{' '}
+                  balance · {interestRate}% {t(`form.periods.${interestPeriod}`)} compounding
+                  {taxRate > 0 ? ` · ${taxRate}% tax` : ''}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-surface border border-border border-dashed p-3 text-center">
+                <div className="flex items-center justify-center gap-1 text-xs text-text-muted">
+                  <span>{t('form.interestPreviewTitle')}</span>
+                  <HelpTooltip text={t('form.interestPreviewHint')} side="right" />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
-
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-2">

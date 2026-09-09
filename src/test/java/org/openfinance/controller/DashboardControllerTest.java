@@ -68,6 +68,11 @@ class DashboardControllerTest {
     private User testUser;
     private Long accountId;
 
+    @org.junit.jupiter.api.AfterEach
+    void releaseSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @BeforeEach
     void setUp() throws Exception {
         // Clean up

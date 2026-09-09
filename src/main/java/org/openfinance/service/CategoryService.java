@@ -171,9 +171,22 @@ public class CategoryService {
                 && !request.getParentId().equals(existingCategory.getParentId())) {
             validateParentCategory(userId, request.getParentId());
 
-            // Prevent circular reference
-            if (request.getParentId().equals(categoryId)) {
-                throw new InvalidCategoryException("Category cannot be its own parent");
+            java.util.Set<Long> ancestors = new java.util.HashSet<>();
+            ancestors.add(categoryId);
+            Long ancestorId = request.getParentId();
+            while (ancestorId != null) {
+                if (!ancestors.add(ancestorId)) {
+                    throw new InvalidCategoryException(
+                            "Category cannot be moved under its descendant");
+                }
+                Category ancestor =
+                        categoryRepository
+                                .findByIdAndUserId(ancestorId, userId)
+                                .orElseThrow(
+                                        () ->
+                                                new InvalidCategoryException(
+                                                        "Invalid category parent"));
+                ancestorId = ancestor.getParentId();
             }
         }
 

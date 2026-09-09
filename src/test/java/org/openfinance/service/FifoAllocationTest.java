@@ -70,6 +70,8 @@ class FifoAllocationTest {
     private static final Long T1_ID = 401L;
     private static final Long T2_ID = 402L;
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private TransactionRepository transactionRepository;
     @Mock private AccountRepository accountRepository;
     @Mock private CategoryRepository categoryRepository;

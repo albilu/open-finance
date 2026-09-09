@@ -32,6 +32,23 @@ docker compose up -d
 # demo user: demo/demo123 or register a new account
 ```
 
+Compose stores application data and the SearxNG cache in separate named volumes. **If upgrading
+from the `./data` bind mount**, stop the old services and keep an offline copy of `./data` before
+starting the updated configuration. Run the following from the existing installation directory,
+using its existing `.env` and the updated application image:
+
+```sh
+docker compose stop app searxng
+docker compose run --rm --no-deps --user root \
+  -v "$PWD/data:/legacy:ro" --entrypoint sh app \
+  -c 'test ! -e /app/data/openfinance.db && cp -a /legacy/. /app/data/ && chown -R appuser:appgroup /app/data'
+docker compose up -d
+```
+
+The copy refuses to overwrite an existing destination database and preserves SQLite's WAL files.
+Keep the original directory until you have verified your existing accounts in the application.
+The SearxNG cache rebuilds automatically and does not need migration.
+
 _Bug reports and feature requests → [GitHub Issues](https://github.com/open-finance/open-finance/issues)_
 
 ---

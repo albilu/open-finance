@@ -1,44 +1,29 @@
 package org.openfinance.service.ai;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * Langchain4J-backed AI provider using the OpenAI API (or any compatible endpoint).
- *
- * <p>Configured via {@code application.ai.openai.*} properties. Supports both blocking and
- * streaming chat completions.
- *
- * @since Sprint 11+ — AI Provider Abstraction (Langchain4J)
- */
+/** OpenAI Responses provider, including built-in web search and typed streaming events. */
 @Slf4j
 public class OpenAIProvider implements AIProvider {
-
     private static final String PROVIDER_NAME = "OpenAI";
-
     private static final ObjectMapper JSON = new ObjectMapper();
-
     private final WebClient webClient;
     private final String model;
     private final double temperature;
     private final int maxTokens;
+    private final Duration timeout;
+    private final boolean configured;
     private final String systemPromptTemplate;
 
-    /**
-     * Creates an OpenAI provider from explicit configuration values.
-     *
-     * @param apiKey OpenAI API key
-     * @param model Model name (e.g. {@code gpt-4o-mini})
-     * @param temperature Sampling temperature (0.0 – 2.0)
-     * @param maxTokens Maximum response tokens
-     * @param timeoutSeconds Request timeout in seconds
-     * @param baseUrl Optional custom base URL (null for default OpenAI API)
-     */
     public OpenAIProvider(
             String apiKey,
             String model,
@@ -49,136 +34,123 @@ public class OpenAIProvider implements AIProvider {
         this.model = model;
         this.temperature = temperature;
         this.maxTokens = maxTokens;
+        this.timeout = Duration.ofSeconds(timeoutSeconds);
+        this.configured = apiKey != null && !apiKey.isBlank() && model != null && !model.isBlank();
         this.systemPromptTemplate = buildSystemPromptTemplate();
-
-        String apiBaseUrl =
-                (baseUrl != null && !baseUrl.isBlank()) ? baseUrl : "https://api.openai.com/v1";
-
         this.webClient =
                 WebClient.builder()
-                        .baseUrl(apiBaseUrl)
+                        .baseUrl(
+                                baseUrl != null && !baseUrl.isBlank()
+                                        ? baseUrl
+                                        : "https://api.openai.com/v1")
                         .defaultHeader("Authorization", "Bearer " + apiKey)
-                        .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                        .defaultHeader("Content-Type", "application/json")
                         .codecs(
-                                configurer ->
-                                        configurer
-                                                .defaultCodecs()
+                                codecs ->
+                                        codecs.defaultCodecs()
                                                 .maxInMemorySize(
                                                         AIWebClientDefaults
                                                                 .MAX_IN_MEMORY_SIZE_BYTES))
                         .build();
-
-        log.info(
-                "Initialized OpenAIProvider with WebClient (web_search) — model={}, timeout={}",
-                model,
-                timeoutSeconds);
     }
 
-    private String buildRequestBody(String prompt, String context, boolean stream) {
-        String systemMessage = jsonEscape(systemPromptTemplate.formatted(context));
-        String safePrompt = jsonEscape(prompt);
-
-        return """
-        {
-          "model": "%s",
-          "temperature": %s,
-          "max_tokens": %s,
-          "stream": %b,
-          "messages": [
-            {
-              "role": "system",
-              "content": "%s"
-            },
-            {
-              "role": "user",
-              "content": "%s"
-            }
-          ],
-          "tools": [
-            {
-              "type": "web_search"
-            }
-          ]
-        }
-        """
-                .formatted(model, temperature, maxTokens, stream, systemMessage, safePrompt);
-    }
-
-    private String jsonEscape(String s) {
-        try {
-            String quoted = JSON.writeValueAsString(s);
-            return quoted.substring(1, quoted.length() - 1);
-        } catch (JsonProcessingException e) {
-            // Unreachable for a plain String; ObjectMapper always serializes strings.
-            return s.replace("\"", "\\\"")
-                    .replace("\\", "\\\\")
-                    .replace("\n", "\\n")
-                    .replace("\t", "\\t")
-                    .replace("\r", "\\r");
-        }
+    private ObjectNode request(String prompt, String context, boolean stream) {
+        ObjectNode body = JSON.createObjectNode();
+        body.put("model", model);
+        body.put("temperature", temperature);
+        body.put("max_output_tokens", maxTokens);
+        body.put("stream", stream);
+        body.put("store", false);
+        body.put("instructions", systemPromptTemplate.formatted(context));
+        body.put("input", prompt);
+        body.putArray("tools").addObject().put("type", "web_search");
+        return body;
     }
 
     @Override
     public Mono<String> sendPrompt(String prompt, String context) {
-        return Mono.fromCallable(() -> buildRequestBody(prompt, context, false))
-                .flatMap(
-                        body ->
-                                webClient
-                                        .post()
-                                        .uri("/chat/completions")
-                                        .bodyValue(body)
-                                        .retrieve()
-                                        .bodyToMono(com.fasterxml.jackson.databind.JsonNode.class)
-                                        .map(
-                                                node ->
-                                                        node.path("choices")
-                                                                .path(0)
-                                                                .path("message")
-                                                                .path("content")
-                                                                .asText())
-                                        .onErrorMap(
-                                                e ->
-                                                        new AIProviderException(
-                                                                PROVIDER_NAME,
-                                                                "OpenAI API error: "
-                                                                        + e.getMessage(),
-                                                                e)));
+        return webClient
+                .post()
+                .uri("/responses")
+                .bodyValue(request(prompt, context, false))
+                .retrieve()
+                .bodyToMono(JsonNode.class)
+                .map(this::responseText)
+                .timeout(timeout)
+                .onErrorMap(this::providerError);
+    }
+
+    private String responseText(JsonNode response) {
+        if (response.hasNonNull("error") || "failed".equals(response.path("status").asText())) {
+            throw providerError(
+                    new IllegalStateException(
+                            response.path("error").path("message").asText("Response failed")));
+        }
+        StringBuilder text = new StringBuilder();
+        for (JsonNode item : response.path("output")) {
+            for (JsonNode part : item.path("content")) {
+                if ("output_text".equals(part.path("type").asText())) {
+                    text.append(part.path("text").asText());
+                    for (JsonNode annotation : part.path("annotations"))
+                        text.append(citation(annotation));
+                } else if ("refusal".equals(part.path("type").asText())) {
+                    text.append(part.path("refusal").asText());
+                }
+            }
+        }
+        if (text.isEmpty())
+            throw providerError(new IllegalStateException("Response contained no text"));
+        return text.toString();
     }
 
     @Override
     public Flux<String> streamResponse(String prompt, String context) {
-        // Warning: minimal streaming implementation matching standard SSE format
-        String body = buildRequestBody(prompt, context, true);
         return webClient
                 .post()
-                .uri("/chat/completions")
-                .bodyValue(body)
+                .uri("/responses")
+                .bodyValue(request(prompt, context, true))
                 .retrieve()
-                .bodyToFlux(com.fasterxml.jackson.databind.JsonNode.class)
-                .map(
-                        node -> {
-                            com.fasterxml.jackson.databind.JsonNode choices = node.path("choices");
-                            if (choices.isArray() && choices.size() > 0) {
-                                com.fasterxml.jackson.databind.JsonNode delta =
-                                        choices.get(0).path("delta");
-                                if (delta.has("content")) {
-                                    return delta.get("content").asText();
-                                }
-                            }
-                            return "";
-                        })
-                .filter(s -> !s.isEmpty())
-                .onErrorMap(
-                        e ->
-                                new AIProviderException(
-                                        PROVIDER_NAME,
-                                        "OpenAI API streaming error: " + e.getMessage(),
-                                        e));
+                .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<JsonNode>>() {})
+                .mapNotNull(ServerSentEvent::data)
+                .map(this::streamText)
+                .filter(text -> !text.isEmpty())
+                .timeout(timeout)
+                .onErrorMap(this::providerError);
+    }
+
+    private String streamText(JsonNode event) {
+        return switch (event.path("type").asText()) {
+            case "response.output_text.delta", "response.refusal.delta" -> event.path("delta")
+                    .asText();
+            case "response.output_text.annotation.added" -> citation(event.path("annotation"));
+            case "response.failed", "error" -> throw providerError(
+                    new IllegalStateException(
+                            event.path("response")
+                                    .path("error")
+                                    .path("message")
+                                    .asText("Streaming response failed")));
+            default -> "";
+        };
+    }
+
+    private String citation(JsonNode annotation) {
+        if (!"url_citation".equals(annotation.path("type").asText())) return "";
+        String url = annotation.path("url").asText();
+        if (!url.startsWith("https://") && !url.startsWith("http://")) return "";
+        String title = annotation.path("title").asText("Source").replace("[", "").replace("]", "");
+        return "\n[" + title + "](<" + url.replace(">", "%3E").replace("<", "%3C") + ">)";
+    }
+
+    private AIProviderException providerError(Throwable error) {
+        return error instanceof AIProviderException provider
+                ? provider
+                : new AIProviderException(
+                        PROVIDER_NAME, "OpenAI API error: " + error.getMessage(), error);
     }
 
     @Override
     public Mono<Boolean> isAvailable() {
-        return Mono.just(true);
+        return Mono.just(configured);
     }
 
     @Override

@@ -91,6 +91,7 @@ public class AssetService {
     private final NetWorthRepository netWorthRepository;
     private final OperationHistoryService operationHistoryService;
     private final SearchTokenService searchTokenService;
+    private final AttachmentService attachmentService;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
     private final EncryptionProperties encryptionProperties;
     private final CurrencyConversionHelper currencyConversionHelper;
@@ -274,7 +275,7 @@ public class AssetService {
         }
 
         // Sensitive fields handled by JPA converter — just set plain text from request
-        asset.setName(request.getName());
+        if (request.getName() != null) asset.setName(request.getName());
 
         if (request.getNotes() != null && !request.getNotes().isBlank()) {
             asset.setNotes(request.getNotes());
@@ -517,6 +518,8 @@ public class AssetService {
 
         // Hard delete
         LocalDate assetPurchaseDate = asset.getPurchaseDate();
+        attachmentService.deleteEntityAttachments(
+                org.openfinance.entity.EntityType.ASSET, assetId, userId);
         assetRepository.delete(asset);
         searchTokenService.removeEntity("ASSET", assetId);
         invalidateSnapshotsFrom(userId, assetPurchaseDate);

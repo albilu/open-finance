@@ -309,6 +309,7 @@ public class OfxParser {
                 }
             }
 
+            java.util.Map<String, BigDecimal> ledgerBalances = new java.util.HashMap<>();
             int index = 0;
 
             String fileCurrency = null;
@@ -317,6 +318,9 @@ public class OfxParser {
             for (int i = 0; i < stmtRsList.getLength(); i++) {
                 Element stmtRs = (Element) stmtRsList.item(i);
                 String accountId = extractAccountId(stmtRs, "BANKACCTFROM");
+                String closing = getElementText(stmtRs, "BALAMT");
+                if (accountId != null && closing != null && !closing.isBlank())
+                    ledgerBalances.put(accountId, parseAmount(closing));
                 String statementCurrency = extractStatementCurrency(stmtRs);
                 if (fileCurrency == null
                         && statementCurrency != null
@@ -339,6 +343,9 @@ public class OfxParser {
             for (int i = 0; i < ccStmtRsList.getLength(); i++) {
                 Element stmtRs = (Element) ccStmtRsList.item(i);
                 String accountId = extractAccountId(stmtRs, "CCACCTFROM");
+                String closing = getElementText(stmtRs, "BALAMT");
+                if (accountId != null && closing != null && !closing.isBlank())
+                    ledgerBalances.put(accountId, parseAmount(closing));
                 String statementCurrency = extractStatementCurrency(stmtRs);
                 if (fileCurrency == null
                         && statementCurrency != null
@@ -362,6 +369,9 @@ public class OfxParser {
                 Element invStmtRs = (Element) invStmtRsList.item(i);
                 // Per spec, INVACCTFROM/ACCTID identifies the investment account
                 String accountId = extractAccountId(invStmtRs, "INVACCTFROM");
+                String closing = getElementText(invStmtRs, "BALAMT");
+                if (accountId != null && closing != null && !closing.isBlank())
+                    ledgerBalances.put(accountId, parseAmount(closing));
                 String statementCurrency = extractStatementCurrency(invStmtRs);
                 if (fileCurrency == null
                         && statementCurrency != null
@@ -382,6 +392,7 @@ public class OfxParser {
                     // Leave the ledger balance null when the file declares none — a missing
                     // balance must not be indistinguishable from a real zero balance.
                     .ledgerBalance(ledgerBalance)
+                    .ledgerBalances(ledgerBalances)
                     .currency(fileCurrency)
                     .build();
 
@@ -408,6 +419,7 @@ public class OfxParser {
         builder.lineNumber(lineNumber);
         if (globalAccountId != null && !globalAccountId.isEmpty()) {
             builder.accountName(globalAccountId);
+            builder.accountNumber(globalAccountId);
         }
 
         // DTPOSTED — posted date (preferred)
@@ -528,6 +540,7 @@ public class OfxParser {
         builder.lineNumber(lineNumber);
         if (globalAccountId != null && !globalAccountId.isEmpty()) {
             builder.accountName(globalAccountId);
+            builder.accountNumber(globalAccountId);
         }
 
         // Date: prefer DTSETTLE, fall back to DTTRADE

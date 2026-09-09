@@ -79,6 +79,8 @@ public class RealEstateSimulation {
     @NotNull(message = "{realEstateSimulation.data.notnull}")
     @Size(max = 10000, message = "{realEstateSimulation.data.size}")
     @Column(name = "data", nullable = false, columnDefinition = "TEXT")
+    @jakarta.persistence.Convert(
+            converter = org.openfinance.converter.EncryptedStringConverter.class)
     private String data;
 
     /** Timestamp when this simulation was created. */

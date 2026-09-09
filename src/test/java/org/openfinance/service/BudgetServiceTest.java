@@ -182,8 +182,7 @@ class BudgetServiceTest {
                         .build();
 
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.empty());
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L)).thenReturn(List.of());
         when(budgetMapper.toEntity(testRequest)).thenReturn(mappedBudget);
         when(budgetRepository.save(any(Budget.class))).thenReturn(testBudget);
         when(budgetMapper.toResponse(testBudget)).thenReturn(testResponse);
@@ -200,7 +199,7 @@ class BudgetServiceTest {
         assertThat(response.getPeriod()).isEqualTo(BudgetPeriod.MONTHLY);
 
         verify(categoryRepository).findByIdAndUserId(1L, 1L);
-        verify(budgetRepository).findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY);
+        verify(budgetRepository).findByUserIdAndCategoryId(1L, 1L);
         verify(budgetRepository).save(any(Budget.class));
     }
 
@@ -251,11 +250,13 @@ class BudgetServiceTest {
                         .userId(1L)
                         .categoryId(1L)
                         .period(BudgetPeriod.MONTHLY)
+                        .startDate(LocalDate.of(2026, 1, 1))
+                        .endDate(LocalDate.of(2026, 12, 31))
                         .build();
 
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.of(existingBudget));
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L))
+                .thenReturn(List.of(existingBudget));
 
         // When/Then
         assertThatThrownBy(() -> budgetService.createBudget(testRequest, 1L))
@@ -263,7 +264,7 @@ class BudgetServiceTest {
                 .hasMessageContaining("Budget already exists");
 
         verify(categoryRepository).findByIdAndUserId(1L, 1L);
-        verify(budgetRepository).findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY);
+        verify(budgetRepository).findByUserIdAndCategoryId(1L, 1L);
         verify(budgetRepository, never()).save(any());
     }
 
@@ -294,8 +295,8 @@ class BudgetServiceTest {
                         .build();
 
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.WEEKLY))
-                .thenReturn(Optional.empty()); // No duplicate for WEEKLY
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L))
+                .thenReturn(List.of()); // No duplicate for WEEKLY
         when(budgetMapper.toEntity(weeklyRequest)).thenReturn(mappedBudget);
         when(budgetRepository.save(any(Budget.class))).thenReturn(testBudget);
         when(budgetMapper.toResponse(testBudget)).thenReturn(testResponse);
@@ -342,8 +343,8 @@ class BudgetServiceTest {
 
         when(budgetRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testBudget));
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.of(testBudget)); // Same budget, not a duplicate
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L))
+                .thenReturn(List.of(testBudget)); // Same budget, not a duplicate
         doNothing().when(budgetMapper).updateEntityFromRequest(updateRequest, testBudget);
         when(budgetRepository.save(testBudget)).thenReturn(updatedBudget);
         when(budgetMapper.toResponse(updatedBudget)).thenReturn(testResponse);
@@ -384,12 +385,14 @@ class BudgetServiceTest {
                         .userId(1L)
                         .categoryId(1L)
                         .period(BudgetPeriod.MONTHLY)
+                        .startDate(LocalDate.of(2026, 1, 1))
+                        .endDate(LocalDate.of(2026, 12, 31))
                         .build();
 
         when(budgetRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testBudget));
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.of(otherBudget)); // Different budget with same category+period
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L))
+                .thenReturn(List.of(otherBudget)); // Different budget with same category+period
 
         // When/Then
         assertThatThrownBy(() -> budgetService.updateBudget(1L, testRequest, 1L))
@@ -1079,8 +1082,7 @@ class BudgetServiceTest {
                         .build();
 
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.empty());
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L)).thenReturn(List.of());
         when(budgetMapper.toEntity(jpyRequest)).thenReturn(jpyMapped);
         when(budgetRepository.save(any(Budget.class))).thenReturn(jpyBudget);
         when(budgetMapper.toResponse(jpyBudget)).thenReturn(jpyResponse);

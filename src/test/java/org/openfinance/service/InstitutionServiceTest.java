@@ -100,28 +100,29 @@ class InstitutionServiceTest {
     @Test
     void shouldGetInstitutionByIdWhenFound() {
         // Arrange
-        when(institutionRepository.findById(1L)).thenReturn(Optional.of(systemInstitution));
+        when(institutionRepository.findVisibleById(1L, 1L))
+                .thenReturn(Optional.of(systemInstitution));
 
         // Act
-        InstitutionResponse result = institutionService.getInstitutionById(1L);
+        InstitutionResponse result = institutionService.getInstitutionById(1L, 1L);
 
         // Assert
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("BNP Paribas");
         assertThat(result.getIsSystem()).isTrue();
-        verify(institutionRepository).findById(1L);
+        verify(institutionRepository).findVisibleById(1L, 1L);
     }
 
     @Test
     void shouldThrowWhenInstitutionNotFound() {
         // Arrange
-        when(institutionRepository.findById(999L)).thenReturn(Optional.empty());
+        when(institutionRepository.findVisibleById(999L, 1L)).thenReturn(Optional.empty());
 
         // Act & Assert
         assertThrows(
                 InstitutionNotFoundException.class,
-                () -> institutionService.getInstitutionById(999L));
-        verify(institutionRepository).findById(999L);
+                () -> institutionService.getInstitutionById(999L, 1L));
+        verify(institutionRepository).findVisibleById(999L, 1L);
     }
 
     @Test

@@ -119,7 +119,13 @@ public class ImportSession {
 
     /** Additional metadata (JSON format). Can store category mappings, user preferences, etc. */
     @Column(name = "metadata", columnDefinition = "TEXT")
+    @jakarta.persistence.Convert(
+            converter = org.openfinance.converter.EncryptedStringConverter.class)
     private String metadata;
+
+    @Builder.Default
+    @Column(name = "confirmation_started", nullable = false)
+    private Boolean confirmationStarted = false;
 
     /** Timestamp when the session was created. */
     @CreationTimestamp

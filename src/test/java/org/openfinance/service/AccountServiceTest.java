@@ -43,6 +43,8 @@ import org.openfinance.security.EncryptionService;
 @DisplayName("AccountService Unit Tests")
 class AccountServiceTest {
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private AccountRepository accountRepository;
 
     @Mock private AssetRepository assetRepository;
@@ -285,8 +287,8 @@ class AccountServiceTest {
                 AccountRequest.builder()
                         .name("Updated")
                         .type(AccountType.SAVINGS)
-                        .currency("EUR")
-                        .initialBalance(new BigDecimal("50.00"))
+                        .currency("USD")
+                        .initialBalance(new BigDecimal("10.00"))
                         .description("newdesc")
                         .build();
 
@@ -308,10 +310,10 @@ class AccountServiceTest {
                         .userId(2L)
                         .name("Updated")
                         .description("newdesc")
-                        .balance(new BigDecimal("50.00"))
+                        .balance(new BigDecimal("10.00"))
                         .isActive(true)
                         .type(AccountType.SAVINGS)
-                        .currency("EUR")
+                        .currency("USD")
                         .build();
 
         AccountResponse response =
@@ -319,8 +321,8 @@ class AccountServiceTest {
                         .id(5L)
                         .name("Updated")
                         .description("newdesc")
-                        .balance(new BigDecimal("50.00"))
-                        .currency("EUR")
+                        .balance(new BigDecimal("10.00"))
+                        .currency("USD")
                         .type(AccountType.SAVINGS)
                         .isActive(true)
                         .build();
@@ -332,7 +334,6 @@ class AccountServiceTest {
                             // simulate updating balance/type/currency
                             AccountRequest r = invocation.getArgument(0);
                             Account acc = invocation.getArgument(1);
-                            acc.setBalance(r.getInitialBalance());
                             acc.setType(r.getType());
                             acc.setCurrency(r.getCurrency());
                             return null;

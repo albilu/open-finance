@@ -2,13 +2,7 @@
  * Account-related types
  */
 
-export type AccountType =
-  | 'CHECKING'
-  | 'SAVINGS'
-  | 'CREDIT_CARD'
-  | 'INVESTMENT'
-  | 'CASH'
-  | 'OTHER';
+export type AccountType = 'CHECKING' | 'SAVINGS' | 'CREDIT_CARD' | 'INVESTMENT' | 'CASH' | 'OTHER';
 
 export type InterestPeriod = 'ANNUAL' | 'HALF_YEARLY' | 'QUARTERLY' | 'MONTHLY' | 'DAILY';
 
@@ -97,6 +91,7 @@ export interface AccountRequest {
   currency: string;
   /** Exact decimal string as entered by the user (e.g. "6322.1899") — never a JS number. */
   initialBalance: string;
+  balanceCurrency?: string;
   description?: string;
   /** ISO date (yyyy-MM-dd) when the account was opened. */
   openingDate?: string;

@@ -127,6 +127,8 @@ export interface Transaction {
   // Original (pre-conversion) values — set only when the transaction was entered in a currency
   // different from its account currency. Used by the edit form to restore what the user typed.
   /** Pre-conversion amount in originalCurrency (e.g. 100) */
+  accountAmount?: number;
+  accountCurrency?: string;
   originalAmount?: number;
   /** Currency originally entered (e.g. "USD") */
   originalCurrency?: string;

@@ -9,7 +9,7 @@
  *  3. Review — executes the endpoint sequence and closes
  *
  * Endpoint sequence (documented decision): create liability → create property
- * (carrying mortgageId) → disburse → down-payment CAPITAL_IMPROVEMENT
+ * (carrying mortgageId) → disburse → down-payment purchase
  * transaction. A direct disbursement needs the property to exist, so the
  * disbursement always follows the property creation.
  *
@@ -57,7 +57,7 @@ export function BuyPropertyWizard({
     propertyType: 'RESIDENTIAL',
     purchasePrice: '',
     purchaseDate: today,
-    currentValue: '',
+    currentValue: '0',
     currency: baseCurrency || DEFAULT_CURRENCY,
   });
   const [funding, setFunding] = useState<FundingStepState>({
@@ -109,7 +109,7 @@ export function BuyPropertyWizard({
       ? property.name.trim() !== '' &&
         property.address.trim() !== '' &&
         price > 0 &&
-        Number(property.currentValue) > 0
+        Number(property.currentValue) >= 0
       : step === 1
         ? fundingStepValid && !accountRouteMissingAccount
         : true;
@@ -187,7 +187,7 @@ export function BuyPropertyWizard({
     setCreatedIds(prev => ({ ...prev, disbursedLiabilityId: mortgageId }));
   };
 
-  /** Records the optional down payment as a CAPITAL_IMPROVEMENT expense on the property. */
+  /** Records the optional down payment as a purchase expense on the property. */
   const createDownPayment = async (propertyId: number) => {
     if (funding.downPaymentAccountId == null || down <= 0) {
       return;
@@ -200,7 +200,6 @@ export function BuyPropertyWizard({
       currency: account?.currency ?? property.currency,
       date: property.purchaseDate,
       description: t('wizard.downPaymentDescription', { name: property.name }),
-      movementType: 'CAPITAL_IMPROVEMENT',
       realEstateId: propertyId,
     };
     await createTransaction.mutateAsync(request);

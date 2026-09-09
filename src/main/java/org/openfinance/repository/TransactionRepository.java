@@ -39,6 +39,12 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface TransactionRepository
         extends JpaRepository<Transaction, Long>, JpaSpecificationExecutor<Transaction> {
+    @Query("SELECT t FROM Transaction t WHERE t.userId = :userId")
+    List<Transaction> findAllForExport(@Param("userId") Long userId);
+
+    @Query("SELECT t FROM Transaction t WHERE t.accountId = :accountId AND t.userId = :userId")
+    List<Transaction> findAllForAccount(
+            @Param("accountId") Long accountId, @Param("userId") Long userId);
 
     /**
      * Finds all active (non-deleted) transactions for a specific user.

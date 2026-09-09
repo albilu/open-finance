@@ -19,6 +19,24 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface ImportSessionRepository extends JpaRepository<ImportSession, Long> {
+    @org.springframework.data.jpa.repository.Modifying(
+            clearAutomatically = true,
+            flushAutomatically = true)
+    @org.springframework.transaction.annotation.Transactional
+    @Query(
+            value =
+                    "UPDATE import_sessions SET status = 'IMPORTING' WHERE id = :id AND user_id = :userId AND status IN ('PARSED', 'REVIEWING')",
+            nativeQuery = true)
+    int claimConfirmation(@Param("id") Long id, @Param("userId") Long userId);
+
+    @org.springframework.data.jpa.repository.Modifying(
+            clearAutomatically = true,
+            flushAutomatically = true)
+    @Query(
+            value =
+                    "UPDATE import_sessions SET confirmation_started = TRUE, status = 'IMPORTING' WHERE id = :id AND user_id = :userId AND confirmation_started = FALSE AND status IN ('PARSED', 'REVIEWING', 'IMPORTING')",
+            nativeQuery = true)
+    int beginConfirmationExecution(@Param("id") Long id, @Param("userId") Long userId);
 
     /**
      * Find an import session by upload ID.

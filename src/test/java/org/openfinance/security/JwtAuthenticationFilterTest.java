@@ -54,6 +54,11 @@ class JwtAuthenticationFilterTest {
     private static final String INVALID_TOKEN = "invalid.jwt.token";
     private static final String TEST_USERNAME = "john_doe";
 
+    @org.junit.jupiter.api.AfterEach
+    void releaseSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @BeforeEach
     void setUp() {
         // Clear security context before each test

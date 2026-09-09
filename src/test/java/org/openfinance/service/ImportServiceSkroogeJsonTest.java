@@ -71,6 +71,8 @@ class ImportServiceSkroogeJsonTest {
     private static final Long USER_ID = 123L;
     private static final String UPLOAD_ID = "skrooge-upload";
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private ImportSessionRepository importSessionRepository;
     @Mock private TransactionRepository transactionRepository;
     @Mock private AccountRepository accountRepository;
@@ -106,6 +108,19 @@ class ImportServiceSkroogeJsonTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .when(
+                        importSessionRepository.claimConfirmation(
+                                org.mockito.ArgumentMatchers.anyLong(),
+                                org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(1);
+        org.mockito.Mockito.lenient()
+                .when(
+                        importSessionRepository.beginConfirmationExecution(
+                                org.mockito.ArgumentMatchers.anyLong(),
+                                org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(1);
+
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
@@ -136,6 +151,7 @@ class ImportServiceSkroogeJsonTest {
                         payeeRepository,
                         defaultCurrencyProvider,
                         importProperties,
+                        accountCurrencyService,
                         importConfirmationExecutor,
                         userSettingsRepository);
 

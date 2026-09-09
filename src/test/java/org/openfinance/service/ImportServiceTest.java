@@ -86,6 +86,8 @@ import org.springframework.context.MessageSource;
 @DisplayName("ImportService Unit Tests")
 class ImportServiceTest {
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private ImportSessionRepository importSessionRepository;
 
     @Mock private TransactionRepository transactionRepository;
@@ -157,6 +159,19 @@ class ImportServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .when(
+                        importSessionRepository.claimConfirmation(
+                                org.mockito.ArgumentMatchers.anyLong(),
+                                org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(1);
+        org.mockito.Mockito.lenient()
+                .when(
+                        importSessionRepository.beginConfirmationExecution(
+                                org.mockito.ArgumentMatchers.anyLong(),
+                                org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(1);
+
         importService =
                 new ImportService(
                         importSessionRepository,
@@ -184,6 +199,7 @@ class ImportServiceTest {
                         payeeRepository,
                         defaultCurrencyProvider,
                         importProperties,
+                        accountCurrencyService,
                         importConfirmationExecutor,
                         userSettingsRepository);
 

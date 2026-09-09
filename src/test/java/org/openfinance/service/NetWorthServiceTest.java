@@ -46,6 +46,8 @@ import org.openfinance.repository.NetWorthRepository;
 @DisplayName("NetWorthService Unit Tests")
 class NetWorthServiceTest {
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private NetWorthRepository netWorthRepository;
 
     @Mock private AccountRepository accountRepository;
@@ -81,6 +83,18 @@ class NetWorthServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .when(accountCurrencyService.historicalPosition(any(), any(), any(), any()))
+                .thenAnswer(
+                        i ->
+                                new AccountCurrencyService.Position(
+                                        i.getArgument(1),
+                                        ((org.openfinance.entity.Account) i.getArgument(0))
+                                                .getCurrency()));
+        org.mockito.Mockito.lenient()
+                .when(exchangeRateService.convert(any(BigDecimal.class), any(), any(), any()))
+                .thenAnswer(i -> i.getArgument(0));
+
         testUserId = 1L;
         testDate = LocalDate.of(2026, 1, 31);
 

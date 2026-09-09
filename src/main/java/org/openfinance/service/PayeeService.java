@@ -124,10 +124,12 @@ public class PayeeService {
      * @throws PayeeNotFoundException if not found
      */
     @Transactional(readOnly = true)
-    public PayeeResponse getPayeeById(Long id) {
+    public PayeeResponse getPayeeById(Long id, Long userId) {
         log.debug("Fetching payee by id: {}", id);
         Payee payee =
-                payeeRepository.findById(id).orElseThrow(() -> new PayeeNotFoundException(id));
+                payeeRepository
+                        .findVisibleById(id, userId)
+                        .orElseThrow(() -> new PayeeNotFoundException(id));
         return toResponse(payee, null, null);
     }
 
@@ -298,7 +300,13 @@ public class PayeeService {
         // Set default category if categoryId provided
         Category defaultCategory = null;
         if (request.getCategoryId() != null) {
-            defaultCategory = categoryRepository.findById(request.getCategoryId()).orElse(null);
+            defaultCategory =
+                    categoryRepository
+                            .findByIdAndUserId(request.getCategoryId(), userId)
+                            .orElseThrow(
+                                    () ->
+                                            new org.openfinance.exception.CategoryNotFoundException(
+                                                    request.getCategoryId()));
         }
 
         String logo = request.getLogo();
@@ -363,7 +371,12 @@ public class PayeeService {
         // Update default category if provided
         if (request.getCategoryId() != null) {
             Category defaultCategory =
-                    categoryRepository.findById(request.getCategoryId()).orElse(null);
+                    categoryRepository
+                            .findByIdAndUserId(request.getCategoryId(), userId)
+                            .orElseThrow(
+                                    () ->
+                                            new org.openfinance.exception.CategoryNotFoundException(
+                                                    request.getCategoryId()));
             payee.setDefaultCategory(defaultCategory);
         }
 

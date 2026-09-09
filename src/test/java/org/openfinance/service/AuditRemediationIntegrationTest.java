@@ -831,8 +831,8 @@ class AuditRemediationIntegrationTest {
                         Long.class,
                         property.get("id").asLong());
         JsonNode asset = json("GET", "/assets/" + backingId, null, owner, 200);
-        assertThat(asset.get("currentPrice").decimalValue()).isEqualByComparingTo("200");
-        assertThat(asset.get("purchasePrice").decimalValue()).isEqualByComparingTo("200");
+        assertThat(asset.get("currentPrice").decimalValue()).isEqualByComparingTo("100");
+        assertThat(asset.get("purchasePrice").decimalValue()).isEqualByComparingTo("100");
     }
 
     @Test

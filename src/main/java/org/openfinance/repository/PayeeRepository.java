@@ -1,6 +1,7 @@
 package org.openfinance.repository;
 
 import java.util.List;
+import java.util.Optional;
 import org.openfinance.entity.Category;
 import org.openfinance.entity.Payee;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +16,9 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface PayeeRepository extends JpaRepository<Payee, Long> {
+
+    @Query("SELECT p FROM Payee p WHERE p.id = :id AND (p.isSystem = true OR p.userId = :userId)")
+    Optional<Payee> findVisibleById(@Param("id") Long id, @Param("userId") Long userId);
 
     /** Find all payees ordered by name. */
     List<Payee> findAllByOrderByNameAsc();

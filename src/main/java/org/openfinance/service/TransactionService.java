@@ -113,6 +113,7 @@ public class TransactionService {
     private final SearchTokenService searchTokenService;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
     private final CurrencyConversionHelper currencyConversionHelper;
+    private final AccountCurrencyService accountCurrencyService;
     private final LiabilityRepository liabilityRepository;
     private final LiabilityTrancheRepository liabilityTrancheRepository;
     private final LiabilityTrancheService liabilityTrancheService;
@@ -194,7 +195,7 @@ public class TransactionService {
                 && !request.getPayee().isBlank()) {
             // Name is encrypted — fetch all payees and match in Java
             var payee =
-                    payeeRepository.findAll().stream()
+                    payeeRepository.findAllByUser(userId).stream()
                             .filter(
                                     p ->
                                             p.getName() != null
@@ -223,6 +224,7 @@ public class TransactionService {
         resolveAndLinkCurrency(transaction);
 
         applyConversionFields(transaction, request);
+        accountCurrencyService.book(transaction, userId);
 
         // Encrypt sensitive fields (Requirement 2.18: Encryption at rest)
         encryptSensitiveFields(transaction, request);
@@ -270,10 +272,10 @@ public class TransactionService {
 
         if (request.getType() == TransactionType.INCOME) {
             // INCOME: add to account balance
-            account.setBalance(account.getBalance().add(request.getAmount()));
+            account.setBalance(account.getBalance().add(transaction.getBalanceAmount()));
         } else if (request.getType() == TransactionType.EXPENSE) {
             // EXPENSE: subtract from account balance
-            account.setBalance(account.getBalance().subtract(request.getAmount()));
+            account.setBalance(account.getBalance().subtract(transaction.getBalanceAmount()));
         }
         accountRepository.save(account);
 
@@ -431,24 +433,9 @@ public class TransactionService {
         BigDecimal destAmount = request.getAmount();
 
         if (!sourceCurrency.equalsIgnoreCase(destCurrency)) {
-            try {
-                destAmount =
-                        exchangeRateService.convert(
-                                request.getAmount(), sourceCurrency, destCurrency);
-                log.info(
-                        "Converted transfer amount: {} {} -> {} {}",
-                        request.getAmount(),
-                        sourceCurrency,
-                        destAmount,
-                        destCurrency);
-            } catch (Exception e) {
-                log.warn(
-                        "Failed to convert {} {} to {}: {}. Using original amount.",
-                        request.getAmount(),
-                        sourceCurrency,
-                        destCurrency,
-                        e.getMessage());
-            }
+            destAmount =
+                    exchangeRateService.convert(
+                            request.getAmount(), sourceCurrency, destCurrency, request.getDate());
         }
 
         // Create destination transaction (money entering destination account - INCOME)
@@ -478,6 +465,8 @@ public class TransactionService {
                 destinationTransaction.getDescription());
 
         // Save both transactions atomically
+        accountCurrencyService.book(sourceTransaction, userId);
+        accountCurrencyService.book(destinationTransaction, userId);
         Transaction savedSourceTransaction = transactionRepository.save(sourceTransaction);
         Transaction savedDestinationTransaction =
                 transactionRepository.save(destinationTransaction);
@@ -514,7 +503,8 @@ public class TransactionService {
             }
         }
         // Source account: subtract amount (money leaving)
-        sourceAccount.setBalance(sourceAccount.getBalance().subtract(request.getAmount()));
+        sourceAccount.setBalance(
+                sourceAccount.getBalance().subtract(sourceTransaction.getBalanceAmount()));
         accountRepository.save(sourceAccount);
 
         if (transferDate != null) {
@@ -529,7 +519,8 @@ public class TransactionService {
             }
         }
         // Destination account: add amount (money entering)
-        destAccount.setBalance(destAccount.getBalance().add(destAmount));
+        destAccount.setBalance(
+                destAccount.getBalance().add(destinationTransaction.getBalanceAmount()));
         accountRepository.save(destAccount);
 
         log.info(
@@ -661,7 +652,7 @@ public class TransactionService {
         // Store old values for balance reversal
         Long oldSourceAccountId = sourceTransaction.getAccountId();
         Long oldDestAccountId = destTransaction.getAccountId();
-        BigDecimal oldAmount = sourceTransaction.getAmount();
+        BigDecimal oldAmount = sourceTransaction.getBalanceAmount();
         LocalDate oldTransferDate = sourceTransaction.getDate();
 
         // Validate the update request
@@ -688,7 +679,7 @@ public class TransactionService {
                                         AccountNotFoundException.byIdAndUser(
                                                 oldDestAccountId, userId));
         oldDestAccount.setBalance(
-                oldDestAccount.getBalance().subtract(destTransaction.getAmount()));
+                oldDestAccount.getBalance().subtract(destTransaction.getBalanceAmount()));
         accountRepository.save(oldDestAccount);
 
         // Update source transaction (EXPENSE)
@@ -726,18 +717,9 @@ public class TransactionService {
         BigDecimal destAmount = request.getAmount();
 
         if (!sourceCurrency.equalsIgnoreCase(destCurrency)) {
-            try {
-                destAmount =
-                        exchangeRateService.convert(
-                                request.getAmount(), sourceCurrency, destCurrency);
-            } catch (Exception e) {
-                log.warn(
-                        "Failed to convert {} {} to {}: {}. Using original amount.",
-                        request.getAmount(),
-                        sourceCurrency,
-                        destCurrency,
-                        e.getMessage());
-            }
+            destAmount =
+                    exchangeRateService.convert(
+                            request.getAmount(), sourceCurrency, destCurrency, request.getDate());
         }
 
         // Update destination transaction (INCOME)
@@ -756,16 +738,20 @@ public class TransactionService {
         encryptTransferSensitiveFields(destTransaction, request);
 
         // Save both updated transactions
+        accountCurrencyService.book(sourceTransaction, userId);
+        accountCurrencyService.book(destTransaction, userId);
         Transaction savedSourceTransaction = transactionRepository.save(sourceTransaction);
         Transaction savedDestTransaction = transactionRepository.save(destTransaction);
 
         // Apply new balance changes
         // New source account: subtract the new amount
-        newSourceAccount.setBalance(newSourceAccount.getBalance().subtract(request.getAmount()));
+        newSourceAccount.setBalance(
+                newSourceAccount.getBalance().subtract(sourceTransaction.getBalanceAmount()));
         accountRepository.save(newSourceAccount);
 
         // New destination account: add the new amount
-        newDestAccount.setBalance(newDestAccount.getBalance().add(destAmount));
+        newDestAccount.setBalance(
+                newDestAccount.getBalance().add(destTransaction.getBalanceAmount()));
         accountRepository.save(newDestAccount);
 
         log.info(
@@ -930,7 +916,7 @@ public class TransactionService {
         }
 
         // Store old values for balance adjustment
-        BigDecimal oldAmount = transaction.getAmount();
+        BigDecimal oldAmount = transaction.getBalanceAmount();
         TransactionType oldType = transaction.getType();
         Long oldAccountId = transaction.getAccountId();
         LocalDate oldDate = transaction.getDate();
@@ -966,6 +952,7 @@ public class TransactionService {
         resolveAndLinkCurrency(transaction);
 
         applyConversionFields(transaction, request);
+        accountCurrencyService.book(transaction, userId);
 
         // Re-encrypt sensitive fields (always re-encrypt the provided plaintext values)
         encryptSensitiveFields(transaction, request);
@@ -1014,9 +1001,10 @@ public class TransactionService {
                                             AccountNotFoundException.byIdAndUser(
                                                     request.getAccountId(), userId));
             if (request.getType() == TransactionType.INCOME) {
-                newAccount.setBalance(newAccount.getBalance().add(request.getAmount()));
+                newAccount.setBalance(newAccount.getBalance().add(transaction.getBalanceAmount()));
             } else if (request.getType() == TransactionType.EXPENSE) {
-                newAccount.setBalance(newAccount.getBalance().subtract(request.getAmount()));
+                newAccount.setBalance(
+                        newAccount.getBalance().subtract(transaction.getBalanceAmount()));
             }
             accountRepository.save(newAccount);
         } else {
@@ -1038,9 +1026,9 @@ public class TransactionService {
 
             // Apply new transaction effect
             if (request.getType() == TransactionType.INCOME) {
-                account.setBalance(account.getBalance().add(request.getAmount()));
+                account.setBalance(account.getBalance().add(transaction.getBalanceAmount()));
             } else if (request.getType() == TransactionType.EXPENSE) {
-                account.setBalance(account.getBalance().subtract(request.getAmount()));
+                account.setBalance(account.getBalance().subtract(transaction.getBalanceAmount()));
             }
 
             accountRepository.save(account);
@@ -1165,10 +1153,10 @@ public class TransactionService {
 
                 if (t.getType() == TransactionType.INCOME) {
                     // INCOME deletion: subtract from balance (reverse the addition)
-                    account.setBalance(account.getBalance().subtract(t.getAmount()));
+                    account.setBalance(account.getBalance().subtract(t.getBalanceAmount()));
                 } else if (t.getType() == TransactionType.EXPENSE) {
                     // EXPENSE deletion: add to balance (reverse the subtraction)
-                    account.setBalance(account.getBalance().add(t.getAmount()));
+                    account.setBalance(account.getBalance().add(t.getBalanceAmount()));
                 }
                 accountRepository.save(account);
             }
@@ -1197,10 +1185,10 @@ public class TransactionService {
 
             if (transaction.getType() == TransactionType.INCOME) {
                 // INCOME deletion: subtract from balance
-                account.setBalance(account.getBalance().subtract(transaction.getAmount()));
+                account.setBalance(account.getBalance().subtract(transaction.getBalanceAmount()));
             } else if (transaction.getType() == TransactionType.EXPENSE) {
                 // EXPENSE deletion: add to balance
-                account.setBalance(account.getBalance().add(transaction.getAmount()));
+                account.setBalance(account.getBalance().add(transaction.getBalanceAmount()));
             }
             accountRepository.save(account);
 
@@ -1660,7 +1648,9 @@ public class TransactionService {
         // amount is expressed in the source account's currency (for TRANSFER it's the
         // source).
         String accountCurrency = account.getCurrency();
-        if (accountCurrency != null && !accountCurrency.isBlank()) {
+        if (request.getType() == TransactionType.TRANSFER
+                && accountCurrency != null
+                && !accountCurrency.isBlank()) {
             if (!accountCurrency.equalsIgnoreCase(request.getCurrency())) {
                 throw InvalidTransactionException.currencyMismatch(
                         accountCurrency, request.getCurrency());

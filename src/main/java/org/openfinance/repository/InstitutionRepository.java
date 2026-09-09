@@ -1,6 +1,7 @@
 package org.openfinance.repository;
 
 import java.util.List;
+import java.util.Optional;
 import org.openfinance.entity.Institution;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -14,6 +15,10 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface InstitutionRepository extends JpaRepository<Institution, Long> {
+
+    @Query(
+            "SELECT i FROM Institution i WHERE i.id = :id AND (i.isSystem = true OR i.userId = :userId)")
+    Optional<Institution> findVisibleById(@Param("id") Long id, @Param("userId") Long userId);
 
     /** Find all institutions ordered by country and name. */
     List<Institution> findAllByOrderByCountryAscNameAsc();

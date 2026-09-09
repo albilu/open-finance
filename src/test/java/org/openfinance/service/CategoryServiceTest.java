@@ -411,7 +411,7 @@ class CategoryServiceTest {
         // Act & Assert — circular reference: trying to set self as parent
         assertThatThrownBy(() -> categoryService.updateCategory(USER_ID, CATEGORY_ID, request))
                 .isInstanceOf(InvalidCategoryException.class)
-                .hasMessageContaining("cannot be its own parent");
+                .hasMessageContaining("descendant");
     }
 
     @Test

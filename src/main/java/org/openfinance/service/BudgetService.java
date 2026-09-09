@@ -137,7 +137,7 @@ public class BudgetService {
         Category category = validateCategoryOwnership(request.getCategoryId(), userId);
 
         // Validate no duplicate budget
-        validateNoDuplicateBudget(request.getCategoryId(), request.getPeriod(), userId, null);
+        validateNoDuplicateBudget(request, userId, null);
 
         // Map request to entity
         Budget budget = budgetMapper.toEntity(request);
@@ -213,12 +213,13 @@ public class BudgetService {
         Category category = validateCategoryOwnership(request.getCategoryId(), userId);
 
         // Validate no duplicate budget (exclude current budget)
-        validateNoDuplicateBudget(request.getCategoryId(), request.getPeriod(), userId, budgetId);
+        validateNoDuplicateBudget(request, userId, budgetId);
 
         // Capture snapshot before update for history
         BudgetResponse beforeSnapshot = toResponseWithDecryption(budget, category);
 
         // Update fields from request (only non-null fields will be copied)
+        preservePreviousPeriod(budget, request);
         budgetMapper.updateEntityFromRequest(request, budget);
         budget.setCurrencyId(resolveCurrencyId(budget.getCurrency()));
 
@@ -477,7 +478,7 @@ public class BudgetService {
 
         // Amount already decrypted by JPA converter
         String decryptedAmount = budget.getAmount();
-        BigDecimal budgeted = new BigDecimal(decryptedAmount);
+        BigDecimal budgeted = new BigDecimal(decryptedAmount).add(rolloverAmount(budget));
 
         // Calculate spent amount
         BigDecimal spent =
@@ -803,15 +804,11 @@ public class BudgetService {
         String decryptedAmount = budget.getAmount();
         BigDecimal budgetedPerPeriod = new BigDecimal(decryptedAmount);
 
-        // Build sub-period windows; extend to today for budgets whose fixed end date
-        // is in the past so that ongoing monthly/weekly budgets always cover the
-        // current period rather than stopping at the original creation-time end date.
-        LocalDate effectiveEndDate =
-                budget.getEndDate().isBefore(LocalDate.now())
-                        ? LocalDate.now()
-                        : budget.getEndDate();
+        // A dated budget owns only its explicit interval; following periods have their own records.
         List<LocalDate[]> windows =
-                buildSubPeriodWindows(budget.getPeriod(), budget.getStartDate(), effectiveEndDate);
+                buildSubPeriodWindows(
+                        budget.getPeriod(), budget.getStartDate(), budget.getEndDate());
+        BigDecimal carry = rolloverAmount(budget);
 
         BigDecimal totalSpent = BigDecimal.ZERO;
         BigDecimal totalBudgeted = BigDecimal.ZERO;
@@ -824,29 +821,34 @@ public class BudgetService {
             BigDecimal spent =
                     calculateSpentAmount(
                             category, periodStart, periodEnd, userId, budget.getCurrency());
-            BigDecimal remaining = budgetedPerPeriod.subtract(spent);
+            BigDecimal available = budgetedPerPeriod.add(carry);
+            BigDecimal remaining = available.subtract(spent);
             BigDecimal percentage = BigDecimal.ZERO;
-            if (budgetedPerPeriod.compareTo(BigDecimal.ZERO) > 0) {
+            if (available.compareTo(BigDecimal.ZERO) > 0) {
                 percentage =
-                        spent.divide(budgetedPerPeriod, 4, RoundingMode.HALF_UP)
+                        spent.divide(available, 4, RoundingMode.HALF_UP)
                                 .multiply(BigDecimal.valueOf(100))
                                 .setScale(2, RoundingMode.HALF_UP);
             }
 
             totalSpent = totalSpent.add(spent);
-            totalBudgeted = totalBudgeted.add(budgetedPerPeriod);
+            totalBudgeted = totalBudgeted.add(available);
 
             entries.add(
                     BudgetHistoryEntry.builder()
                             .label(formatPeriodLabel(budget.getPeriod(), periodStart, periodEnd))
                             .periodStart(periodStart)
                             .periodEnd(periodEnd)
-                            .budgeted(budgetedPerPeriod)
+                            .budgeted(available)
                             .spent(spent)
                             .remaining(remaining)
                             .percentageSpent(percentage)
                             .status(determineStatus(percentage))
                             .build());
+            carry =
+                    Boolean.TRUE.equals(budget.getRollover())
+                            ? remaining.max(BigDecimal.ZERO)
+                            : BigDecimal.ZERO;
         }
 
         log.debug(
@@ -1114,14 +1116,16 @@ public class BudgetService {
 
     /** Recursively collects the ID of the given category and all its subcategories. */
     private List<Long> getCategoryAndSubcategoryIds(Category category) {
-        List<Long> ids = new ArrayList<>();
-        ids.add(category.getId());
-        if (category.getSubcategories() != null && !category.getSubcategories().isEmpty()) {
-            for (Category sub : category.getSubcategories()) {
-                ids.addAll(getCategoryAndSubcategoryIds(sub));
+        java.util.Set<Long> ids = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<Category> pending = new java.util.ArrayDeque<>();
+        pending.add(category);
+        while (!pending.isEmpty()) {
+            Category next = pending.removeFirst();
+            if (ids.add(next.getId()) && next.getSubcategories() != null) {
+                pending.addAll(next.getSubcategories());
             }
         }
-        return ids;
+        return new ArrayList<>(ids);
     }
 
     /**
@@ -1255,19 +1259,94 @@ public class BudgetService {
      * @throws IllegalStateException if duplicate budget exists
      */
     private void validateNoDuplicateBudget(
-            Long categoryId, BudgetPeriod period, Long userId, Long excludeBudgetId) {
-        // Check if budget exists (repository returns Optional<Budget>)
-        var existingBudget =
-                budgetRepository.findByUserIdAndCategoryIdAndPeriod(userId, categoryId, period);
+            BudgetRequest request, Long userId, Long excludeBudgetId) {
+        boolean overlaps =
+                budgetRepository.findByUserIdAndCategoryId(userId, request.getCategoryId()).stream()
+                        .filter(b -> b.getPeriod() == request.getPeriod())
+                        .filter(b -> !java.util.Objects.equals(b.getId(), excludeBudgetId))
+                        .anyMatch(
+                                b ->
+                                        !b.getEndDate().isBefore(request.getStartDate())
+                                                && !b.getStartDate().isAfter(request.getEndDate()));
+        if (overlaps)
+            throw new IllegalStateException(
+                    "Budget already exists for this category and date interval");
+    }
 
-        // If budget exists and it's not the one we're updating, throw error
-        if (existingBudget.isPresent()) {
-            if (excludeBudgetId == null || !existingBudget.get().getId().equals(excludeBudgetId)) {
-                throw new IllegalStateException(
-                        String.format(
-                                "Budget already exists for this category with period %s", period));
+    private BigDecimal rolloverAmount(Budget current) {
+        List<Budget> periods =
+                budgetRepository
+                        .findByUserIdAndCategoryId(current.getUserId(), current.getCategoryId())
+                        .stream()
+                        .filter(
+                                b ->
+                                        b.getPeriod() == current.getPeriod()
+                                                && b.getEndDate().isBefore(current.getStartDate()))
+                        .sorted(java.util.Comparator.comparing(Budget::getStartDate))
+                        .toList();
+        BigDecimal carry = BigDecimal.ZERO;
+        Budget previous = null;
+        for (Budget period : periods) {
+            if (previous == null
+                    || !previous.getEndDate().plusDays(1).equals(period.getStartDate())) {
+                carry = BigDecimal.ZERO;
+            } else if (carry.signum() != 0
+                    && !previous.getCurrency().equals(period.getCurrency())) {
+                carry =
+                        exchangeRateService.convert(
+                                carry,
+                                previous.getCurrency(),
+                                period.getCurrency(),
+                                previous.getEndDate());
             }
+            Category category =
+                    categoryRepository
+                            .findByIdAndUserId(period.getCategoryId(), current.getUserId())
+                            .orElseThrow();
+            BigDecimal spent =
+                    calculateSpentAmount(
+                            category,
+                            period.getStartDate(),
+                            period.getEndDate(),
+                            current.getUserId(),
+                            period.getCurrency());
+            carry =
+                    Boolean.TRUE.equals(period.getRollover())
+                            ? new BigDecimal(period.getAmount())
+                                    .add(carry)
+                                    .subtract(spent)
+                                    .max(BigDecimal.ZERO)
+                            : BigDecimal.ZERO;
+            previous = period;
         }
+        if (previous == null || !previous.getEndDate().plusDays(1).equals(current.getStartDate()))
+            return BigDecimal.ZERO;
+        return previous.getCurrency().equals(current.getCurrency())
+                ? carry
+                : exchangeRateService.convert(
+                        carry,
+                        previous.getCurrency(),
+                        current.getCurrency(),
+                        previous.getEndDate());
+    }
+
+    private void preservePreviousPeriod(Budget budget, BudgetRequest request) {
+        if (!request.getCategoryId().equals(budget.getCategoryId())
+                || request.getPeriod() != budget.getPeriod()
+                || !request.getStartDate().isAfter(budget.getEndDate())) return;
+        budgetRepository.save(
+                Budget.builder()
+                        .userId(budget.getUserId())
+                        .categoryId(budget.getCategoryId())
+                        .amount(budget.getAmount())
+                        .currency(budget.getCurrency())
+                        .currencyId(budget.getCurrencyId())
+                        .period(budget.getPeriod())
+                        .startDate(budget.getStartDate())
+                        .endDate(budget.getEndDate())
+                        .rollover(budget.getRollover())
+                        .notes(budget.getNotes())
+                        .build());
     }
 
     /**

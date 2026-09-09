@@ -42,7 +42,7 @@ services:
       APPLICATION_LOGO_FETCH_ENABLED: "${APPLICATION_LOGO_FETCH_ENABLED:-true}"
       APPLICATION_LIVE_DEMO_ENABLED: "${APPLICATION_LIVE_DEMO_ENABLED:-true}"
     volumes:
-      - ./data:/app/data
+      - open_finance_data:/app/data
       - open_finance_attachments:/app/attachments
       - open_finance_logs:/app/logs
       - open_finance_backups:/app/backups
@@ -102,7 +102,7 @@ services:
       - "127.0.0.1:${SEARXNG_PORT:-8888}:8080"
     volumes:
       - "./searxng/config:/etc/searxng:rw"
-      - "./data:/var/cache/searxng:rw"
+      - searxng_cache:/var/cache/searxng:rw
     logging:
       driver: "json-file"
       options:
@@ -119,6 +119,8 @@ services:
       - open-finance-network
 
 volumes:
+  open_finance_data:
+  searxng_cache:
   ollama_data:
   open_finance_attachments:
   open_finance_logs:

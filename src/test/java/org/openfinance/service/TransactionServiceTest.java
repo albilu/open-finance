@@ -64,6 +64,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @DisplayName("TransactionService Unit Tests")
 class TransactionServiceTest {
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private TransactionRepository transactionRepository;
 
     @Mock private AccountRepository accountRepository;
@@ -742,7 +744,7 @@ class TransactionServiceTest {
                         .build();
 
         when(transactionMapper.toEntity(transferRequest))
-                .thenReturn(Transaction.builder().build(), Transaction.builder().build());
+                .thenAnswer(i -> transactionEntity(null, null, i.getArgument(0)));
 
         when(transactionRepository.save(any(Transaction.class)))
                 .thenAnswer(
@@ -774,9 +776,9 @@ class TransactionServiceTest {
 
         // Verify balances updated correctly
         assertThat(sourceAccount.getBalance())
-                .isEqualTo(sourceInitialBalance.subtract(transferRequest.getAmount()));
+                .isEqualByComparingTo(sourceInitialBalance.subtract(transferRequest.getAmount()));
         assertThat(destAccount.getBalance())
-                .isEqualTo(destInitialBalance.add(transferRequest.getAmount()));
+                .isEqualByComparingTo(destInitialBalance.add(transferRequest.getAmount()));
     }
 
     @Test
@@ -803,7 +805,7 @@ class TransactionServiceTest {
 
         // Return new Transaction each time (service will modify them)
         when(transactionMapper.toEntity(any(TransactionRequest.class)))
-                .thenAnswer(inv -> Transaction.builder().build());
+                .thenAnswer(inv -> transactionEntity(null, null, inv.getArgument(0)));
 
         // Capture arguments to repository.save() for verification
         ArgumentCaptor<Transaction> transactionCaptor = ArgumentCaptor.forClass(Transaction.class);
@@ -938,7 +940,7 @@ class TransactionServiceTest {
         when(accountRepository.findByIdAndUserId(10L, userId))
                 .thenReturn(Optional.of(sourceAccount));
         when(accountRepository.findByIdAndUserId(20L, userId)).thenReturn(Optional.of(destAccount));
-        when(exchangeRateService.convert(amount, sourceCurrency, destCurrency))
+        when(exchangeRateService.convert(amount, sourceCurrency, destCurrency, request.getDate()))
                 .thenReturn(precisionAmount);
 
         // Mock intermediate calls
@@ -1643,7 +1645,7 @@ class TransactionServiceTest {
         saved.setCategoryId(7L);
 
         when(accountRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(acc));
-        when(payeeRepository.findAll()).thenReturn(List.of(payee));
+        when(payeeRepository.findAllByUser(1L)).thenReturn(List.of(payee));
         when(categoryRepository.findByIdAndUserId(7L, 1L)).thenReturn(Optional.of(defaultCategory));
         when(transactionMapper.toEntity(any(TransactionRequest.class))).thenReturn(mapped);
         when(transactionRepository.save(any(Transaction.class))).thenReturn(saved);
@@ -1657,7 +1659,7 @@ class TransactionServiceTest {
         assertThat(resp).isNotNull();
         // The categoryId should have been auto-filled from the payee's default category
         assertThat(req.getCategoryId()).isEqualTo(7L);
-        verify(payeeRepository).findAll();
+        verify(payeeRepository).findAllByUser(1L);
     }
 
     @Test
@@ -1716,7 +1718,7 @@ class TransactionServiceTest {
         Transaction saved = transactionEntity(103L, 3L, req);
 
         when(accountRepository.findByIdAndUserId(10L, 3L)).thenReturn(Optional.of(acc));
-        when(payeeRepository.findAll()).thenReturn(List.of(payeeWithoutCategory));
+        when(payeeRepository.findAllByUser(3L)).thenReturn(List.of(payeeWithoutCategory));
         when(transactionMapper.toEntity(any(TransactionRequest.class))).thenReturn(mapped);
         when(transactionRepository.save(any(Transaction.class))).thenReturn(saved);
         when(accountRepository.save(any(Account.class))).thenReturn(acc);
@@ -1727,7 +1729,7 @@ class TransactionServiceTest {
 
         // Assert — payee was found but had no default category, so categoryId remains
         // null
-        verify(payeeRepository).findAll();
+        verify(payeeRepository).findAllByUser(3L);
         assertThat(req.getCategoryId()).isNull();
     }
 

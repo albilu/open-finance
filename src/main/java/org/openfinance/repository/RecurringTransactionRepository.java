@@ -121,7 +121,7 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
      * @return list of due recurring transactions, empty list if none found
      */
     @Query(
-            "SELECT r FROM RecurringTransaction r WHERE r.isActive = true AND r.nextOccurrence <= :asOfDate AND (r.endDate IS NULL OR r.endDate >= :asOfDate) ORDER BY r.nextOccurrence ASC")
+            "SELECT r FROM RecurringTransaction r WHERE r.isActive = true AND r.nextOccurrence <= :asOfDate AND (r.endDate IS NULL OR r.endDate >= r.nextOccurrence) ORDER BY r.nextOccurrence ASC")
     List<RecurringTransaction> findDueRecurringTransactions(@Param("asOfDate") LocalDate asOfDate);
 
     /**
@@ -135,7 +135,7 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
      * @return list of due recurring transactions for user, empty list if none found
      */
     @Query(
-            "SELECT r FROM RecurringTransaction r WHERE r.userId = :userId AND r.isActive = true AND r.nextOccurrence <= :asOfDate AND (r.endDate IS NULL OR r.endDate >= :asOfDate) ORDER BY r.nextOccurrence ASC")
+            "SELECT r FROM RecurringTransaction r WHERE r.userId = :userId AND r.isActive = true AND r.nextOccurrence <= :asOfDate AND (r.endDate IS NULL OR r.endDate >= r.nextOccurrence) ORDER BY r.nextOccurrence ASC")
     List<RecurringTransaction> findDueRecurringTransactionsByUserId(
             @Param("userId") Long userId, @Param("asOfDate") LocalDate asOfDate);
 
@@ -222,9 +222,9 @@ public interface RecurringTransactionRepository extends JpaRepository<RecurringT
     /**
      * Find recurring transactions with optional filters.
      *
-     * <p>Supports filtering by type, frequency, isActive, and accountId (matches either the
-     * source or destination account, to include transfers). Search by description is handled in
-     * the service layer due to encryption.
+     * <p>Supports filtering by type, frequency, isActive, and accountId (matches either the source
+     * or destination account, to include transfers). Search by description is handled in the
+     * service layer due to encryption.
      *
      * @param userId the user ID
      * @param type optional type filter

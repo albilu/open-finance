@@ -72,6 +72,8 @@ class TransactionLiabilitySyncTest {
     private static final Long TX_ID = 100L;
     private static final Long TRANCHE_ID = 400L;
 
+    @Mock private AccountCurrencyService accountCurrencyService;
+
     @Mock private TransactionRepository transactionRepository;
     @Mock private AccountRepository accountRepository;
     @Mock private CategoryRepository categoryRepository;

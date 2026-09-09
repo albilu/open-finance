@@ -60,6 +60,7 @@ public class MasterPasswordServiceImpl implements MasterPasswordService {
             throw new BadCredentialsException("Master password changed; sign in again");
         if (user.getMasterPasswordVerifier() != null) {
             verifySentinel(user.getMasterPasswordVerifier(), key);
+            userData.protectLegacyPayloads(user.getId(), key);
             return;
         }
         try {
@@ -72,6 +73,7 @@ public class MasterPasswordServiceImpl implements MasterPasswordService {
                 encryption.encrypt(VERIFIER, key),
                 user.getId(),
                 user.getMasterPasswordSalt());
+        userData.protectLegacyPayloads(user.getId(), key);
     }
 
     /** The write lock remains held through commit and session replacement. */

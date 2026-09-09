@@ -65,6 +65,11 @@ class TransactionControllerTest {
     private Long transactionId1;
     private Long transactionId2;
 
+    @org.junit.jupiter.api.AfterEach
+    void releaseSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @BeforeEach
     void setUp() throws Exception {
         databaseCleanupService.execute();

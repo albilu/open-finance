@@ -109,6 +109,31 @@ public class EncryptedUserDataServiceImpl implements EncryptedUserDataService {
     /**
      * Legacy users have no sentinel yet; authenticate every encrypted value before enrolling one.
      */
+    public void protectLegacyPayloads(Long userId, SecretKey key) {
+        if (key == null) return;
+        for (Map.Entry<String, String> field :
+                Map.of("import_sessions", "metadata", "real_estate_simulations", "data")
+                        .entrySet()) {
+            for (Map<String, Object> row : rows(field.getKey(), userId)) {
+                Object value = row.get(field.getValue());
+                if (value instanceof String plain && !looksEncrypted(plain)) {
+                    jdbc.update(
+                            "UPDATE "
+                                    + identifier(field.getKey())
+                                    + " SET "
+                                    + identifier(field.getValue())
+                                    + " = ? WHERE id = ? AND user_id = ? AND "
+                                    + identifier(field.getValue())
+                                    + " = ?",
+                            encryption.encrypt(plain, key),
+                            row.get("id"),
+                            userId,
+                            plain);
+                }
+            }
+        }
+    }
+
     public void verifyLegacyKey(Long userId, SecretKey key) {
         for (Map.Entry<String, List<String>> table : columns.entrySet()) {
             for (Map<String, Object> row : rows(table.getKey(), userId)) {

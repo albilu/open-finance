@@ -129,6 +129,7 @@ public class ImportService {
     private final PayeeRepository payeeRepository;
     private final DefaultCurrencyProvider defaultCurrencyProvider;
     private final ImportProperties importProperties;
+    private final AccountCurrencyService accountCurrencyService;
 
     /**
      * Lazily-resolved executor used to run import confirmation on a background thread. Injected as
@@ -273,7 +274,8 @@ public class ImportService {
 
             // Parse based on format
             List<ImportedTransaction> transactions;
-            BigDecimal ledgerBalance = BigDecimal.ZERO;
+            BigDecimal ledgerBalance = null;
+            Map<String, BigDecimal> ledgerBalances = Map.of();
             String fileCurrency = defaultCurrencyProvider.getDefaultCurrency();
             try {
                 User user = userRepository.findById(session.getUserId()).orElse(null);
@@ -303,6 +305,7 @@ public class ImportService {
                     transactions = ofxResult.getTransactions();
                     if (ofxResult.getLedgerBalance() != null) {
                         ledgerBalance = ofxResult.getLedgerBalance();
+                        ledgerBalances = ofxResult.getLedgerBalances();
                     }
                     if (ofxResult.getCurrency() != null) {
                         fileCurrency = ofxResult.getCurrency();
@@ -400,7 +403,13 @@ public class ImportService {
             // Note: In production, consider storing in separate table for large imports
             if (!"JSON".equalsIgnoreCase(session.getFileFormat())) {
                 session.setMetadata(
-                        serializeTransactions(transactions, ledgerBalance, fileCurrency));
+                        serializeTransactions(
+                                transactions,
+                                ledgerBalance,
+                                fileCurrency,
+                                Map.of(
+                                        "ledgerBalances",
+                                        ledgerBalances == null ? Map.of() : ledgerBalances)));
             }
 
             importSessionRepository.save(session);
@@ -469,14 +478,14 @@ public class ImportService {
         // Persist the rule-enriched transactions back to the session metadata so that
         // confirmImport() sees the tags/category values set by ADD_TAG / SET_CATEGORY
         // actions. Without this, the enriched state is discarded after the review call.
-        BigDecimal ledgerBalance = BigDecimal.ZERO;
+        BigDecimal ledgerBalance = null;
         String fileCurrency = defaultCurrencyProvider.getDefaultCurrency();
         if (session.getMetadata() != null && !session.getMetadata().trim().isEmpty()) {
             try {
                 Map<String, Object> metadataMap =
                         objectMapper.readValue(
                                 session.getMetadata(), new TypeReference<Map<String, Object>>() {});
-                if (metadataMap.containsKey("ledgerBalance")) {
+                if (metadataMap.get("ledgerBalance") != null) {
                     ledgerBalance = new BigDecimal(metadataMap.get("ledgerBalance").toString());
                 }
                 if (metadataMap.containsKey("fileCurrency")
@@ -565,7 +574,7 @@ public class ImportService {
         detectDuplicates(transactions, session.getAccountId(), session.getFileFormat(), userId);
 
         // Preserve existing ledgerBalance and fileCurrency in metadata
-        BigDecimal ledgerBalance = BigDecimal.ZERO;
+        BigDecimal ledgerBalance = null;
         String fileCurrency = defaultCurrencyProvider.getDefaultCurrency();
         try {
             User user = userRepository.findById(session.getUserId()).orElse(null);
@@ -580,7 +589,7 @@ public class ImportService {
                 Map<String, Object> metadataMap =
                         objectMapper.readValue(
                                 session.getMetadata(), new TypeReference<Map<String, Object>>() {});
-                if (metadataMap.containsKey("ledgerBalance")) {
+                if (metadataMap.get("ledgerBalance") != null) {
                     ledgerBalance = new BigDecimal(metadataMap.get("ledgerBalance").toString());
                 }
                 if (metadataMap.containsKey("fileCurrency")
@@ -645,13 +654,13 @@ public class ImportService {
      */
     @Transactional
     public ImportSession markImporting(Long sessionId, Long userId) {
+        int claimed = importSessionRepository.claimConfirmation(sessionId, userId);
         ImportSession session = getSessionForUser(sessionId, userId);
-        if (!session.isConfirmable()) {
+        if (claimed != 1) {
             throw new IllegalStateException(
                     "Session cannot be confirmed. Current status: " + session.getStatus());
         }
-        session.setStatus(ImportStatus.IMPORTING);
-        return importSessionRepository.save(session);
+        return session;
     }
 
     /**
@@ -667,6 +676,7 @@ public class ImportService {
                 .findById(sessionId)
                 .ifPresent(
                         session -> {
+                            if (session.isTerminal()) return;
                             session.setStatus(ImportStatus.FAILED);
                             session.setErrorMessage(truncate(errorMessage, 1000));
                             session.setCompletedAt(LocalDateTime.now());
@@ -699,6 +709,10 @@ public class ImportService {
                 accountId,
                 skipDuplicates);
 
+        if (importSessionRepository.beginConfirmationExecution(sessionId, userId) != 1) {
+            throw new IllegalStateException(
+                    "Import has already been started or is no longer confirmable");
+        }
         ImportSession session = getSessionForUser(sessionId, userId);
 
         // Accept IMPORTING as well: startConfirmImport() flips the status to IMPORTING
@@ -724,7 +738,7 @@ public class ImportService {
         // or auto-create a new account from the session's suggestedAccountName.
         Long resolvedAccountId = accountId != null ? accountId : session.getAccountId();
         if (resolvedAccountId == null) {
-            BigDecimal ledgerBalance = BigDecimal.ZERO;
+            BigDecimal ledgerBalance = null;
             String fileCurrency = defaultCurrencyProvider.getDefaultCurrency();
             try {
                 User user = userRepository.findById(session.getUserId()).orElse(null);
@@ -740,7 +754,7 @@ public class ImportService {
                             objectMapper.readValue(
                                     session.getMetadata(),
                                     new TypeReference<Map<String, Object>>() {});
-                    if (metadataMap.containsKey("ledgerBalance")) {
+                    if (metadataMap.get("ledgerBalance") != null) {
                         ledgerBalance = new BigDecimal(metadataMap.get("ledgerBalance").toString());
                     }
                     if (metadataMap.containsKey("fileCurrency")
@@ -758,7 +772,7 @@ public class ImportService {
             // transactions
             // so that recalculateBalance (openingBalance + income - expenses) =
             // ledgerBalance.
-            if (ledgerBalance.compareTo(BigDecimal.ZERO) != 0) {
+            if (ledgerBalance != null) {
                 List<ImportedTransaction> parsedTxs =
                         deserializeTransactions(session.getMetadata());
                 BigDecimal transactionNet =
@@ -778,7 +792,11 @@ public class ImportService {
                 ledgerBalance = ledgerBalance.subtract(transactionNet);
             }
             resolvedAccountId =
-                    createAccountForImport(userId, session, ledgerBalance, fileCurrency);
+                    createAccountForImport(
+                            userId,
+                            session,
+                            ledgerBalance == null ? BigDecimal.ZERO : ledgerBalance,
+                            fileCurrency);
         }
         final Long targetAccountId = resolvedAccountId;
 
@@ -875,6 +893,7 @@ public class ImportService {
                     Transaction transaction =
                             convertToTransaction(
                                     importedTx, targetAccountId, userId, categoryMappings);
+                    accountCurrencyService.book(transaction, userId);
                     Transaction saved = transactionRepository.save(transaction);
                     // Save splits if present (REQ-SPL)
                     if (importedTx.isSplitTransaction()) {
@@ -1728,6 +1747,7 @@ public class ImportService {
                                 userId,
                                 categoryMappings,
                                 categoryIdsBySource);
+                accountCurrencyService.book(transaction, userId);
                 Transaction saved = transactionRepository.save(transaction);
                 if (importedTx.isSplitTransaction()) {
                     List<TransactionSplitRequest> splitRequests =
@@ -1838,6 +1858,7 @@ public class ImportService {
         List<Transaction> savedTransactions = new ArrayList<>();
         try {
             for (Transaction transaction : transactionsToSave) {
+                accountCurrencyService.book(transaction, userId);
                 savedTransactions.add(transactionRepository.save(transaction));
             }
         } catch (RuntimeException ex) {
@@ -1910,6 +1931,7 @@ public class ImportService {
         descriptorSource.addAll(openingBalanceTxs);
         Map<String, ImportedAccountDescriptor> descriptorsByKey =
                 collectImportedAccounts(descriptorSource, fileCurrency);
+        applyStatementOpeningBalances(descriptorsByKey, toImport, session.getMetadata());
         Map<String, Long> accountIdsByKey =
                 ensureImportedAccounts(descriptorsByKey, fallbackAccount, userId);
 
@@ -2012,6 +2034,7 @@ public class ImportService {
 
                 Transaction transaction =
                         convertToTransaction(importedTx, sourceAccountId, userId, categoryMappings);
+                accountCurrencyService.book(transaction, userId);
                 Transaction saved = transactionRepository.save(transaction);
                 if (importedTx.isSplitTransaction()) {
                     List<TransactionSplitRequest> splitRequests =
@@ -2297,6 +2320,49 @@ public class ImportService {
             }
         }
         return null;
+    }
+
+    private void applyStatementOpeningBalances(
+            Map<String, ImportedAccountDescriptor> descriptors,
+            List<ImportedTransaction> transactions,
+            String metadata) {
+        if (metadata == null || !metadata.contains("\"ledgerBalances\"")) return;
+        try {
+            com.fasterxml.jackson.databind.JsonNode balances =
+                    objectMapper.readTree(metadata).path("ledgerBalances");
+            for (Map.Entry<String, ImportedAccountDescriptor> entry : descriptors.entrySet()) {
+                ImportedAccountDescriptor descriptor = entry.getValue();
+                String statementId =
+                        descriptor.accountNumber() == null
+                                ? descriptor.name()
+                                : descriptor.accountNumber();
+                if (statementId == null || !balances.hasNonNull(statementId)) continue;
+                BigDecimal closing = balances.get(statementId).decimalValue();
+                BigDecimal net =
+                        transactions.stream()
+                                .filter(
+                                        tx ->
+                                                entry.getKey()
+                                                        .equals(
+                                                                buildImportedAccountKey(
+                                                                        tx.getAccountName(),
+                                                                        tx.getAccountNumber())))
+                                .map(ImportedTransaction::getAmount)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                entry.setValue(
+                        new ImportedAccountDescriptor(
+                                descriptor.key(),
+                                descriptor.name(),
+                                descriptor.accountNumber(),
+                                descriptor.currency(),
+                                descriptor.openingDate(),
+                                descriptor.qifAccountType(),
+                                descriptor.institutionName(),
+                                closing.subtract(net)));
+            }
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Invalid import metadata", e);
+        }
     }
 
     private boolean shouldUseImportedAccountRouting(List<ImportedTransaction> transactions) {

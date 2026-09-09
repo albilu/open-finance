@@ -238,20 +238,21 @@ public class DataExportService {
     private List<Map<String, Object>> exportTransactions(Long userId, DataExportRequest request) {
         List<Transaction> transactions;
 
-        if (request.getStartDate() != null && request.getEndDate() != null) {
-            transactions =
-                    transactionRepository.findByUserIdAndDateBetween(
-                            userId, request.getStartDate(), request.getEndDate());
-        } else {
-            transactions = transactionRepository.findByUserId(userId);
-        }
-
-        if (!request.isIncludeDeleted()) {
-            transactions =
-                    transactions.stream()
-                            .filter(t -> !t.getIsDeleted())
-                            .collect(Collectors.toList());
-        }
+        transactions =
+                transactionRepository.findAllForExport(userId).stream()
+                        .filter(
+                                t ->
+                                        request.isIncludeDeleted()
+                                                || !Boolean.TRUE.equals(t.getIsDeleted()))
+                        .filter(
+                                t ->
+                                        request.getStartDate() == null
+                                                || !t.getDate().isBefore(request.getStartDate()))
+                        .filter(
+                                t ->
+                                        request.getEndDate() == null
+                                                || !t.getDate().isAfter(request.getEndDate()))
+                        .toList();
 
         return transactions.stream()
                 .map(

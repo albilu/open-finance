@@ -307,10 +307,8 @@ class BudgetServiceAnalyzeTest {
         // Mock the repository calls that createBudget uses
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory1));
         when(categoryRepository.findByIdAndUserId(2L, 1L)).thenReturn(Optional.of(testCategory2));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.empty());
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 2L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.empty());
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L)).thenReturn(List.of());
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 2L)).thenReturn(List.of());
         when(budgetRepository.save(any(Budget.class))).thenReturn(budget1, budget2);
         when(budgetMapper.toEntity(any(BudgetRequest.class))).thenReturn(budget1, budget2);
         when(budgetMapper.toResponse(any(Budget.class))).thenReturn(response1, response2);
@@ -343,11 +341,17 @@ class BudgetServiceAnalyzeTest {
 
         List<BudgetRequest> requests = Arrays.asList(request);
 
-        Budget existingBudget = Budget.builder().id(999L).build();
+        Budget existingBudget =
+                Budget.builder()
+                        .id(999L)
+                        .period(BudgetPeriod.MONTHLY)
+                        .startDate(LocalDate.of(2026, 1, 1))
+                        .endDate(LocalDate.of(2026, 12, 31))
+                        .build();
 
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory1));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.of(existingBudget)); // Duplicate exists
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L))
+                .thenReturn(List.of(existingBudget)); // Duplicate exists
 
         // When
         BudgetBulkCreateResponse response = budgetService.bulkCreateBudgets(1L, requests);
@@ -378,8 +382,7 @@ class BudgetServiceAnalyzeTest {
         List<BudgetRequest> requests = Arrays.asList(request);
 
         when(categoryRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(testCategory1));
-        when(budgetRepository.findByUserIdAndCategoryIdAndPeriod(1L, 1L, BudgetPeriod.MONTHLY))
-                .thenReturn(Optional.empty());
+        when(budgetRepository.findByUserIdAndCategoryId(1L, 1L)).thenReturn(List.of());
         when(budgetMapper.toEntity(any(BudgetRequest.class)))
                 .thenThrow(new RuntimeException("Database error"));
 

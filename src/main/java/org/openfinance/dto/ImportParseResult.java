@@ -19,6 +19,9 @@ public class ImportParseResult {
     /** The starting or closing ledger balance declared in the file, if any. */
     private BigDecimal ledgerBalance;
 
+    /** Closing balances indexed by statement account number, including explicit zero values. */
+    @Builder.Default private java.util.Map<String, BigDecimal> ledgerBalances = java.util.Map.of();
+
     /**
      * The global currency declared in the file, used as fallback when individual transactions omit
      * currency.

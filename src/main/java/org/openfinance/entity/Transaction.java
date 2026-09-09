@@ -151,6 +151,18 @@ public class Transaction {
     @Convert(converter = EncryptedBigDecimalConverter.class)
     private BigDecimal amount;
 
+    /** Contribution in the account's current units; original amount/currency remain unchanged. */
+    @Column(name = "account_amount", length = 512)
+    @Convert(converter = EncryptedBigDecimalConverter.class)
+    private BigDecimal accountAmount;
+
+    @Column(name = "account_currency", length = 3)
+    private String accountCurrency;
+
+    public BigDecimal getBalanceAmount() {
+        return accountAmount == null ? amount : accountAmount;
+    }
+
     /**
      * Currency code in ISO 4217 format (e.g., "USD", "EUR", "GBP").
      *

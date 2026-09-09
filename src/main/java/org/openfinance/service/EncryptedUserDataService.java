@@ -14,6 +14,8 @@ public interface EncryptedUserDataService {
 
     void verifyLegacyKey(Long userId, SecretKey key);
 
+    void protectLegacyPayloads(Long userId, SecretKey key);
+
     void rotate(Long userId, SecretKey sourceKey, SecretKey targetKey);
 
     void rebuildSearchTokens(Long userId, SecretKey key);

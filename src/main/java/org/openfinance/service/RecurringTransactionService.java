@@ -702,12 +702,7 @@ public class RecurringTransactionService {
         for (RecurringTransaction recurringTransaction : dueRecurringTransactions) {
             try {
                 // Process this recurring transaction
-                if (occurrenceService.post(
-                        recurringTransaction.getId(),
-                        recurringTransaction.getUserId(),
-                        recurringTransaction.getNextOccurrence())) {
-                    processedCount++;
-                }
+                processedCount += postBacklog(recurringTransaction, today);
             } catch (Exception e) {
                 failedCount++;
                 String errorMsg =
@@ -765,12 +760,7 @@ public class RecurringTransactionService {
 
         for (RecurringTransaction recurringTransaction : dueRecurringTransactions) {
             try {
-                if (occurrenceService.post(
-                        recurringTransaction.getId(),
-                        recurringTransaction.getUserId(),
-                        recurringTransaction.getNextOccurrence())) {
-                    processedCount++;
-                }
+                processedCount += postBacklog(recurringTransaction, today);
             } catch (Exception e) {
                 failedCount++;
                 String errorMsg =
@@ -789,6 +779,20 @@ public class RecurringTransactionService {
                 failedCount);
 
         return new ProcessingResult(processedCount, failedCount, errors);
+    }
+
+    private int postBacklog(RecurringTransaction template, LocalDate today) {
+        int count = 0;
+        while (count < 1000
+                && !template.getNextOccurrence().isAfter(today)
+                && (template.getEndDate() == null
+                        || !template.getNextOccurrence().isAfter(template.getEndDate()))) {
+            if (!occurrenceService.post(
+                    template.getId(), template.getUserId(), template.getNextOccurrence())) break;
+            count++;
+            template.setNextOccurrence(template.calculateNextOccurrence());
+        }
+        return count;
     }
 
     // ===== Private Helper Methods =====
